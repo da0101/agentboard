@@ -92,13 +92,26 @@ Parallelize:
 - Specialist B: security / code review pass (for anything security-sensitive)
 - Specialist C: real-browser QA (for UI changes)
 
-Then append **one line** to `.platform/log.md`:
+Then **learn in three layers:**
 
+**Layer 1 — Log (always):** append one line to `.platform/log.md`:
 ```
 YYYY-MM-DD — <task> — <outcome> — <takeaway>
 ```
 
-If the task produced a stable cross-session insight, update persistent memory (if your agent has it).
+**Layer 2 — Learnings (if bug was non-obvious):** if the root cause required >10 min to diagnose OR depended on internal behavior that isn't self-evident from the code, append an entry to `.platform/learnings.md` using the L-NNN format:
+```
+## L-NNN — <short title>
+Date: YYYY-MM-DD | Repo: <repo>
+Symptom: <what the developer/user sees>
+Root cause: <the actual reason>
+Fix: <what was changed and where>
+Class: <category — for grep>
+```
+
+**Layer 3 — Memory (if architectural):** if the insight is a stable cross-session invariant (a new pattern, a recurring gotcha, an API contract), update `memory/MEMORY.md` or a topic file under `memory/`.
+
+**Bug investigation rule:** before diagnosing any non-obvious bug, grep `.platform/learnings.md` for the symptom keyword first. Don't re-diagnose a known class of problem.
 
 **Exit:** task is done, recorded, and learned from.
 

@@ -58,6 +58,7 @@ These are **big files**. Read only when your task is deep enough to need them.
 | Session history | `log.md` |
 | Per-repo deep reference | `{repo-slug}.md` (if multi-repo) |
 | Deferred issues / tech debt | `BACKLOG.md` — **do not load at session start**; read only when user asks or you are appending a new entry |
+| Bug post-mortems / hard-won patterns | `learnings.md` — **do not load at session start**; grep before diagnosing non-obvious bugs; append in Stage 6 when root cause was non-obvious |
 
 ## Step 5 — Claim your session (if parallel sessions are possible)
 
