@@ -25,6 +25,26 @@ For every non-trivial task, state inline in chat:
 
 Trivial tasks (typo fix, rename, 1-line config change) skip directly to Stage 5.
 
+### 1b. Register (mandatory for non-trivial tasks)
+
+**Before doing anything else** — research, proposals, code — register the workstream:
+
+1. **Check `work/ACTIVE.md`** — does this stream already exist? If yes, load the stream file and continue from where it left off. Do not create a duplicate.
+2. **Check `.platform/domains/`** — does a domain file exist for **this specific concern**?
+   - Ask: "Does an existing domain file fully describe the cross-repo touch-points for THIS concern (which files in which repos, what the API contract is, what breaks if this changes)?" A related-but-different domain file does NOT count.
+   - If **yes and it's accurate**: read it, verify it's current, update if stale.
+   - If **no, or the existing file only partially covers it**: create `.platform/domains/<name>.md` with the cross-layer touch-point inventory. Create it NOW, before the stream file.
+   - **Common trap:** finding a domain file for a nearby feature (e.g. `menu-builder.md`) and treating it as sufficient for a different concern (e.g. subdomain routing). These are separate concerns and require separate domain files.
+3. **Create `work/<stream-slug>.md`** from `work/TEMPLATE.md` — fill in type, scope, done criteria, next action.
+4. **Add a row to `work/ACTIVE.md`** — slug / type / in-progress / agent / date.
+5. **Update `work/BRIEF.md`** — set primary stream to this task; add domain file under "Relevant context".
+
+**Why this is non-negotiable:** if the context is cleared, the computer restarts, or a different agent picks up the work, the stream file is the only way to resume. Zero registration = zero traceability = zero resumability. A workstream without a domain file has no focused context for the next agent.
+
+Full protocol: `conventions/work-tracking.md` § "Starting a new workstream".
+
+**Exit:** domain file exists, stream file exists, `ACTIVE.md` has the row, `BRIEF.md` is current.
+
 ### 2. Interview
 
 **Only if requirements are ambiguous.** Ask 2–5 targeted questions. Do not ask "is my plan ready?" — use the plan-approval tool for that.
@@ -61,6 +81,8 @@ Write the code. Atomic commits per logical chunk. Max ~300 lines per file.
 
 For specialist work, delegate to the appropriate skill from `repos.md`.
 
+**Backlog rule:** When you encounter a real limitation, tech debt item, or missing feature that is out of scope for the current task — do NOT fix it, do NOT open a new work stream. Append one row to `.platform/BACKLOG.md` (priority / area / description / found-during / date) and continue. Priority guide: `high` = causes user-visible bugs or data loss at scale / `medium` = degrades UX or requires workaround / `low` = nice-to-have or edge case.
+
 **Exit:** code is written, tests pass locally.
 
 ### 6. Verify + Learn
@@ -84,7 +106,7 @@ If the task produced a stable cross-session insight, update persistent memory (i
 
 ## Hard rules
 
-1. **No `.md` artifacts for plans.** Plans live in chat. Only write `.md` files when they're genuinely reusable (specs, docs, conventions).
+1. **No `.md` artifacts for plans.** Plans live in chat. Only write `.md` files when they're genuinely reusable (specs, docs, conventions). **`work/` stream files are the exception — they are mandatory operational state, not plan documents. Always create them (Stage 1b) before starting non-trivial work.**
 2. **Max ~300 lines per file.** Extract components before hitting the limit.
 3. **Trivial tasks skip to Stage 5.** Don't bureaucratize small work.
 4. **Parallelize subagents.** Never run independent subagents sequentially.

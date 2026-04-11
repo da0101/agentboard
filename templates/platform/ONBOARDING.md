@@ -57,6 +57,7 @@ These are **big files**. Read only when your task is deep enough to need them.
 | Decision history | `decisions.md` |
 | Session history | `log.md` |
 | Per-repo deep reference | `{repo-slug}.md` (if multi-repo) |
+| Deferred issues / tech debt | `BACKLOG.md` — **do not load at session start**; read only when user asks or you are appending a new entry |
 
 ## Step 5 — Claim your session (if parallel sessions are possible)
 
