@@ -363,7 +363,8 @@ cmd_init() {
     "$target/.platform/log.md" \
     "$target/.platform/decisions.md" \
     "$target/.platform/architecture.md" \
-    "$target/.platform/repos.md"; do
+    "$target/.platform/repos.md" \
+    "$target/.platform/work/ACTIVE.md"; do
     [[ -f "$f" ]] || continue
     substitute "$f" \
       PROJECT_NAME "$project_name" \

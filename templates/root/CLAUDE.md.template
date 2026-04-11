@@ -18,6 +18,12 @@ Claude Code, Codex CLI, Gemini CLI, or any other AI tool — this file is auto-l
 
 ---
 
+## Active Work (`.platform/work/`)
+
+**Read `.platform/work/ACTIVE.md` first every session** — before STATUS.md, before anything else.
+It tells you what's currently in progress so you can orient in seconds, not minutes.
+See `.platform/conventions/work-tracking.md` for the full protocol.
+
 ## Reference pack
 
 - `.platform/ACTIVATE.md` — the activation protocol (read this when the user says "activate")

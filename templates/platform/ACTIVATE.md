@@ -147,6 +147,7 @@ Show the user a summary:
 - What you filled in (`.platform/*.md` files)
 - What you intentionally left as placeholders for them to complete (e.g., "release blocklist has 3 empty rows — tell me what blocks launch")
 - Which root files you touched and how (`CLAUDE.md` written / merged / skipped; same for `AGENTS.md`, `GEMINI.md`)
+- That `work/ACTIVE.md` is in place and empty — ready to track the first workstream
 - What you'd recommend as the next task
 
 Then ask: "Does this look right, or should I revise any section?"
@@ -194,6 +195,10 @@ These files are generic and ship verbatim — you don't need to rewrite them:
 - **`.platform/scripts/sync-context.sh`** — the sync script
 - **`.platform/sessions/ACTIVE.md`** — the parallel-session coordination template (for multi-repo projects)
 - **`.platform/templates/repo/*`** — scaffolding for adding new repos later via `agentboard add-repo`
+- **`.platform/work/ACTIVE.md`** — active workstream registry (read every session start)
+- **`.platform/work/TEMPLATE.md`** — skeleton for new workstreams; copy to `work/<slug>.md` when starting work
+- **`.platform/work/archive/`** — completed workstreams land here after the done ritual
+- **`.platform/conventions/work-tracking.md`** — the full work tracking protocol
 
 These are your starting points — read them but don't rewrite them unless the user explicitly asks.
 

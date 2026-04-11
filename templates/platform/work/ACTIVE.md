@@ -1,0 +1,35 @@
+# Active Work — {{PROJECT_NAME}}
+
+> Read this at the start of every session BEFORE doing anything else.
+> One row per active workstream. Load `work/<slug>.md` only if you need full context.
+
+| Stream | Type | Status | Agent | Last updated |
+|---|---|---|---|---|
+| _(none)_ | — | — | — | — |
+
+---
+
+## Session start protocol
+
+1. If 1 stream → confirm with user: "Resuming **<stream>** — next action: <next>. Continue?"
+2. If 2+ streams → ask user which one to work on
+3. If 0 streams → proceed normally, ask what to work on
+4. Load `work/<slug>.md` only if the user asks for detail or task is ambiguous
+
+## Workstream lifecycle
+
+| Status | Meaning | Who sets it |
+|---|---|---|
+| `planning` | Scoping, not yet executing | Agent |
+| `in-progress` | Actively working | Agent |
+| `blocked` | Waiting on external input or decision | Agent or user |
+| `awaiting-verification` | Work done, needs user confirm | Agent only |
+
+**Done ritual** (when all done criteria met):
+1. Agent flips status to `awaiting-verification`
+2. Agent lists done criteria with ✅/❌ per item
+3. User confirms: "yes this is done"
+4. Agent moves `work/<slug>.md` → `work/archive/<slug>.md`
+5. Agent removes row from this file
+6. Agent appends one line to `.platform/log.md`
+7. Agent updates `memory/` if anything learned should persist
