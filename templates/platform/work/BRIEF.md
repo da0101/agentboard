@@ -44,17 +44,16 @@ See `work/ACTIVE.md` for stream status.
 ## Relevant context
 
 > Only load the files listed here. Everything else is out of scope for this feature.
-> This is the agent's reading list — not the full reference pack.
+> Prefer `.platform/domains/<name>.md` files (cross-layer, focused) over repo-wide files.
+> Repo files (`backend.md`, `admin.md`, etc.) are conventions — load only if you need to understand patterns.
 
-_List only the `.platform/` reference files this feature actually touches._
-_Example: if building a backend API endpoint, list `backend.md`. If it's UI-only, list the frontend doc._
-_Do NOT list docs for parts of the app this feature never touches._
+_List the domain file(s) for this feature. One domain file covers backend + frontend + widget for that domain._
+_Example: `.platform/domains/auth.md` — not `backend.md` + `admin.md` + `menu-widget.md`._
 
-- `.platform/<doc>.md` — _one line: why this file is relevant_
--
+- `.platform/domains/<domain>.md` — _why this domain is relevant_
 
-**Do not load:** _list the docs that are explicitly out of scope, so agents don't go looking_
-**Never load:** `work/archive/*` (completed work — irrelevant to current feature)
+**Do not load:** _list what's explicitly out of scope_
+**Never load:** `work/archive/*`
 
 ## Key files
 
