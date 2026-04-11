@@ -92,15 +92,47 @@ Parallelize:
 - Specialist B: security / code review pass (for anything security-sensitive)
 - Specialist C: real-browser QA (for UI changes)
 
-Then append **one line** to `.platform/log.md`:
+Then **learn in three layers:**
 
+**Layer 1 — Log (always):** append one line to `.platform/log.md`:
 ```
 YYYY-MM-DD — <task> — <outcome> — <takeaway>
 ```
 
-If the task produced a stable cross-session insight, update persistent memory (if your agent has it).
+**Layer 2 — Learnings (if bug was non-obvious):** if the root cause required >10 min to diagnose OR depended on internal behavior that isn't self-evident from the code, append an entry to `.platform/learnings.md` using the L-NNN format:
+```
+## L-NNN — <short title>
+Date: YYYY-MM-DD | Repo: <repo>
+Symptom: <what the developer/user sees>
+Root cause: <the actual reason>
+Fix: <what was changed and where>
+Class: <category — for grep>
+```
+
+**Layer 3 — Memory (if architectural):** if the insight is a stable cross-session invariant (a new pattern, a recurring gotcha, an API contract), update `memory/MEMORY.md` or a topic file under `memory/`.
+
+**Bug investigation rule:** before diagnosing any non-obvious bug, grep `.platform/learnings.md` for the symptom keyword first. Don't re-diagnose a known class of problem.
 
 **Exit:** task is done, recorded, and learned from.
+
+---
+
+## Stream Closure Protocol
+
+Run this checklist **every time a stream reaches done** — before archiving the stream file.
+
+> **Why:** skipping this leaves stale docs for the next session/agent. Completed features must be fully reflected in all reference files before the stream is archived.
+
+1. **Verify done criteria** — open the stream file (`work/<slug>.md`), confirm every checkbox is ticked.
+2. **Update STATUS files** — for every repo the stream touched, mark features ✓ Done, update Last touched date, remove from Immediate priorities.
+3. **Update domain file** — open `.platform/domains/<name>.md` if one exists. Update file paths, API shapes, cross-repo touch-points that changed.
+4. **Update architecture.md** — if the stream changed system topology (new endpoints, new data flows, auth changes), update the relevant section.
+5. **Unblock downstream streams** — flip any `pending (blocked on this)` stream in `ACTIVE.md` to `ready-to-plan`.
+6. **Archive the stream file** — move `work/<slug>.md` → `work/archive/<slug>.md`, remove from `ACTIVE.md`, reset `BRIEF.md`.
+7. **Append to log.md** — one line: `YYYY-MM-DD — <stream> — <outcome> — <takeaway>`.
+8. **Learnings check** — any non-obvious bugs surfaced? Confirm they are in `learnings.md`. Add if missing.
+
+**Hard rule:** steps 2–4 are not optional. If a stream touched 3 repos, all 3 STATUS files get updated.
 
 ---
 

@@ -58,6 +58,7 @@ These are **big files**. Read only when your task is deep enough to need them.
 | Session history | `log.md` |
 | Per-repo deep reference | `{repo-slug}.md` (if multi-repo) |
 | Deferred issues / tech debt | `BACKLOG.md` — **do not load at session start**; read only when user asks or you are appending a new entry |
+| Bug post-mortems / hard-won patterns | `learnings.md` — **do not load at session start**; grep before diagnosing non-obvious bugs; append in Stage 6 when root cause was non-obvious |
 
 ## Step 5 — Claim your session (if parallel sessions are possible)
 
@@ -79,12 +80,19 @@ Task → Triage (type/scope/risk) → Interview (only if ambiguous) → Research
 
 ## Step 7 — Close out
 
-Before ending the session:
+If the stream is fully complete, run the **Stream Closure Protocol** from `workflow.md` (8 steps). Short version:
 
-1. **Update STATUS.md** — move the feature to ✓ Done, 🔵 Exists, or leave ⧗ Pending as appropriate
-2. **Append to `log.md`** — one line, format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
-3. **Clear your line in `ACTIVE.md`** (if you declared one)
-4. **Memory capture** — if you learned something stable across sessions, add it to your agent's persistent memory
+1. Tick all done criteria in the stream file
+2. Update STATUS files for every repo touched
+3. Update domain file + architecture.md if topology changed
+4. Unblock downstream streams in `ACTIVE.md`
+5. Archive stream file, reset `BRIEF.md`
+6. Append to `log.md`, check `learnings.md`
+
+If the session is ending but the stream is NOT complete:
+- Append a progress note to the stream file (`## Current state` section)
+- Ensure `ACTIVE.md` row is accurate
+- Append to `log.md` with what was done and what's next
 
 ---
 
