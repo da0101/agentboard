@@ -18,13 +18,25 @@ Lives in `.platform/work/`. Complements `.platform/STATUS.md` (project-level fea
 
 ## Session start protocol (mandatory)
 
-Before doing anything else, read `.platform/work/ACTIVE.md`.
+Read in order — stop as soon as you have enough to orient:
 
-- **0 streams** → proceed normally, ask user what to work on
-- **1 stream** → confirm: "Resuming **<stream>** — next: <next action>. Continue?"
-- **2+ streams** → ask user which one
+1. **`work/BRIEF.md`** — narrative brief: what we're building, why, current state, and which reference docs to load (§ "Relevant context")
+2. **`work/ACTIVE.md`** — stream registry:
+   - **0 streams** → proceed normally, ask user what to work on
+   - **1 stream** → confirm: "Resuming **<stream>** — next: <next action>. Continue?"
+   - **2+ streams** → ask user which one
+3. Load `work/<slug>.md` only when you need full detail
 
-Load `work/<slug>.md` only when you need full detail. `ACTIVE.md` alone is usually enough to orient.
+## Scoped context loading (mandatory)
+
+**Only load the reference files listed in `work/BRIEF.md` § "Relevant context".** Do not load the full `.platform/` pack.
+
+- If the feature touches the backend → load `backend.md`. Not the frontend docs.
+- If the feature touches one widget → load that widget's doc. Not the other widgets'.
+- If the feature is UI-only → load the UI doc. Not the backend doc.
+- **Never read `work/archive/*`** — completed work is irrelevant to the current feature.
+
+This keeps context windows lean and prevents agents from being briefed on work that has nothing to do with their task. One feature = one reading list.
 
 ## Starting a new workstream
 

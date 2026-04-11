@@ -23,6 +23,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify tag is on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if ! git merge-base --is-ancestor "${{ github.sha }}" origin/main; then
+            echo "::error::Release tags must point to a commit on main. Tag '${{ github.ref_name }}' points to a commit not reachable from main."
+            exit 1
+          fi
+          echo "Tag is on main — proceeding with release."
+
       - name: Generate SHA256SUMS
         shell: bash
         run: |

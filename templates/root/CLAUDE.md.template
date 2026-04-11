@@ -20,11 +20,15 @@ Claude Code, Codex CLI, Gemini CLI, or any other AI tool — this file is auto-l
 
 ## Active Work (`.platform/work/`)
 
-**Read `.platform/work/ACTIVE.md` first every session** — before STATUS.md, before anything else.
-It tells you what's currently in progress so you can orient in seconds, not minutes.
+**Read in order at the start of every session:**
+1. **`work/BRIEF.md`** — narrative brief: what feature we're building, why, current state, and which reference docs to load
+2. **`work/ACTIVE.md`** — stream registry: status, agent, last updated
+
 See `.platform/conventions/work-tracking.md` for the full protocol.
 
 ## Reference pack
+
+**Loading rule: only load files listed in `work/BRIEF.md` § "Relevant context".** Do not auto-load the full pack. Load only what the current feature actually touches. Never read `work/archive/*` unless explicitly asked.
 
 - `.platform/ACTIVATE.md` — the activation protocol (read this when the user says "activate")
 - `.platform/workflow.md` — the 6-stage inline workflow for non-trivial tasks

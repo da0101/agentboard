@@ -11,6 +11,7 @@
 
 ## Session start protocol
 
+0. **Read `work/BRIEF.md` first** — 30-second narrative: what feature we're building, why, current state
 1. If 1 stream → confirm with user: "Resuming **<stream>** — next action: <next>. Continue?"
 2. If 2+ streams → ask user which one to work on
 3. If 0 streams → proceed normally, ask what to work on

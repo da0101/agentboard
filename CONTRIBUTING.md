@@ -119,6 +119,28 @@ the change through CI.
    your commit message focused; the maintainer will adjust the final
    squash title if needed.
 
+## Release process (maintainer only)
+
+Contributors never touch `main` directly — that is the maintainer's job.
+
+```
+develop  ──── feature PRs land here ────────────────────────────►
+                                    │
+                                    │  maintainer opens PR: develop → main
+                                    ▼
+main     ──── release commits only ─── tag v1.2.3 ── GitHub Release created
+```
+
+1. Maintainer opens a PR from `develop` → `main` (the "release PR")
+2. PR is reviewed, CI passes, maintainer merges
+3. Maintainer creates and pushes a SemVer tag on `main`: `git tag -s v1.2.3 && git push origin v1.2.3`
+4. The release workflow (`.github/workflows/release.yml`) fires automatically:
+   - Verifies the tag points to a commit on `main` (not develop or a feature branch)
+   - Generates `SHA256SUMS` for `bin/agentboard` + all template files
+   - Creates the GitHub release with checksums attached
+
+Tags on non-`main` commits are rejected by the release workflow. **Never tag from `develop`.**
+
 ## Reporting security issues
 
 **Do not file security bugs as normal GitHub issues.** See
