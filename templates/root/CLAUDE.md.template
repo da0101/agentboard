@@ -1,0 +1,185 @@
+# {{PROJECT_NAME}} — NOT YET ACTIVATED
+
+**Status:** This project was scaffolded by `agentboard init` on {{TODAY}} but is **not yet activated**. The `.platform/` context pack is present but empty — waiting for you (the AI agent reading this) to fill it in.
+
+> {{DESCRIPTION}}
+
+---
+
+## You are reading this because you are an AI agent
+
+Claude Code, Codex CLI, Gemini CLI, or any other AI tool — this file is auto-loaded when you open this project. It's the agent's "what am I looking at?" entry point.
+
+**Right now this file is in activation mode.** When the human says "activate this project" or "fill in the platform pack" or similar, run the activation protocol below. Otherwise, just answer their question and mention that the project hasn't been activated yet.
+
+---
+
+## Activation protocol
+
+### Step 1 — Scan (read-only, ~2 minutes)
+
+Look at the actual project. Do not assume. Gather:
+
+- **Directory tree** (2 levels deep, skip `node_modules/`, `.git/`, `build/`, `dist/`, `Pods/`, `.gradle/`, `target/`, `venv/`, `__pycache__/`)
+- **Manifest files** — whichever exist: `package.json`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `go.mod`, `pom.xml`, `build.gradle(.kts)`, `Podfile`, `*.xcodeproj/project.pbxproj`, `*.csproj`, `*.sln`, `CMakeLists.txt`, `Makefile`, `pubspec.yaml`, `composer.json`, `Gemfile`
+- **README.md** at root (if present) + any other root-level `.md` docs
+- **`.env.example`** or similar env-documentation files (never read `.env` itself)
+- **Git remote** (`git remote -v`) and **recent commit history** (`git log -20 --oneline`)
+- **Top-level source directories** — peek inside to identify entry points and confirm language/framework
+
+From this, you can answer: what languages, what frameworks, what build tools, what external services are likely in use, what's the rough scale, what's the repo topology.
+
+### Step 2 — Interview (5–8 questions, ask via `AskUserQuestion` if the CLI supports it)
+
+Ask only what the scan couldn't tell you. Typical gaps:
+
+1. **What does this project do for end users, in 1–2 sentences?** (the 30-second pitch)
+2. **Who deploys it and where?** (manual / CI / app stores / serverless / on-prem / desktop distribution)
+3. **What are the 2–3 hardest constraints I must not break?** (e.g., "don't break the existing API contract", "tenant isolation", "don't touch the payment flow", "must stay backwards-compatible with v1 clients")
+4. **Are there external services I need to know about?** (auth provider, payments, analytics, third-party APIs, cloud storage)
+5. **Is this a single-repo project or does it coordinate with sibling repos?** If multi-repo: paths to the siblings.
+6. **Any specific patterns / conventions / rules you've already established?** (e.g., "all state goes through Redux", "controllers are thin", "no raw SQL")
+7. **Known gotchas I should warn future AI sessions about?** (things that always bite people who don't know)
+8. **What's the current focus / top priority?** (so STATUS.md starts with the right thing in the "immediate priorities" slot)
+
+Don't ask more than 8 questions. Batch them. If the user gives short answers, move on — you can fill in placeholders and let them iterate.
+
+### Step 3 — Fill the `.platform/` pack
+
+Based on scan + interview, generate these files. Write them one at a time, then confirm with the user before moving on to the next (unless they tell you "just do it all").
+
+**`.platform/STATUS.md`** — replace the placeholder feature rows with actual features from the scan. Use the user's answer to question 8 for "immediate priorities".
+
+**`.platform/architecture.md`** — fill in the real components, tech stack, data flow, auth model, external services, deploy topology, invariants. Use the scan + interview answers. Keep it under one screen per section.
+
+**`.platform/decisions.md`** — seed 3–5 initial locked decisions based on what the scan reveals. Examples: "Chose framework X because the codebase was already using it", "Auth handled by provider Y (found in .env.example)", "Data store is Z (found in config)". Each row needs a _why_.
+
+**`.platform/repos.md`** — list the repo(s). For single-repo projects, one row. For multi-repo, one row per repo with stack + deep-reference-file name.
+
+**`.platform/conventions/`** — write a **separate** file for each stack you detected AND for each cross-cutting area that applies:
+
+**Cross-cutting (write if relevant):**
+- `api.md` — if the project exposes or consumes HTTP APIs
+- `security.md` — always write this; tailor to the actual threats (payment handling, auth, tenant data, PII, etc.)
+- `testing.md` — always write this; specify the testing bar per feature type for THIS project
+- `deployment.md` — write this if there's a deploy pipeline (anything beyond "`git push` and pray")
+- `qa.md` — write this if the project has a UI
+- `permissions.md` — write this if the project has multi-role / multi-tenant access
+
+**Stack-specific (write one file per stack you found):**
+- Use the detected stack name: `django.md`, `react.md`, `nextjs.md`, `swift-ios.md`, `kotlin-android.md`, `flutter.md`, `unity-csharp.md`, `unreal-cpp.md`, `godot.md`, `rust.md`, `go.md`, `nodejs.md`, `fastapi.md`, `rails.md`, `laravel.md`, `cpp-cmake.md`, etc.
+- Content: the idiomatic rules + gotchas + pinned dependency notes + file-size/structure rules + preferred patterns + things to avoid, **as you would enforce them in code review on THIS project's code**.
+- Don't write a generic stack tutorial — write the rules that apply to THIS codebase. Look at the actual code to see what patterns are already in use.
+
+**`.platform/log.md`** — append one line: `{{TODAY}} — agentboard activation — .platform/ pack filled from scan + interview — <one-sentence summary of what you learned>`
+
+### Step 4 — Replace this file (CLAUDE.md)
+
+Once `.platform/` is filled, **rewrite this file** as the steady-state entry point. Target ~100 lines. Structure:
+
+```markdown
+# {{PROJECT_NAME}}
+
+**What this is:** [1–2 sentence description from interview]
+
+## Stack
+[One line summary]
+
+## Repo Structure
+[Table if multi-repo, paragraph if single-repo]
+
+## How This Project Actually Works
+[3–5 bullets — source of truth, critical invariants, how the pieces connect]
+
+## Workflow
+[Link to .platform/workflow.md + the 6-stage reminder]
+
+## Reference Pack (.platform/)
+[Links to STATUS, decisions, log, architecture, workflow, conventions/]
+
+## Hard Constraints (Don't Break These)
+[Numbered list from interview answer #3 + anything else from scan]
+```
+
+Do **not** bloat it. Agents re-read this on every session — keep it lean.
+
+### Step 5 — Sync
+
+Run:
+```bash
+./.platform/scripts/sync-context.sh --apply
+```
+
+This generates `AGENTS.md` and `GEMINI.md` from the new `CLAUDE.md` so Codex CLI and Gemini CLI get the same entry point.
+
+If the user has multi-repo, tell them to edit `./.platform/scripts/sync-context.sh` `REPOS=()` array first.
+
+### Step 6 — Confirm
+
+Show the user a summary:
+- What you filled in
+- What you intentionally left as placeholders for them to complete (e.g., "release blocklist has 3 empty rows — tell me what blocks launch")
+- What you'd recommend as the next task
+
+Then ask: "Does this look right, or should I revise any section?"
+
+---
+
+## Activation rules (so you don't mess this up)
+
+1. **Read before you write.** Scan the actual files before generating any content. No hallucinating the stack.
+2. **Ask when you're unsure.** If the scan is ambiguous (e.g., you see both a `package.json` and a `pyproject.toml`), ask which is the primary.
+3. **Don't ship placeholder content in `.platform/` files.** If the user hasn't answered a question, write `_TODO: <specific thing to fill in>_` so it's greppable.
+4. **Stack-specific conventions are per-project, not generic.** Don't copy-paste a generic `conventions/react.md` — write the rules that apply to THIS codebase.
+5. **No `.md` artifacts for plans.** The activation plan lives in chat, not in `.planning/`.
+6. **Every step commits (if git is initialized).** Atomic commits: "Activate project: scan + interview", "Activate project: fill architecture + decisions", "Activate project: write conventions/{stack}.md", "Activate project: replace CLAUDE.md with steady-state version". This lets the user see exactly what you changed.
+7. **When you're done, delete your activation-mode memory of this file.** The new steady-state `CLAUDE.md` is all that matters going forward.
+
+---
+
+## Skills available to you (installed by agentboard init)
+
+These live in `.claude/skills/` (Claude Code auto-loads them). They are additive — any pre-existing skills were preserved. Use them at the right moments:
+
+| Skill | When to use |
+|---|---|
+| `ab-triage` | **Start of every non-trivial task.** Classify type/scope/risk before doing anything else. |
+| `ab-workflow` | The 6-stage orchestrator. Call for any medium+ scope task. |
+| `ab-research` | When you need context before proposing. Strict budget: 1 search + 3 fetches + 5 reads. |
+| `ab-pm` | Before building any new feature. Gates user-value thinking. |
+| `ab-architect` | Before writing code for medium+ features. Produces design with invariants + failure modes. |
+| `ab-test-writer` | Writes comprehensive unit tests with edge-case enumeration by feature type. |
+| `ab-security` | Security audit against OWASP checklist. Required for auth/payment/tenant-data changes. |
+| `ab-qa` | Real-browser / manual QA pass with reproducible repro steps. Required for UI changes. |
+| `ab-review` | Pre-PR code review across spec / quality / security / tests. |
+| `ab-debug` | Root-cause bug investigation. Hypothesis-test-narrow loop. |
+
+Read each skill's `SKILL.md` on first use to understand its protocol. The skills enforce the same workflow this kit documents, so they compose naturally with `ab-workflow`.
+
+## What ships in `.platform/` from agentboard (already in place)
+
+These files are generic and ship verbatim — you don't need to rewrite them:
+
+- **`.platform/workflow.md`** — the 6-stage inline workflow (triage → interview → research → propose → execute → verify)
+- **`.platform/ONBOARDING.md`** — the 7-step onboarding path for future sessions
+- **`.platform/scripts/sync-context.sh`** — the sync script
+- **`.platform/sessions/ACTIVE.md`** — the parallel-session coordination template (for multi-repo projects)
+- **`.platform/templates/repo/*`** — scaffolding for adding new repos later via `agentboard add-repo`
+
+These are your starting points — read them but don't rewrite them unless the user explicitly asks.
+
+These files ship as **skeletal templates** that you fill in during activation:
+
+- `.platform/STATUS.md`
+- `.platform/architecture.md`
+- `.platform/decisions.md`
+- `.platform/repos.md`
+- `.platform/log.md`
+
+These are **empty on purpose** — you create them from scratch during activation:
+
+- `.platform/conventions/*.md` (both cross-cutting and stack-specific — you write what applies)
+
+---
+
+_This file was generated by agentboard on {{TODAY}}. After activation it will be replaced by the steady-state CLAUDE.md._

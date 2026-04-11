@@ -1,0 +1,101 @@
+# Onboarding — New Agent or Human
+
+> **Audience:** a new Claude / Codex / Gemini session, or a new developer joining the project.
+> **Goal:** be productive in 5 minutes without asking the founder to re-explain the project.
+> **How to use:** read sections in order. Stop reading deeper files until your current task makes them relevant.
+
+---
+
+## Step 1 — Orient (2 minutes)
+
+Read, in this exact order:
+
+1. **`CLAUDE.md`** (or `AGENTS.md` / `GEMINI.md`) at the project root
+   — What this project is, the constraints, the workflow.
+2. **`.platform/STATUS.md`** — where are we right now
+   — Per-layer status files (if present) hang off this index. Read the layer relevant to your task.
+3. **`.platform/ONBOARDING.md`** — you are here.
+
+After step 1 you know: what's shipped, what's in flight, what's blocked, what's forbidden.
+
+## Step 2 — Understand the workflow (1 minute)
+
+Read:
+
+- **`.platform/workflow.md`** — the 6-stage inline workflow (Triage → Interview → Research → Propose → Execute → Verify + Learn)
+
+Key rules:
+- No `.md` artifacts unless reusable. Plans live in chat.
+- Trivial tasks skip straight to execution.
+- Parallelize subagents when they have distinct jobs.
+- Every success appends one line to `.platform/log.md`.
+
+## Step 3 — Read the conventions for your area (as needed)
+
+These are the cross-cutting rules. Read only the ones that touch your task.
+
+| If you touch... | Read |
+|---|---|
+| Any HTTP / API endpoint | `conventions/api.md` |
+| Anything security-sensitive | `conventions/security.md` |
+| Any test or test infra | `conventions/testing.md` |
+| Any deploy / infra change | `conventions/deployment.md` |
+| Any release gate / QA pass | `conventions/qa.md` |
+| Any product scope decision | `conventions/pm.md` |
+| Auth, roles, permissions | `conventions/permissions.md` |
+| Stack-specific (Django / React / C++ / iOS / Android / Unity / …) | `conventions/{stack}.md` |
+
+**Rule of thumb:** if you touch 3+ files in a feature, read at least 2 conventions docs.
+
+## Step 4 — Load the deep per-repo reference (only if needed)
+
+These are **big files**. Read only when your task is deep enough to need them.
+
+| Thing | File |
+|---|---|
+| System overview | `architecture.md` |
+| Decision history | `decisions.md` |
+| Session history | `log.md` |
+| Per-repo deep reference | `{repo-slug}.md` (if multi-repo) |
+
+## Step 5 — Claim your session (if parallel sessions are possible)
+
+1. Read `.platform/sessions/ACTIVE.md` (if present — multi-repo projects only)
+2. If another session owns the area you want to touch, pick a different area or coordinate
+3. Add your session declaration to `ACTIVE.md` before making changes
+4. Clear your declaration at session end
+
+If you're working alone, skip this step but still update `log.md` at the end.
+
+## Step 6 — Execute
+
+Follow the 6-stage workflow from `workflow.md`. Cheat sheet:
+
+```
+Task → Triage (type/scope/risk) → Interview (only if ambiguous) → Research (only if medium+)
+     → Propose inline → Execute → Verify + Learn (append to log.md)
+```
+
+## Step 7 — Close out
+
+Before ending the session:
+
+1. **Update STATUS.md** — move the feature to ✓ Done, 🔵 Exists, or leave ⧗ Pending as appropriate
+2. **Append to `log.md`** — one line, format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
+3. **Clear your line in `ACTIVE.md`** (if you declared one)
+4. **Memory capture** — if you learned something stable across sessions, add it to your agent's persistent memory
+
+---
+
+## What NOT to do on your first session
+
+1. Do not rewrite established architectural contracts without reading `decisions.md` first.
+2. Do not deploy anything without reading `conventions/deployment.md`.
+3. Do not commit `.env`, credentials, or any secret file.
+4. Do not create `.md` artifacts for plans. Plans live in chat.
+5. Do not bureaucratize small tasks. Trivial tasks go straight to execution.
+6. Do not assume a widget / sub-app / module is "small" — always read its deep reference if one exists.
+
+---
+
+Welcome. Now close this file and get to work.

@@ -1,0 +1,8 @@
+.DS_Store
+*.bak
+*.log
+node_modules/
+dist/
+.env
+.env.*
+.claude/projects/

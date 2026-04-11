@@ -1,0 +1,274 @@
+#!/usr/bin/env bash
+# agentboard — AI agent context kit
+# Bootstraps a .platform/ context pack into any project, then hands off to an
+# LLM (Claude Code, Codex CLI, Gemini CLI) to scan the project and fill the pack.
+
+set -euo pipefail
+
+SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AGENTBOARD_ROOT="$(cd "$SCRIPT_PATH/.." && pwd)"
+TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
+TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
+TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
+
+VERSION="0.1.0"
+
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
+
+say()  { printf '%s\n' "$*"; }
+bold() { printf '\033[1m%s\033[0m\n' "$*"; }
+ok()   { printf '\033[32mOK\033[0m   %s\n' "$*"; }
+warn() { printf '\033[33mWARN\033[0m %s\n' "$*" >&2; }
+die()  { printf '\033[31mERR\033[0m  %s\n' "$*" >&2; exit 1; }
+
+ask() {
+  local prompt="$1" default="${2:-}" reply
+  if [[ -n "$default" ]]; then
+    read -r -p "$prompt [$default]: " reply
+    echo "${reply:-$default}"
+  else
+    read -r -p "$prompt: " reply
+    echo "$reply"
+  fi
+}
+
+ask_yes_no() {
+  local prompt="$1" reply
+  read -r -p "$prompt [y/N]: " reply
+  [[ "$reply" =~ ^[Yy]$ ]]
+}
+
+today() { date +%F; }
+
+require_templates() {
+  [[ -d "$TEMPLATES_PLATFORM" ]] || die "templates/platform/ not found at $TEMPLATES_PLATFORM"
+}
+
+substitute() {
+  # substitute <file> KEY1 value1 KEY2 value2 ...
+  local file="$1"; shift
+  local key value value_esc
+  while [[ $# -gt 0 ]]; do
+    key="$1"; value="$2"; shift 2
+    value_esc="${value//|/\\|}"
+    sed -i.bak "s|{{${key}}}|${value_esc}|g" "$file"
+    rm -f "${file}.bak"
+  done
+}
+
+# -----------------------------------------------------------------------------
+# Commands
+# -----------------------------------------------------------------------------
+
+cmd_init() {
+  require_templates
+  bold "agentboard init"
+  say  "Scaffolding a .platform/ context pack in the current directory."
+  say  "After this, open the project in an AI CLI and say 'activate this project'."
+  say
+
+  local target; target="$(pwd)"
+  if [[ -d "$target/.platform" ]]; then
+    ask_yes_no "$target/.platform already exists. Overwrite?" || die "aborted."
+    rm -rf "$target/.platform"
+  fi
+
+  # Only two questions. Everything else is discovered by the LLM during activation.
+  local project_name project_desc
+  project_name="$(ask 'Project name' "$(basename "$target")")"
+  project_desc="$(ask 'One-line description (it is ok to leave vague — LLM will refine)' 'TBD — will be filled during activation')"
+
+  say
+  bold "Copying .platform/ skeleton..."
+  mkdir -p "$target/.platform"
+  cp -R "$TEMPLATES_PLATFORM/." "$target/.platform/"
+
+  # Substitute placeholders in the skeletal files
+  for f in \
+    "$target/.platform/STATUS.md" \
+    "$target/.platform/log.md" \
+    "$target/.platform/decisions.md" \
+    "$target/.platform/architecture.md" \
+    "$target/.platform/repos.md"; do
+    [[ -f "$f" ]] || continue
+    substitute "$f" \
+      PROJECT_NAME "$project_name" \
+      DESCRIPTION  "$project_desc" \
+      TODAY        "$(today)"
+  done
+
+  # Root CLAUDE.md — this IS the activation prompt
+  if [[ -f "$TEMPLATES_ROOT/CLAUDE.md.template" ]]; then
+    cp "$TEMPLATES_ROOT/CLAUDE.md.template" "$target/CLAUDE.md"
+    substitute "$target/CLAUDE.md" \
+      PROJECT_NAME "$project_name" \
+      DESCRIPTION  "$project_desc" \
+      TODAY        "$(today)"
+  fi
+
+  # Make sync script executable
+  if [[ -f "$target/.platform/scripts/sync-context.sh" ]]; then
+    chmod +x "$target/.platform/scripts/sync-context.sh"
+  fi
+
+  # Install skills additively — never overwrite existing skills
+  if [[ -d "$TEMPLATES_SKILLS" ]]; then
+    local skills_target="$target/.claude/skills"
+    mkdir -p "$skills_target"
+    local installed=0 skipped=0 skill_name
+    for skill_dir in "$TEMPLATES_SKILLS"/*/; do
+      skill_name="$(basename "$skill_dir")"
+      if [[ -e "$skills_target/$skill_name" ]]; then
+        skipped=$((skipped + 1))
+        say "  skill exists, skipping: $skill_name"
+      else
+        cp -R "$skill_dir" "$skills_target/$skill_name"
+        installed=$((installed + 1))
+      fi
+    done
+    ok "Skills: $installed installed, $skipped skipped (existing not overridden)"
+  fi
+
+  ok "Created $target/.platform/ (skeleton)"
+  ok "Created $target/CLAUDE.md (activation prompt)"
+
+  say
+  bold "Next step: activate"
+  say  "  1. Open this project in your AI CLI (Claude Code / Codex CLI / Gemini CLI)"
+  say  "  2. Say: 'activate this project'"
+  say  "  3. The LLM will scan your codebase, ask 5–8 targeted questions, and fill in"
+  say  "     .platform/STATUS.md, architecture.md, decisions.md, repos.md, and the"
+  say  "     relevant conventions/{stack}.md files based on what it actually finds."
+  say  "  4. When activation finishes, the LLM replaces CLAUDE.md with a steady-state"
+  say  "     version and runs sync-context.sh to generate AGENTS.md and GEMINI.md."
+  say
+  bold "No stack picking. No assumptions. The LLM decides based on your actual code."
+}
+
+cmd_sync() {
+  local script="./.platform/scripts/sync-context.sh"
+  [[ -x "$script" ]] || die "$script not found or not executable. Run 'agentboard init' first."
+  "$script" "$@"
+}
+
+cmd_claim() {
+  local active="./.platform/sessions/ACTIVE.md"
+  [[ -f "$active" ]] || die "$active not found. This project may be single-repo (no ACTIVE.md needed)."
+  local task="${1:-}"
+  [[ -n "$task" ]] || die "Usage: agentboard claim \"<task summary>\""
+  local agent="${AGENTBOARD_AGENT:-$USER@$(hostname -s)}"
+  local ts; ts="$(date '+%Y-%m-%d %H:%M')"
+  local repo; repo="$(basename "$(pwd)")"
+  local row="| $ts | $agent | $repo | — | $task | ~30min | active |"
+  printf '%s\n' "$row" >> "$active"
+  ok "Claimed: $task"
+}
+
+cmd_release() {
+  local active="./.platform/sessions/ACTIVE.md"
+  [[ -f "$active" ]] || die "$active not found."
+  local agent="${AGENTBOARD_AGENT:-$USER@$(hostname -s)}"
+  local tmp; tmp="$(mktemp)"
+  grep -v "| $agent |" "$active" > "$tmp" || true
+  mv "$tmp" "$active"
+  ok "Released all claims for $agent"
+}
+
+cmd_log() {
+  local log="./.platform/log.md"
+  [[ -f "$log" ]] || die "$log not found. Run 'agentboard init' first."
+  local line="${1:-}"
+  [[ -n "$line" ]] || die "Usage: agentboard log \"<one line summary>\""
+  local today_str; today_str="$(today)"
+  local tmp; tmp="$(mktemp)"
+  awk -v new="${today_str} — ${line}" '
+    /^---$/ && !inserted { print; print ""; print new; inserted=1; next }
+    { print }
+  ' "$log" > "$tmp"
+  mv "$tmp" "$log"
+  ok "Logged: $line"
+}
+
+cmd_status() {
+  local status="./.platform/STATUS.md"
+  [[ -f "$status" ]] || die "$status not found. Run 'agentboard init' first."
+  cat "$status"
+}
+
+cmd_add_repo() {
+  local template_dir="./.platform/templates/repo"
+  [[ -d "$template_dir" ]] || die "$template_dir not found. add-repo requires a multi-repo project."
+  local repo_path="${1:-}"
+  [[ -n "$repo_path" ]] || die "Usage: agentboard add-repo <path-to-repo>"
+  [[ -d "$repo_path" ]] || die "$repo_path does not exist"
+
+  say "See .platform/templates/repo/ADDING-A-REPO.md for the full runbook."
+  say "Copying entry file templates to $repo_path..."
+  cp "$template_dir/CLAUDE.md.template" "$repo_path/CLAUDE.md"
+  cp "$template_dir/AGENTS.md.template" "$repo_path/AGENTS.md"
+  cp "$template_dir/GEMINI.md.template" "$repo_path/GEMINI.md"
+  ok "Copied CLAUDE.md / AGENTS.md / GEMINI.md to $repo_path"
+  say "Now fill in the placeholders and add the repo path to .platform/scripts/sync-context.sh REPOS=() array."
+  say "Or: tell your LLM 'onboard this new repo into the platform' and let it do the fill pass."
+}
+
+cmd_version() { say "agentboard $VERSION"; }
+
+cmd_help() {
+  cat <<'EOF'
+agentboard — AI agent context kit
+
+Bootstraps a .platform/ context pack into any project so that Claude Code,
+Codex CLI, and Gemini CLI are instantly productive.
+
+USAGE
+  agentboard <command> [args]
+
+COMMANDS
+  init                       Scaffold a .platform/ pack in the current directory.
+                             After init, open the project in an AI CLI and say
+                             "activate this project" — the LLM scans your code
+                             and fills in the context pack based on what it finds.
+
+  sync [--apply|--list]      Sync AGENTS.md + GEMINI.md from CLAUDE.md (default: check)
+  claim "<task>"             Add a row to .platform/sessions/ACTIVE.md
+  release                    Remove your rows from .platform/sessions/ACTIVE.md
+  log "<one line>"           Append a timestamped line to .platform/log.md
+  status                     Print .platform/STATUS.md to stdout
+  add-repo <path>            Copy per-repo entry file templates to a new repo
+  version                    Print version
+  help                       Show this help
+
+ENV
+  AGENTBOARD_AGENT           Agent name used in claim/release (default: $USER@$HOSTNAME)
+
+PHILOSOPHY
+  No stack pre-picking. No assumptions. The LLM decides what conventions to
+  write based on your actual codebase during activation.
+EOF
+}
+
+# -----------------------------------------------------------------------------
+# Dispatch
+# -----------------------------------------------------------------------------
+
+main() {
+  local cmd="${1:-help}"
+  shift || true
+  case "$cmd" in
+    init)        cmd_init "$@" ;;
+    sync)        cmd_sync "$@" ;;
+    claim)       cmd_claim "$@" ;;
+    release)     cmd_release "$@" ;;
+    log)         cmd_log "$@" ;;
+    status)      cmd_status "$@" ;;
+    add-repo)    cmd_add_repo "$@" ;;
+    version|-v|--version) cmd_version ;;
+    help|-h|--help) cmd_help ;;
+    *) die "Unknown command: $cmd. Run 'agentboard help'." ;;
+  esac
+}
+
+main "$@"
