@@ -364,7 +364,8 @@ cmd_init() {
     "$target/.platform/decisions.md" \
     "$target/.platform/architecture.md" \
     "$target/.platform/repos.md" \
-    "$target/.platform/work/ACTIVE.md"; do
+    "$target/.platform/work/ACTIVE.md" \
+    "$target/.platform/work/BRIEF.md"; do
     [[ -f "$f" ]] || continue
     substitute "$f" \
       PROJECT_NAME "$project_name" \
@@ -406,8 +407,29 @@ cmd_init() {
   done
 
   if [[ -f "$target/CLAUDE.md" ]]; then
-    printf '  %s↷%s Kept existing %s%s/CLAUDE.md%s (will be merged during activation)\n' \
-      "$C_YELLOW" "$C_RESET" "$C_CYAN" "$target" "$C_RESET"
+    # Prepend a minimal activation notice so the AI reading CLAUDE.md knows
+    # agentboard is installed and what to do. Purely additive — original content
+    # is preserved in full below the notice. Skip if notice already present
+    # (idempotent re-runs).
+    if grep -q "<!-- agentboard installed" "$target/CLAUDE.md" 2>/dev/null; then
+      printf '  %s↷%s Activation notice already present in %s%s/CLAUDE.md%s — skipping\n' \
+        "$C_YELLOW" "$C_RESET" "$C_CYAN" "$target" "$C_RESET"
+    else
+      local ab_notice
+      ab_notice="$(cat <<NOTICE
+<!-- agentboard installed $(today) -->
+> **agentboard is installed** in \`.platform/\`. When the user says "activate this project" (or "fill in the platform pack", "run agentboard activation"), read \`.platform/ACTIVATE.md\` and follow its 6-step protocol. It covers scanning the project, interviewing the user, filling \`.platform/\`, and prepending a steady-state section to this file (without deleting any existing content).
+
+---
+
+NOTICE
+)"
+      local original_content
+      original_content="$(cat "$target/CLAUDE.md")"
+      printf '%s%s' "$ab_notice" "$original_content" > "$target/CLAUDE.md"
+      printf '  %s↷%s Prepended activation notice → %s%s/CLAUDE.md%s (original content preserved below)\n' \
+        "$C_YELLOW" "$C_RESET" "$C_CYAN" "$target" "$C_RESET"
+    fi
   else
     # Hub mode uses a specialized "platform brains hub" stub pointing at
     # ACTIVATE-HUB.md. Single-project mode uses the normal stub pointing at

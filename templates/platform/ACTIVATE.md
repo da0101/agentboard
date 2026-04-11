@@ -51,6 +51,8 @@ Based on scan + interview, generate these files. Write them one at a time, then 
 
 **`.platform/repos.md`** — list the repo(s). For single-repo projects, one row. For multi-repo, one row per repo with stack + deep-reference-file name.
 
+**`.platform/domains/`** — create one file per major feature domain you discover in the scan. Each domain file is cross-layer: it covers the backend app, admin/frontend feature section, and any widgets/clients that touch this domain. Keep each under 150 lines. This is how agents load focused context per feature — instead of loading all of `backend.md` for every task, they load only the domain file relevant to what they're building. See `.platform/conventions/context-organization.md` for the full pattern.
+
 **`.platform/conventions/`** — write a **separate** file for each stack you detected AND for each cross-cutting area that applies:
 
 **Cross-cutting (write if relevant):**
@@ -65,6 +67,8 @@ Based on scan + interview, generate these files. Write them one at a time, then 
 - Use the detected stack name: `django.md`, `react.md`, `nextjs.md`, `swift-ios.md`, `kotlin-android.md`, `flutter.md`, `unity-csharp.md`, `unreal-cpp.md`, `godot.md`, `rust.md`, `go.md`, `nodejs.md`, `fastapi.md`, `rails.md`, `laravel.md`, `cpp-cmake.md`, etc.
 - Content: the idiomatic rules + gotchas + pinned dependency notes + file-size/structure rules + preferred patterns + things to avoid, **as you would enforce them in code review on THIS project's code**.
 - Don't write a generic stack tutorial — write the rules that apply to THIS codebase. Look at the actual code to see what patterns are already in use.
+
+**`.platform/work/BRIEF.md`** — if the user mentioned a current active feature in answer to question 8, fill this in now: what they're building, why, what done looks like, architecture decisions locked, current state, and key files. If no active feature yet, leave the placeholder text in place — it will be filled when the first workstream starts.
 
 **`.platform/log.md`** — append one line: `{{TODAY}} — agentboard activation — .platform/ pack filled from scan + interview — <one-sentence summary of what you learned>`
 
@@ -147,6 +151,7 @@ Show the user a summary:
 - What you filled in (`.platform/*.md` files)
 - What you intentionally left as placeholders for them to complete (e.g., "release blocklist has 3 empty rows — tell me what blocks launch")
 - Which root files you touched and how (`CLAUDE.md` written / merged / skipped; same for `AGENTS.md`, `GEMINI.md`)
+- That `work/BRIEF.md` is in place — filled if a current feature was mentioned, skeleton if not
 - That `work/ACTIVE.md` is in place and empty — ready to track the first workstream
 - What you'd recommend as the next task
 
@@ -195,7 +200,8 @@ These files are generic and ship verbatim — you don't need to rewrite them:
 - **`.platform/scripts/sync-context.sh`** — the sync script
 - **`.platform/sessions/ACTIVE.md`** — the parallel-session coordination template (for multi-repo projects)
 - **`.platform/templates/repo/*`** — scaffolding for adding new repos later via `agentboard add-repo`
-- **`.platform/work/ACTIVE.md`** — active workstream registry (read every session start)
+- **`.platform/work/BRIEF.md`** — feature brief (read FIRST every session — narrative context for current active feature)
+- **`.platform/work/ACTIVE.md`** — active workstream registry (read every session start, after BRIEF.md)
 - **`.platform/work/TEMPLATE.md`** — skeleton for new workstreams; copy to `work/<slug>.md` when starting work
 - **`.platform/work/archive/`** — completed workstreams land here after the done ritual
 - **`.platform/conventions/work-tracking.md`** — the full work tracking protocol
@@ -213,3 +219,4 @@ These files ship as **skeletal templates** that you fill in during activation:
 These are **empty on purpose** — you create them from scratch during activation:
 
 - `.platform/conventions/*.md` (both cross-cutting and stack-specific — you write what applies)
+- **`.platform/domains/`** — feature domain files (cross-layer context per domain); you create these during activation
