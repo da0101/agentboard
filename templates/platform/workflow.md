@@ -117,6 +117,25 @@ Class: <category — for grep>
 
 ---
 
+## Stream Closure Protocol
+
+Run this checklist **every time a stream reaches done** — before archiving the stream file.
+
+> **Why:** skipping this leaves stale docs for the next session/agent. Completed features must be fully reflected in all reference files before the stream is archived.
+
+1. **Verify done criteria** — open the stream file (`work/<slug>.md`), confirm every checkbox is ticked.
+2. **Update STATUS files** — for every repo the stream touched, mark features ✓ Done, update Last touched date, remove from Immediate priorities.
+3. **Update domain file** — open `.platform/domains/<name>.md` if one exists. Update file paths, API shapes, cross-repo touch-points that changed.
+4. **Update architecture.md** — if the stream changed system topology (new endpoints, new data flows, auth changes), update the relevant section.
+5. **Unblock downstream streams** — flip any `pending (blocked on this)` stream in `ACTIVE.md` to `ready-to-plan`.
+6. **Archive the stream file** — move `work/<slug>.md` → `work/archive/<slug>.md`, remove from `ACTIVE.md`, reset `BRIEF.md`.
+7. **Append to log.md** — one line: `YYYY-MM-DD — <stream> — <outcome> — <takeaway>`.
+8. **Learnings check** — any non-obvious bugs surfaced? Confirm they are in `learnings.md`. Add if missing.
+
+**Hard rule:** steps 2–4 are not optional. If a stream touched 3 repos, all 3 STATUS files get updated.
+
+---
+
 ## Hard rules
 
 1. **No `.md` artifacts for plans.** Plans live in chat. Only write `.md` files when they're genuinely reusable (specs, docs, conventions). **`work/` stream files are the exception — they are mandatory operational state, not plan documents. Always create them (Stage 1b) before starting non-trivial work.**
