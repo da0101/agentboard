@@ -42,6 +42,20 @@ Triage: <type> / <scope> / <risk>
 
 If `trivial × low`, exit this skill and execute directly. Otherwise continue.
 
+### Stage 1b — Register (mandatory before any research, proposal, or code)
+
+**Stop here.** Before doing anything else, create the work artifacts:
+
+1. **Check `work/ACTIVE.md`** — does this stream already exist? If yes, load the stream file and resume. No duplicate.
+2. **Check `.platform/domains/`** — does a domain file exist for this feature area?
+   - No → **create `.platform/domains/<name>.md`** with cross-layer touch-point inventory. Create this FIRST.
+   - Yes → read it, verify it's current, update if stale.
+3. **Create `work/<stream-slug>.md`** from `work/TEMPLATE.md` — fill type, scope, done criteria, next action.
+4. **Add row to `work/ACTIVE.md`** — slug / type / in-progress / agent / date.
+5. **Update `work/BRIEF.md`** — point to this stream; list domain file under "Relevant context".
+
+Exit condition: domain file exists + stream file exists + `ACTIVE.md` row added + `BRIEF.md` updated. Only then proceed.
+
 ### Stage 2 — Interview (only if ambiguous)
 
 Ask **2–5 targeted questions** via the agent CLI's question mechanism (`AskUserQuestion` in Claude Code, equivalent in others). Rules:

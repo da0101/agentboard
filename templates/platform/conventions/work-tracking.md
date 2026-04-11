@@ -40,6 +40,8 @@ This keeps context windows lean and prevents agents from being briefed on work t
 
 ## Starting a new workstream
 
+> **Hard rule: register before you work.** Do not run a single search, write a single line of code, or make a single proposal until the stream file exists and `ACTIVE.md` has the row. If the context is cleared mid-task, the stream file is the only way to resume. Skipping registration = zero traceability = unrecoverable lost context.
+
 1. **Check for a domain file.** Does `.platform/domains/<feature>.md` exist for this feature?
    - **Yes** → continue
    - **No** → create it first (see `conventions/context-organization.md`). A workstream without a domain file has no focused context for the next agent to load.
