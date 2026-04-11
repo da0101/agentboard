@@ -602,6 +602,135 @@ cmd_add_repo() {
   say "Or: tell your LLM 'onboard this new repo into the platform' and let it do the fill pass."
 }
 
+cmd_update() {
+  local dry_run=0
+  for arg in "$@"; do
+    [[ "$arg" == "--dry-run" ]] && dry_run=1
+  done
+
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  require_templates
+
+  printf '\n%s%sagentboard update%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  if (( dry_run )); then
+    printf '%s  Dry-run mode — no files will be changed.%s\n' "$C_DIM" "$C_RESET"
+  fi
+  say
+
+  local updated=0 added=0 skipped=0
+
+  # -------------------------------------------------------------------------
+  # PROCESS FILES — always replace with latest template version.
+  # These contain only workflow/process instructions — zero project-specific
+  # data. Safe to overwrite on every update.
+  # -------------------------------------------------------------------------
+  head "Process files (replace with latest)"
+
+  local pf
+  for pf in \
+    "workflow.md" \
+    "ONBOARDING.md" \
+    "ACTIVATE.md" \
+    "ACTIVATE-HUB.md" \
+    "work/TEMPLATE.md"; do
+    local src="$TEMPLATES_PLATFORM/$pf"
+    local dst="./.platform/$pf"
+    [[ -f "$src" ]] || continue  # template doesn't have this file
+    [[ -f "$dst" ]] || continue  # project doesn't have this file (e.g. hub-only)
+    if (( dry_run )); then
+      printf '  %s~%s %s\n' "$C_YELLOW" "$C_RESET" "$pf"
+    else
+      mkdir -p "$(dirname "$dst")"
+      cp "$src" "$dst"
+      printf '  %s↻%s %s%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$pf" "$C_RESET"
+    fi
+    updated=$((updated + 1))
+  done
+
+  # conventions/*.md
+  if [[ -d "$TEMPLATES_PLATFORM/conventions" ]]; then
+    local csrc
+    for csrc in "$TEMPLATES_PLATFORM/conventions"/*.md; do
+      local cfname; cfname="$(basename "$csrc")"
+      local cdst="./.platform/conventions/$cfname"
+      [[ -f "$cdst" ]] || continue  # project doesn't have this convention file
+      if (( dry_run )); then
+        printf '  %s~%s conventions/%s\n' "$C_YELLOW" "$C_RESET" "$cfname"
+      else
+        cp "$csrc" "$cdst"
+        printf '  %s↻%s %sconventions/%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$cfname" "$C_RESET"
+      fi
+      updated=$((updated + 1))
+    done
+  fi
+
+  # scripts/sync-context.sh
+  local sc_src="$TEMPLATES_PLATFORM/scripts/sync-context.sh"
+  local sc_dst="./.platform/scripts/sync-context.sh"
+  if [[ -f "$sc_src" ]] && [[ -f "$sc_dst" ]]; then
+    if (( dry_run )); then
+      printf '  %s~%s scripts/sync-context.sh\n' "$C_YELLOW" "$C_RESET"
+    else
+      cp "$sc_src" "$sc_dst"
+      chmod +x "$sc_dst"
+      printf '  %s↻%s %sscripts/sync-context.sh%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET"
+    fi
+    updated=$((updated + 1))
+  fi
+
+  # -------------------------------------------------------------------------
+  # ADD-IF-MISSING FILES — copy from template only if the project doesn't
+  # have them yet. These may accumulate project-specific entries over time
+  # (L-001, L-002, backlog items), so existing files are never overwritten.
+  # -------------------------------------------------------------------------
+  head "New files (add if missing)"
+
+  local af
+  for af in "learnings.md" "BACKLOG.md"; do
+    local src="$TEMPLATES_PLATFORM/$af"
+    local dst="./.platform/$af"
+    [[ -f "$src" ]] || continue
+    if [[ -f "$dst" ]]; then
+      printf '  %s↷%s %s%s%s  %s(exists — kept as-is)%s\n' \
+        "$C_YELLOW" "$C_RESET" "$C_CYAN" "$af" "$C_RESET" "$C_DIM" "$C_RESET"
+      skipped=$((skipped + 1))
+    else
+      if (( dry_run )); then
+        printf '  %s+%s %s  %s(would add)%s\n' "$C_GREEN" "$C_RESET" "$af" "$C_DIM" "$C_RESET"
+      else
+        cp "$src" "$dst"
+        printf '  %s+%s %s%s%s  %s(new)%s\n' \
+          "$C_GREEN" "$C_RESET" "$C_CYAN" "$af" "$C_RESET" "$C_DIM" "$C_RESET"
+      fi
+      added=$((added + 1))
+    fi
+  done
+
+  # -------------------------------------------------------------------------
+  # Summary
+  # -------------------------------------------------------------------------
+  say
+  if (( dry_run )); then
+    printf '%s%s━━━ Dry-run complete ━━━%s\n' "$C_BOLD" "$C_YELLOW" "$C_RESET"
+    printf '  Would update %s%d%s, add %s%d%s, keep %s%d%s\n' \
+      "$C_BOLD" "$updated" "$C_RESET" \
+      "$C_BOLD" "$added"   "$C_RESET" \
+      "$C_BOLD" "$skipped" "$C_RESET"
+    say
+    printf '  %sRun without --dry-run to apply.%s\n' "$C_DIM" "$C_RESET"
+  else
+    printf '%s%s━━━ Update complete ━━━%s\n' "$C_BOLD" "$C_GREEN" "$C_RESET"
+    printf '  %s↻%s updated: %s%d%s   %s+%s added: %s%d%s   %s↷%s kept: %s%d%s\n' \
+      "$C_GREEN" "$C_RESET" "$C_BOLD" "$updated" "$C_RESET" \
+      "$C_GREEN" "$C_RESET" "$C_BOLD" "$added"   "$C_RESET" \
+      "$C_YELLOW" "$C_RESET" "$C_BOLD" "$skipped" "$C_RESET"
+    say
+    printf '  %sNever touched:%s architecture.md, decisions.md, log.md, STATUS*.md,\n' "$C_DIM" "$C_RESET"
+    printf '  %s              repos.md, work/ACTIVE.md, work/BRIEF.md, work/*.md, domains/*.md%s\n' "$C_DIM" "$C_RESET"
+  fi
+  say
+}
+
 cmd_version() { say "agentboard $VERSION"; }
 
 cmd_help() {
@@ -619,6 +748,13 @@ COMMANDS
                              After init, open the project in an AI CLI and say
                              "activate this project" — the LLM scans your code
                              and fills in the context pack based on what it finds.
+
+  update [--dry-run]         Update process files to the latest agentboard version.
+                             Replaces: workflow.md, ONBOARDING.md, ACTIVATE.md,
+                               conventions/*.md, scripts/sync-context.sh
+                             Adds if missing: learnings.md, BACKLOG.md
+                             Never touches: architecture.md, decisions.md, log.md,
+                               STATUS*.md, repos.md, work/*, domains/*
 
   sync [--apply|--list]      Sync AGENTS.md + GEMINI.md from CLAUDE.md (default: check)
   claim "<task>"             Add a row to .platform/sessions/ACTIVE.md
@@ -647,6 +783,7 @@ main() {
   shift || true
   case "$cmd" in
     init)        cmd_init "$@" ;;
+    update)      cmd_update "$@" ;;
     sync)        cmd_sync "$@" ;;
     claim)       cmd_claim "$@" ;;
     release)     cmd_release "$@" ;;
