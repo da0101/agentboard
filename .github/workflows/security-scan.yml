@@ -1,0 +1,325 @@
+name: security-scan
+
+# Fires on every PR that targets develop or main. The three jobs below are
+# the minimum bar for accepting a contribution into agentboard: prompt-
+# injection content, malicious shell content, and unexplained bulk-adds to
+# template files.
+#
+# These jobs are referenced by branch protection as required status checks
+# under the names:
+#   - prompt-injection-scan
+#   - script-security-scan
+#   - large-diff-warning (advisory, does not block)
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  prompt-injection-scan:
+    name: prompt-injection-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan templates for prompt injection and suspicious content
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          if [ ! -d templates ]; then
+            echo "No templates/ directory found — nothing to scan."
+            exit 0
+          fi
+
+          findings=0
+          tmp_hits="$(mktemp)"
+
+          # Build the file list once — only .md and .sh under templates/.
+          mapfile -t files < <(find templates -type f \( -name '*.md' -o -name '*.sh' \) | sort)
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No .md or .sh files under templates/."
+            exit 0
+          fi
+
+          echo "Scanning ${#files[@]} template file(s)..."
+          echo
+
+          # ---- 1. Prompt injection phrases (case-insensitive) ----
+          prompt_patterns=(
+            'ignore previous'
+            'disregard.*instruction'
+            'forget.*instruction'
+            'override.*instruction'
+            'you are now'
+            'act as if'
+            'pretend you are'
+          )
+
+          for pat in "${prompt_patterns[@]}"; do
+            while IFS= read -r hit; do
+              [ -z "$hit" ] && continue
+              echo "PROMPT-INJECTION: $hit" >> "$tmp_hits"
+              findings=$((findings + 1))
+            done < <(grep -n -i -E -H "$pat" "${files[@]}" 2>/dev/null || true)
+          done
+
+          # ---- 2. Outbound network commands in templates ----
+          # Scanner strategy: flag curl/wget/nc/netcat as standalone tokens,
+          # but allow lines that are clearly negative usage ("not just curl",
+          # "never use curl", "no curl"). This mirrors the sensitive-file
+          # allowlist philosophy below.
+          network_patterns=(
+            '\bcurl\b'
+            '\bwget\b'
+            '\bnc \b'
+            '\bnetcat\b'
+          )
+
+          for pat in "${network_patterns[@]}"; do
+            while IFS= read -r hit; do
+              [ -z "$hit" ] && continue
+              # Allow explicit negative references in documentation prose.
+              if echo "$hit" | grep -qi -E '(not just|never use|do not use|don'\''t use|no curl|no wget|no netcat)'; then
+                continue
+              fi
+              echo "NETWORK-COMMAND: $hit" >> "$tmp_hits"
+              findings=$((findings + 1))
+            done < <(grep -n -E -H "$pat" "${files[@]}" 2>/dev/null || true)
+          done
+
+          # ---- 3. Sensitive file references ----
+          # Flag lines that reference reading .env / .ssh / id_rsa / id_ed25519
+          # UNLESS the line is obviously a warning ("never read", "do not read"),
+          # a comment about gitignoring those files, or the safe .env.example
+          # variant.
+          sensitive_patterns=(
+            '\.env\b'
+            '\.ssh/'
+            '\bid_rsa\b'
+            '\bid_ed25519\b'
+          )
+
+          for pat in "${sensitive_patterns[@]}"; do
+            while IFS= read -r hit; do
+              [ -z "$hit" ] && continue
+              # Allow clearly-negative usage and the safe example variant.
+              if echo "$hit" | grep -qi -E '(never read|do not read|don'\''t read|never commit|do not commit|don'\''t commit|\.env\.example|gitignore|allowlist|blocklist|deny\s*list|denylist|warning|forbidden)'; then
+                continue
+              fi
+              echo "SENSITIVE-FILE-REF: $hit" >> "$tmp_hits"
+              findings=$((findings + 1))
+            done < <(grep -n -E -H "$pat" "${files[@]}" 2>/dev/null || true)
+          done
+
+          # ---- 4. Base64 decode patterns ----
+          base64_patterns=(
+            'base64.*-d'
+            'base64.*--decode'
+          )
+
+          for pat in "${base64_patterns[@]}"; do
+            while IFS= read -r hit; do
+              [ -z "$hit" ] && continue
+              echo "BASE64-DECODE: $hit" >> "$tmp_hits"
+              findings=$((findings + 1))
+            done < <(grep -n -E -H "$pat" "${files[@]}" 2>/dev/null || true)
+          done
+
+          # ---- Report ----
+          if [ "$findings" -gt 0 ]; then
+            echo "::error::prompt-injection-scan found $findings suspicious line(s) in templates/"
+            echo
+            echo "Offending lines:"
+            echo "---------------------------------------------------------"
+            cat "$tmp_hits"
+            echo "---------------------------------------------------------"
+            echo
+            echo "If any of these are legitimate, either reword the line or"
+            echo "add a clear negation phrase ('never use', 'do not read',"
+            echo "'.env.example') so the scanner can tell it apart from an"
+            echo "instruction to perform the action."
+            rm -f "$tmp_hits"
+            exit 1
+          fi
+
+          echo "prompt-injection-scan: clean (${#files[@]} files scanned, 0 findings)"
+          rm -f "$tmp_hits"
+
+  script-security-scan:
+    name: script-security-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan shell scripts for dangerous patterns
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          findings=0
+          tmp_hits="$(mktemp)"
+
+          # Assemble the script list: bin/agentboard + all .sh files under
+          # templates/platform/scripts/. Skip gracefully if either is absent.
+          files=()
+          if [ -f bin/agentboard ]; then
+            files+=("bin/agentboard")
+          fi
+          if [ -d templates/platform/scripts ]; then
+            while IFS= read -r f; do
+              files+=("$f")
+            done < <(find templates/platform/scripts -type f -name '*.sh' | sort)
+          fi
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No shell scripts to scan."
+            exit 0
+          fi
+
+          echo "Scanning ${#files[@]} script file(s)..."
+          for f in "${files[@]}"; do echo "  - $f"; done
+          echo
+
+          # ---- 1. Outbound network calls ----
+          network_patterns=(
+            '\bcurl\b'
+            '\bwget\b'
+            '/dev/tcp'
+            '\bnc \b'
+            '\bnetcat\b'
+          )
+
+          for pat in "${network_patterns[@]}"; do
+            while IFS= read -r hit; do
+              [ -z "$hit" ] && continue
+              echo "NETWORK-CALL: $hit" >> "$tmp_hits"
+              findings=$((findings + 1))
+            done < <(grep -n -E -H "$pat" "${files[@]}" 2>/dev/null || true)
+          done
+
+          # ---- 2. Inline code execution with interpreters ----
+          # These flags let a caller run arbitrary inline code through
+          # python/perl/ruby. If any production script needs them, require a
+          # maintainer review to whitelist.
+          interp_patterns=(
+            'python[0-9]*[[:space:]]+-c'
+            '\bperl[[:space:]]+-e'
+            '\bruby[[:space:]]+-e'
+          )
+
+          for pat in "${interp_patterns[@]}"; do
+            while IFS= read -r hit; do
+              [ -z "$hit" ] && continue
+              echo "INLINE-INTERP: $hit" >> "$tmp_hits"
+              findings=$((findings + 1))
+            done < <(grep -n -E -H "$pat" "${files[@]}" 2>/dev/null || true)
+          done
+
+          # ---- 3. Base64 decode ----
+          base64_patterns=(
+            'base64.*-d'
+            'base64.*--decode'
+          )
+
+          for pat in "${base64_patterns[@]}"; do
+            while IFS= read -r hit; do
+              [ -z "$hit" ] && continue
+              echo "BASE64-DECODE: $hit" >> "$tmp_hits"
+              findings=$((findings + 1))
+            done < <(grep -n -E -H "$pat" "${files[@]}" 2>/dev/null || true)
+          done
+
+          # ---- 4. eval piped with curl/wget (the classic curl | sh variant) ----
+          # Plain `eval` is a normal bash idiom and is NOT flagged.
+          while IFS= read -r hit; do
+            [ -z "$hit" ] && continue
+            echo "EVAL-NETWORK: $hit" >> "$tmp_hits"
+            findings=$((findings + 1))
+          done < <(grep -n -E -H 'eval.*\$\((curl|wget)' "${files[@]}" 2>/dev/null || true)
+
+          # ---- Report ----
+          if [ "$findings" -gt 0 ]; then
+            echo "::error::script-security-scan found $findings suspicious line(s) in shell scripts"
+            echo
+            echo "Offending lines:"
+            echo "---------------------------------------------------------"
+            cat "$tmp_hits"
+            echo "---------------------------------------------------------"
+            rm -f "$tmp_hits"
+            exit 1
+          fi
+
+          echo "script-security-scan: clean (${#files[@]} files scanned, 0 findings)"
+          rm -f "$tmp_hits"
+
+  large-diff-warning:
+    name: large-diff-warning
+    runs-on: ubuntu-latest
+    # Advisory only — never blocks a PR. The number in the summary is there
+    # so reviewers know to pay extra attention to big unexplained additions.
+    continue-on-error: true
+    steps:
+      - name: Checkout with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare template file growth against base branch
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          base_ref="${{ github.base_ref }}"
+          base_sha="origin/${base_ref}"
+
+          # Make sure we actually have the base ref locally.
+          git fetch --no-tags --depth=1 origin "$base_ref" 2>/dev/null || true
+
+          if ! git rev-parse --verify "$base_sha" >/dev/null 2>&1; then
+            echo "Could not resolve $base_sha — skipping large-diff check."
+            exit 0
+          fi
+
+          echo "Checking template file growth vs $base_sha..."
+          echo
+
+          threshold=150
+          warned=0
+
+          # numstat columns: added removed path
+          while IFS=$'\t' read -r added removed path; do
+            # Skip binary files (numstat reports '-')
+            [ "$added" = "-" ] && continue
+            case "$path" in
+              templates/*) ;;
+              *) continue ;;
+            esac
+            # Only complain about markdown and shell templates.
+            case "$path" in
+              *.md|*.sh) ;;
+              *) continue ;;
+            esac
+            if [ "${added:-0}" -gt "$threshold" ]; then
+              echo "::warning file=$path::Template file grew by $added lines (threshold: $threshold)"
+              echo "  LARGE-ADD: $path (+$added / -$removed)"
+              warned=$((warned + 1))
+            fi
+          done < <(git diff --numstat "$base_sha"...HEAD -- 'templates/')
+
+          if [ "$warned" -eq 0 ]; then
+            echo "large-diff-warning: no template file exceeded the +$threshold line threshold."
+          else
+            echo
+            echo "$warned template file(s) exceeded the +$threshold line threshold."
+            echo "This is advisory — the job still passes — but reviewers should"
+            echo "confirm the addition is explained in the PR description."
+          fi

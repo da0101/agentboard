@@ -1,0 +1,39 @@
+# CODEOWNERS — every PR must be reviewed by the maintainer.
+#
+# This is the ground-truth ownership file for agentboard. GitHub uses the
+# LAST matching rule per file, so the catch-all goes first and the
+# high-risk paths follow with explicit owners that GitHub will honor for
+# required-reviewer enforcement.
+#
+# Maintainer: @da0101
+
+# Catch-all — the maintainer owns everything by default.
+*                                       @da0101
+
+# The CLI script — any change here runs on every user's machine.
+/bin/                                   @da0101
+/bin/agentboard                         @da0101
+
+# Templates — these files are read (and sometimes executed) by AI agents
+# inside user projects. Prompt-injection and malicious-instruction risk
+# lives here.
+/templates/                             @da0101
+/templates/**                           @da0101
+/templates/platform/                    @da0101
+/templates/platform/**                  @da0101
+/templates/platform/scripts/            @da0101
+/templates/platform/scripts/**          @da0101
+/templates/root/                        @da0101
+/templates/root/**                      @da0101
+/templates/skills/                      @da0101
+/templates/skills/**                    @da0101
+
+# CI / security surface — anything that can weaken the scanners or
+# disclosure policy must be reviewed by the maintainer.
+/.github/                               @da0101
+/.github/**                             @da0101
+/.github/workflows/                     @da0101
+/.github/workflows/**                   @da0101
+/.github/CODEOWNERS                     @da0101
+/SECURITY.md                            @da0101
+/CONTRIBUTING.md                        @da0101

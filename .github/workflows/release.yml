@@ -1,0 +1,64 @@
+name: release
+
+# Cuts a GitHub release whenever a SemVer tag is pushed. The release always
+# carries a SHA256SUMS attestation covering bin/agentboard and every file
+# under templates/, so anyone downloading the tarball can verify they got
+# the exact content that was tagged.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate SHA256SUMS
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          out="SHA256SUMS"
+          : > "$out"
+
+          # Hash the CLI script first so it is always the top entry.
+          if [ -f bin/agentboard ]; then
+            sha256sum bin/agentboard >> "$out"
+          else
+            echo "::error::bin/agentboard not found — refusing to release"
+            exit 1
+          fi
+
+          # Hash every file under templates/, sorted for a stable ordering.
+          if [ -d templates ]; then
+            while IFS= read -r f; do
+              sha256sum "$f" >> "$out"
+            done < <(find templates -type f ! -name '.DS_Store' | LC_ALL=C sort)
+          fi
+
+          echo
+          echo "SHA256SUMS preview:"
+          echo "---------------------------------------------------------"
+          cat "$out"
+          echo "---------------------------------------------------------"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "${{ github.ref_name }}" \
+            SHA256SUMS \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
