@@ -40,11 +40,26 @@ This keeps context windows lean and prevents agents from being briefed on work t
 
 ## Starting a new workstream
 
-1. Copy `TEMPLATE.md` to `work/<stream-slug>.md`
-2. Fill in: type, scope (3–5 bullets), done criteria (measurable), next action
-3. Add a row to `ACTIVE.md`
+1. **Check for a domain file.** Does `.platform/domains/<feature>.md` exist for this feature?
+   - **Yes** → continue
+   - **No** → create it first (see `conventions/context-organization.md`). A workstream without a domain file has no focused context for the next agent to load.
+2. **Update `work/BRIEF.md`** — replace with the new feature brief; set `## Relevant context` to the domain file(s) this workstream touches.
+3. Copy `TEMPLATE.md` to `work/<stream-slug>.md`
+4. Fill in: type, scope (3–5 bullets), done criteria (measurable), next action
+5. Add a row to `ACTIVE.md`
 
 Stream slug: short-kebab-case, e.g. `stripe-webhook-retry` or `menu-banner-bug`.
+
+## Adding a missing domain file (rescan)
+
+When you discover a feature that exists in the codebase but has no domain file:
+
+1. Grep the backend for the relevant app/model names
+2. Find the admin feature section and RTK Query endpoints
+3. Identify which widgets (if any) touch this domain
+4. Write `.platform/domains/<feature>.md` following the structure in `context-organization.md`
+
+To audit ALL missing domains at once: read the feature list from `STATUS.md` (or ask the user "what are all the features in this app?"), list the existing files in `.platform/domains/`, and write a domain file for each feature that doesn't have one. Keep each under 150 lines.
 
 ## During work
 
