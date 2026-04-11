@@ -20,9 +20,27 @@ Claude Code, Codex CLI, Gemini CLI, or any other AI tool — this file is auto-l
 
 ## Active Work (`.platform/work/`)
 
-**Read in order at the start of every session:**
-1. **`work/BRIEF.md`** — narrative brief: what feature we're building, why, current state, and which reference docs to load
-2. **`work/ACTIVE.md`** — stream registry: status, agent, last updated
+### Session start (every session — mandatory)
+
+Read in order:
+1. **`work/BRIEF.md`** — narrative brief: what we're building, why, current state, relevant context
+2. **`work/ACTIVE.md`** — stream registry
+
+Report to user: 1 stream → "Resuming **\<stream\>** — next: \<action\>. Continue?" / 2+ streams → ask which / 0 → ask what to work on.
+
+### New task bootstrap (before any non-trivial task — mandatory)
+
+When the user gives a task not already tracked in `ACTIVE.md`, **stop and complete these steps before any research, planning, or code**:
+
+1. **Check `ACTIVE.md`** — does this stream already exist? If yes, load it and continue.
+2. **Check `.platform/domains/`** — does a domain file exist for this feature area?
+   - No → **create `.platform/domains/<name>.md`** with cross-layer touch-point inventory first.
+3. **Create `work/<stream-slug>.md`** — what we're building, why, done criteria, key files, current state.
+4. **Add a row to `work/ACTIVE.md`** — slug / type / in-progress / agent / date.
+5. **Update `work/BRIEF.md`** — point to new primary stream + list domain file under "Relevant context".
+6. Only then proceed to triage → research → propose → execute.
+
+> **Non-negotiable.** Skipping this means context is lost when the session ends. Applies to Claude Code, Codex CLI, and Gemini CLI equally. Trivial single-file fixes are the only exception.
 
 See `.platform/conventions/work-tracking.md` for the full protocol.
 
