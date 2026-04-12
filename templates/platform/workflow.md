@@ -77,17 +77,33 @@ State a 5–10 bullet plan **inline in chat**. Include:
 
 ### 5. Execute
 
-Write the code. Atomic commits per logical chunk. Max ~300 lines per file.
+Write the code. Max ~300 lines per file. For specialist work, delegate to the appropriate skill from `repos.md`.
 
-For specialist work, delegate to the appropriate skill from `repos.md`.
+> **⛔ Do NOT commit during Stage 5.** Code is written but never committed until Stage 6 passes and the user explicitly approves.
 
-**Backlog rule:** When you encounter a real limitation, tech debt item, or missing feature that is out of scope for the current task — do NOT fix it, do NOT open a new work stream. Append one row to `.platform/BACKLOG.md` (priority / area / description / found-during / date) and continue. Priority guide: `high` = causes user-visible bugs or data loss at scale / `medium` = degrades UX or requires workaround / `low` = nice-to-have or edge case.
+**When dispatching implementation sub-agents:** never include `git add` or `git commit` in the agent's task prompt. Agents write code and report back. The commit is the main agent's responsibility after Stage 6 clears and the human approves.
 
-**Exit:** code is written, tests pass locally.
+**After execution completes:** present a change summary inline — files modified/created, expected behavior change, what Stage 6 needs to verify.
 
-### 6. Verify + Learn
+**Backlog rule:** When you encounter a real limitation, tech debt item, or missing feature that is out of scope — do NOT fix it, do NOT open a new work stream. Append one row to `.platform/BACKLOG.md` (priority / area / description / found-during / date) and continue.
 
-Parallelize:
+**Exit:** code is written, NOT yet committed, ready for Stage 6 verification.
+
+### 6. Verify + Gate + Learn
+
+#### The commit gate — required before ANY `git commit`
+
+All three must be true before committing:
+
+| Gate | Requirement |
+|---|---|
+| ✅ Tests pass | Unit tests for every new/modified function and component |
+| ✅ Security clear | Quick pass on anything touching auth, payments, or data access |
+| ✅ Human approves | User explicitly says "ship it" / "commit it" — the AI never self-approves |
+
+Present Stage 6 results to the user **before committing**. Wait for the green light.
+
+Then verify in parallel:
 - Specialist A: run tests
 - Specialist B: security / code review pass (for anything security-sensitive)
 - Specialist C: real-browser QA (for UI changes)
@@ -121,6 +137,8 @@ Class: <category — for grep>
 
 > **Hard rule: only the human/owner declares a stream complete.**
 > The AI never self-declares completion. The AI may say "I believe this stream is done — here is the evidence" and propose closure, but the final decision belongs to the developer. No exceptions.
+>
+> **⛔ Do NOT run steps 7–9 (archive, ACTIVE.md removal, log) until the human explicitly approves closure.** Implementation being done ≠ stream being closed. The stream file stays in `work/` and the row stays in `ACTIVE.md` until the owner says so. Steps 1–6 (verify criteria, update docs) can run after implementation. Steps 7–9 require explicit human sign-off.
 
 Run this checklist **every time a stream reaches done** — before archiving the stream file.
 
@@ -132,7 +150,7 @@ Run this checklist **every time a stream reaches done** — before archiving the
 4. **Deep-reference file check** — for every repo the stream touched, make an explicit YES/NO decision on whether the per-repo reference file (e.g. `backend.md`, `admin.md`) is now stale. Ask: *"Would a new developer or agent reading this file today take a wrong path?"* Update if YES. Skip if NO. This catches: new URL routes, removed fields, stack changes, patterns that no longer apply. State the decision in chat either way.
 5. **Update architecture.md** — if the stream changed system topology (new endpoints, new data flows, auth changes), update the relevant section.
 6. **Unblock downstream streams** — flip any `pending (blocked on this)` stream in `ACTIVE.md` to `ready-to-plan`.
-7. **Archive the stream file** — move `work/<slug>.md` → `work/archive/<slug>.md`, remove from `ACTIVE.md`, reset `BRIEF.md`.
+7. **Archive the stream file** — first check: does the stream file have `closure_approved: true`? If not, **STOP**. Do not archive. Ask the owner to set it. Only when `closure_approved: true` is present: move `work/<slug>.md` → `work/archive/<slug>.md`, remove from `ACTIVE.md`, reset `BRIEF.md`. **Remove the closed stream from `BRIEF.md` entirely — do NOT add a "Previously completed" section.** Completed work belongs in `log.md` only. `BRIEF.md` must only ever list active streams.
 8. **Append to log.md** — one line: `YYYY-MM-DD — <stream> — <outcome> — <takeaway>`.
 9. **Learnings check** — any non-obvious bugs surfaced? Confirm they are in `learnings.md`. Add if missing.
 
@@ -149,6 +167,8 @@ Run this checklist **every time a stream reaches done** — before archiving the
 5. **Every success logs one line.** `.platform/log.md` is append-only, newest-on-top.
 6. **Read before you edit.** Always read the file before modifying it, even if you "know" the content.
 7. **Ask before destructive actions.** Deletes, force-pushes, rollbacks, schema drops — always confirm.
+8. **Never commit before Stage 6 + human approval.** Execute produces code. Stage 6 + the human produces the commit. No exceptions — not even for "trivial" changes.
+9. **Never include `git commit` in sub-agent prompts.** Agents write code and stop. If an agent is told to commit, it bypasses tests and human approval — exactly the failure mode this rule prevents.
 
 ---
 

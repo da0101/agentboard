@@ -4,6 +4,7 @@
 **Status:** planning
 **Started:** _TODO_
 **Agent:** claude-code | codex | gemini  ← who owns it currently
+**closure_approved:** false — owner must set to `true` before this stream can be archived
 
 ## Scope
 - _TODO: 3–5 bullets describing what's in scope_
