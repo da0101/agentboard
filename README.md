@@ -52,9 +52,16 @@ Your project is now activated. Every future session (any agent, any CLI) auto-lo
 
 ---
 
-## Skills (installed additively into `.claude/skills/`)
+## Skills (installed into `.claude/skills/` + `.agents/skills/`)
 
-`agentboard init` also installs a curated set of workflow skills for Claude Code. They are **additive** — any pre-existing skills in `.claude/skills/` are never overwritten. All skills are prefixed `ab-` to avoid colliding with gstack or other skill packs.
+`agentboard init` installs a curated set of workflow skills for **all three AI providers**. Skills land in both `.claude/skills/` (Claude Code) and `.agents/skills/` (Codex CLI + Gemini CLI) so every provider has the same capabilities from day one. The install is **additive** — any pre-existing skill with the same name is never overwritten. All skills are prefixed `ab-` to avoid colliding with other skill packs.
+
+**Invocation by provider:**
+- **Claude Code:** `/ab-triage`, `/ab-workflow`, etc.
+- **Codex CLI:** `$ab-triage`, `$ab-workflow`, etc.
+- **Gemini CLI:** auto-activated by description matching (or explicit via slash commands)
+
+Skills use progressive disclosure — only the `name` + `description` are loaded at session start. The full skill body loads on-demand when activated. No context pollution.
 
 | Skill | Purpose |
 |---|---|

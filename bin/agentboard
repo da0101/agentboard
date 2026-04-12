@@ -469,23 +469,42 @@ NOTICE
   done
 
   # Install skills additively — never overwrite existing skills
-  head "Installing skills (.claude/skills/)"
+  # Skills are installed to BOTH .claude/skills/ (Claude Code) and .agents/skills/
+  # (Codex CLI + Gemini CLI) so all three providers have the full lifecycle skill set.
+  head "Installing skills (.claude/skills/ + .agents/skills/)"
   printf '  %sAdditive install — any pre-existing skill with the same name is left untouched.%s\n' "$C_DIM" "$C_RESET"
+  printf '  %sInstalled to both .claude/skills/ (Claude Code) and .agents/skills/ (Codex + Gemini).%s\n' "$C_DIM" "$C_RESET"
   say
   if [[ -d "$TEMPLATES_SKILLS" ]]; then
-    local skills_target="$target/.claude/skills"
-    mkdir -p "$skills_target"
+    local skills_target_claude="$target/.claude/skills"
+    local skills_target_agents="$target/.agents/skills"
+    mkdir -p "$skills_target_claude" "$skills_target_agents"
     local installed=0 skipped=0 skill_name skill_desc
     for skill_dir in "$TEMPLATES_SKILLS"/*/; do
       skill_name="$(basename "$skill_dir")"
       skill_desc="$(skill_description "$skill_dir/SKILL.md")"
-      if [[ -e "$skills_target/$skill_name" ]]; then
+      local installed_here=0
+      # Install to .claude/skills/ (Claude Code)
+      if [[ -e "$skills_target_claude/$skill_name" ]]; then
         skipped=$((skipped + 1))
         printf '    %s↷%s %s%-16s%s %s%s%s\n' \
           "$C_YELLOW" "$C_RESET" "$C_BOLD" "$skill_name" "$C_RESET" \
-          "$C_DIM" "(exists — kept)" "$C_RESET"
+          "$C_DIM" "(claude: exists — kept)" "$C_RESET"
       else
-        cp -R "$skill_dir" "$skills_target/$skill_name"
+        cp -R "$skill_dir" "$skills_target_claude/$skill_name"
+        installed_here=1
+      fi
+      # Install to .agents/skills/ (Codex + Gemini)
+      if [[ -e "$skills_target_agents/$skill_name" ]]; then
+        skipped=$((skipped + 1))
+        printf '    %s↷%s %s%-16s%s %s%s%s\n' \
+          "$C_YELLOW" "$C_RESET" "$C_BOLD" "$skill_name" "$C_RESET" \
+          "$C_DIM" "(agents: exists — kept)" "$C_RESET"
+      else
+        cp -R "$skill_dir" "$skills_target_agents/$skill_name"
+        installed_here=1
+      fi
+      if (( installed_here )); then
         installed=$((installed + 1))
         printf '    %s+%s %s%-16s%s %s%s%s\n' \
           "$C_GREEN" "$C_RESET" "$C_BOLD" "$skill_name" "$C_RESET" \
@@ -493,7 +512,7 @@ NOTICE
       fi
     done
     say
-    ok "Skills: $C_BOLD$installed installed$C_RESET, $skipped skipped (existing never overridden)"
+    ok "Skills: $C_BOLD$installed installed$C_RESET to both .claude/skills/ and .agents/skills/, $skipped skipped"
   fi
 
   say
