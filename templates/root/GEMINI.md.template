@@ -1,20 +1,14 @@
-# {{PROJECT_NAME}} — NOT YET ACTIVATED
-
-**Status:** This project was scaffolded by `agentboard init` on {{TODAY}} but is **not yet activated**. The `.platform/` context pack is present but the project-specific content is empty.
+# {{PROJECT_NAME}} — Gemini CLI Entry
 
 > {{DESCRIPTION}}
 
+**Status:** This project was scaffolded by `agentboard init` on {{TODAY}}. If not yet activated, say "activate this project" and the agent will read `.platform/ACTIVATE.md`.
+
 ---
 
-## You are an AI agent reading this file
+## You are an AI agent reading this file (Gemini CLI)
 
-Claude Code, Codex CLI, Gemini CLI, or any other AI tool — this file is auto-loaded when you open this project. You were pointed here because it lives at the project root.
-
-**When the user says "activate this project"** (or similar — "fill in the platform pack", "onboard this project", "run agentboard activation"), read `.platform/ACTIVATE.md` and follow its 6-step protocol. That file contains the full activation instructions.
-
-**Until activation**, answer the user's question normally. If relevant, mention that the project has not been activated yet and they can say "activate this project" to run the setup.
-
-**Important:** `.platform/ACTIVATE.md` contains rules for how to handle existing `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` files at the root — **never delete user content**, always prepend your agentboard section to the top and preserve the original below.
+This file is auto-loaded when you open this project in Gemini CLI. All mandatory protocols below apply to you exactly as they apply to Claude Code and Codex CLI.
 
 ---
 
@@ -40,19 +34,15 @@ When the user gives a task not already tracked in `ACTIVE.md`, **stop and comple
 5. **Update `work/BRIEF.md`** — point to new primary stream + list domain file under "Relevant context".
 6. Only then proceed to triage → research → propose → execute.
 
-> **Non-negotiable.** Skipping this means context is lost when the session ends. Applies to Claude Code, Codex CLI, and Gemini CLI equally. Trivial single-file fixes are the only exception.
-
-See `.platform/conventions/work-tracking.md` for the full protocol.
+> **Non-negotiable.** Skipping this means context is lost when the session ends. Trivial single-file fixes are the only exception.
 
 ## Reference pack
 
-**Loading rule: only load files listed in `work/BRIEF.md` § "Relevant context".** Do not auto-load the full pack. Load only what the current feature actually touches. Never read `work/archive/*` unless explicitly asked.
+**Loading rule: only load files listed in `work/BRIEF.md` § "Relevant context".** Do not auto-load the full pack. Never read `work/archive/*` unless explicitly asked. **Never load `BACKLOG.md` or `learnings.md` at session start** — read them only when the user asks, or when appending.
 
-- `.platform/ACTIVATE.md` — the activation protocol (read this when the user says "activate")
-- `.platform/workflow.md` — the 6-stage inline workflow for non-trivial tasks
-- `.platform/ONBOARDING.md` — the 7-step onboarding path for future sessions
-- `.platform/learnings.md` — bug post-mortems + hard-won patterns (L-NNN); **grep here first before diagnosing non-obvious bugs** — never auto-load, append in Stage 6 when root cause was non-obvious
-- `.platform/scripts/sync-context.sh` — keeps root entry files in sync (use carefully — see `ACTIVATE.md` Step 5)
+- `.platform/workflow.md` — the 6-stage inline workflow **← read this before running any multi-step protocol**
+- `.platform/ONBOARDING.md` — 7-step onboarding path for future sessions
+- `.platform/learnings.md` — bug post-mortems + hard-won patterns (L-NNN); **grep here first before diagnosing non-obvious bugs**
 
 ## Mandatory Protocol — Stream Audit / Analysis
 
@@ -76,27 +66,9 @@ This applies even when resuming after context compaction. A compressed context s
 
 Full protocol: `.platform/workflow.md` → "Stream Closure Protocol".
 
-## Subagent Model Assignment (Claude Code only)
-
-Before every `Task` tool dispatch, print a manifest line in chat:
-
-```
-Dispatching N agent(s): <Name> [<model>] — <purpose>; ...
-```
-
-Pass `model` explicitly on every `Task` call — never omit it (omitting inherits Opus and wastes tokens).
-
-| Work type | Model |
-|---|---|
-| Research, audit, exploration, doc writing, code review, test writing, security audit | **`sonnet`** |
-| Code implementation, hard architectural decisions, executors handling deviations | **`opus`** |
-| Mechanical / trivial narrow operations | **`haiku`** |
-
-Name agents with a persona — e.g., "Max the Mapper [sonnet]", "Kai the Coder [opus]". Full rule: `.platform/conventions/subagent-dispatch.md`.
-
 ## Skills available to you
 
-Installed additively into `.claude/skills/` by `agentboard init`. Prefixed `ab-` so they never collide with gstack / pre-existing skills.
+Installed into `.agents/skills/` by `agentboard init`.
 
 `ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-review`, `ab-debug`
 
@@ -104,4 +76,4 @@ Read each skill's `SKILL.md` on first use to understand its protocol.
 
 ---
 
-_Generated by agentboard on {{TODAY}}. After activation, this file will be replaced with the steady-state version (or, if you had an existing `CLAUDE.md` before init, the steady-state content will be prepended to the top of your file)._
+_Generated by agentboard on {{TODAY}}. After activation, this file will be updated with project-specific content by sync-context.sh._

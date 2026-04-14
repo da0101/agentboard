@@ -103,6 +103,35 @@ All three must be true before committing:
 
 Present Stage 6 results to the user **before committing**. Wait for the green light.
 
+#### Testing philosophy — when and how to write tests
+
+Not dogmatic TDD. Optimize for: **clear contracts, regression safety, fast feedback, maintainable tests, testing behavior that matters.**
+
+**By task type:**
+
+| Task type | Approach |
+|---|---|
+| 🐛 **Bug fix** | Failing test first — always. Reproduce → write failing test → fix → run suite. Proves the fix and prevents regression. |
+| 🧠 **Pure business logic** | Test-first is excellent. Contract is clear, no churn. |
+| ✨ **New feature (clear contract)** | Write the behavior/API test first, then implement. |
+| ✨ **New feature (design moving)** | Sketch implementation first. Add tests immediately once shape stabilizes. |
+| 🖼️ **UI / components** | Finish implementation first (markup/props settle), then add tests right after. |
+| ♻️ **Refactor** | Lock existing behavior with characterization tests before changing internals. |
+| ⚠️ **High-risk code** | Test earlier and more thoroughly. |
+
+**The strong workflow (for new features):**
+1. Define the behavior/contract.
+2. Add one test for the main case.
+3. Implement.
+4. Add boundary / error / empty-state tests.
+5. Run the nearest relevant suite.
+
+**What NOT to do:**
+- Write tests after the fact just to satisfy a coverage metric
+- Test implementation details instead of behavior
+- Add huge brittle tests before you understand the design
+- Skip the failing regression test for a bug fix
+
 Then verify in parallel:
 - Specialist A: run tests
 - Specialist B: security / code review pass (for anything security-sensitive)
@@ -155,6 +184,186 @@ Run this checklist **every time a stream reaches done** — before archiving the
 9. **Learnings check** — any non-obvious bugs surfaced? Confirm they are in `learnings.md`. Add if missing.
 
 **Hard rule:** steps 2–5 are not optional. If a stream touched 3 repos, all 3 STATUS files get updated and all 3 deep-reference files get an explicit YES/NO decision. The next agent should be able to open any reference file and see a correct picture of the world.
+
+---
+
+## Stream / Feature Analysis Protocol
+
+> **Trigger:** When asked for a feature audit, stream analysis, "what's the state of X", "audit end to end", "check the state of", or "full analysis of \<feature/stream\>".
+
+> ⛔ **MANDATORY — NO EXCEPTIONS:** Before doing anything else when this protocol is triggered — including collecting already-running agent results — read this section in full. A compressed context summary from a resumed session is NOT a substitute for reading this spec. The protocol steps below must be followed in order every time. Skipping any step (especially Step 3 "wait for all agents", Step 4 "exact template", Step 5 "anchor in stream file") is a protocol violation regardless of how much context you already have.
+
+### Step 1 — Identify scope
+
+Determine which repos are touched. If a stream file exists at `work/<slug>.md`, read it first — it defines scope, done criteria, and key files.
+
+- Stream touches 1 repo → spawn 1 agent
+- Stream touches 2 repos → spawn 2 agents
+- Full platform audit → spawn 1 agent per repo
+
+### Step 2 — Announce and dispatch in parallel
+
+```
+Dispatching N agent(s): <name1> [sonnet] — <purpose>; <name2> [sonnet] — <purpose>; ...
+```
+
+**All analysis agents run on Sonnet.** Analysis is read-only — never Opus.
+
+Spawn one per repo (`run_in_background: true`), each covering:
+
+| Dimension | What to check |
+|---|---|
+| **Implementation state** | What's built, stubbed, missing; TODO/FIXME comments |
+| **Test coverage** | Which files have tests, which have zero, breadth vs. complexity |
+| **Security** | Auth/permissions, hardcoded secrets, XSS, SQL injection, tenant isolation |
+| **Code quality** | Files over 300 lines, business logic in views, N+1 queries, duplication |
+| **Feature-specific** | *(if scoped)* Exact implementation per layer — done, missing, untested |
+
+### Step 3 — Wait for all agents, then synthesize
+
+Do not partially report. Wait for every agent before outputting anything.
+
+### Step 4 — Output in standardized format
+
+Always use this exact template:
+
+---
+
+```
+# 📋 <Feature / Stream / Platform> — Audit Snapshot
+
+> **Stream:** `<slug>` · **Date:** YYYY-MM-DD · **Status:** <emoji + status>
+> **Repos touched:** <list>
+
+---
+
+## ⚡ At-a-Glance Scorecard
+
+| | 🖥️ <Repo A> | 🎛️ <Repo B> | 📱 <Repo C> |
+|---|:---:|:---:|:---:|
+| **Implementation** | 🟢/🟡/🔴 | ... | ... |
+| **Tests**          | 🟢/🟡/🔴 | ... | ... |
+| **Security**       | 🟢/🟡/🔴 | ... | ... |
+| **Code Quality**   | 🟢/🟡/🔴 | ... | ... |
+
+> **Bottom line:** <one sentence — what is the overall state?>
+
+---
+
+## 🔄 How the Feature Works (End-to-End)
+
+<ASCII flow diagram — only when it clarifies cross-layer architecture>
+
+---
+
+## 🛡️ Security
+
+| Severity | Repo | Finding |
+|:---:|---|---|
+| 🔴 Critical / 🟡 Medium / 🟢 Clean | | |
+
+---
+
+## 🧪 Test Coverage
+
+### <Repo Name>
+| Area | Tested? | File |
+|---|:---:|---|
+| <area> | ✅ Strong / 🟡 Thin / 🔴 None | path/to/test |
+
+---
+
+## ✅ Implementation Status
+
+### <Repo Name>
+| Component | Status | Location |
+|---|:---:|---|
+| <name> | ✅ Done / ❌ Missing / ⚪ Deferred | file:line |
+
+---
+
+## 🔧 Open Issues
+
+### 🔴 Must Fix (blocking)
+| # | Repo | Issue |
+|---|---|---|
+
+### 🟡 Should Fix Soon
+| # | Repo | Issue | Location |
+|---|---|---|---|
+
+### ⚪ Known Limitations (document, not block)
+| # | Limitation |
+|---|---|
+
+---
+
+## 🎯 Close Checklist / Priority Order
+
+  □  1. 🧪  <test task>
+  □  2. 🐛  <correctness fix>
+  □  3. 🔍  <QA / verification step>
+  □  4. ⚡  <performance fix>
+  □  5. ✅  <closure step>
+```
+
+---
+
+**Output rules:**
+- Scorecard always first — tells the story before any detail
+- Flow diagram only when it clarifies cross-layer connections
+- Every security finding: 🔴 Critical / 🟡 Medium / 🟢 Clean
+- Every test area: ✅ Strong / ✅ Good / 🟡 Thin / 🔴 None
+- Healthy areas always listed — not just problems
+- `file:line` for every actionable finding
+- Tables and bullets only — no prose paragraphs
+
+### Step 5 — Anchor the report in the stream file
+
+> ⛔ **MANDATORY — do this before moving to Step 6 or responding about next steps.** The report is not complete until it is written into the stream file. Outputting it in chat only is a protocol violation.
+
+Immediately after outputting the report, write it into the stream file (`work/<slug>.md`):
+
+- **First audit on this stream:** append a new `## 🔍 Audit — YYYY-MM-DD` section at the bottom of the stream file.
+- **Re-audit (audit section already exists):** replace the existing audit section entirely with the new report. Do not accumulate multiple audit sections — only the latest report stays. Add a `> Supersedes previous audit.` note at the top of the section.
+
+```markdown
+---
+
+## 🔍 Audit — YYYY-MM-DD
+
+> Supersedes previous audit. Run via Stream / Feature Analysis Protocol — N parallel agents.
+
+<paste the full standardized report here>
+```
+
+This makes the report a living checklist inside the stream — every fix can be tracked against it, and any agent picking up the work in a new session has the findings immediately without re-running the analysis.
+
+### Step 6 — Fix → Re-audit loop
+
+Repeat until the scorecard is all 🟢:
+
+```
+┌─────────────────────────────────────────────┐
+│  1. Work through 🔴 Must Fix items first     │
+│  2. For each fix: implement → test → verify  │
+│  3. Once all 🔴 resolved, re-run analysis    │
+│     (Steps 1–4, same scope, fresh agents)    │
+│  4. Compare new report to previous:          │
+│     • All flagged items resolved?            │
+│     • Any new issues introduced?             │
+│                                              │
+│  If clean → remove audit section from        │
+│             stream file, proceed to closure  │
+│  If not clean → return to Step 1             │
+└─────────────────────────────────────────────┘
+```
+
+**Rules for the loop:**
+- Never self-declare clean. Always re-run the analysis — don't assume fixes worked.
+- Re-audit scope = same repos as the original audit. Don't narrow it.
+- New issues found in re-audit get added to the stream file's audit section (append, don't replace).
+- The audit section is removed from the stream file **only** when the re-audit returns all 🟢 with no 🔴 items remaining.
 
 ---
 

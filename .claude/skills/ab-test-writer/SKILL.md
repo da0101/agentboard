@@ -36,6 +36,33 @@ Tests are written in the project's existing test framework (detected by reading 
 - For integration tests that span services (different skill — call out explicitly)
 - For test-less prototypes the user explicitly marked "no tests"
 
+## When to write tests — and how
+
+Not dogmatic TDD. Optimize for: **clear contracts, regression safety, fast feedback, maintainable tests, testing behavior that matters.**
+
+| Task type | When to write tests |
+|---|---|
+| 🐛 **Bug fix** | **Failing test first — always.** Reproduce → failing test → fix → run suite. This proves you actually fixed it and prevents regression. Never skip this. |
+| 🧠 **Pure business logic** | Test-first is excellent. Contract is clear, no UI churn. |
+| ✨ **New feature (clear contract)** | Write the behavior/API test first, then implement. |
+| ✨ **New feature (design moving)** | Sketch implementation first. Add tests immediately once the shape stabilizes. Do not wait until "done". |
+| 🖼️ **UI / components** | Finish the implementation first (markup/props settle), then write tests right after — before the PR. |
+| ♻️ **Refactor** | Lock existing behavior with characterization tests **before** changing internals. |
+| ⚠️ **High-risk code** | Test earlier and more thoroughly — auth, payments, tenant isolation. |
+
+**The strong workflow for new features:**
+1. Define the behavior / contract.
+2. Add one test for the main (happy path) case.
+3. Implement.
+4. Add boundary / error / empty-state tests.
+5. Run the nearest relevant suite.
+
+**What NOT to do:**
+- Write tests after the fact just to hit a coverage number
+- Test implementation details instead of observable behavior
+- Add large brittle tests before you understand the design
+- Skip the failing regression test for a bug fix — this is the most important rule
+
 ## Protocol
 
 ### Step 1 — Detect the test framework

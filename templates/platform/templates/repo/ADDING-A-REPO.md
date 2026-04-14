@@ -20,8 +20,8 @@ The only thing that varies per-stack is **which `conventions/*.md` file is the p
 
 Answer these before touching files. If you can't answer 1–7 cleanly, stop and go through Stage 1 (Triage) + Stage 2 (Interview) of `.platform/workflow.md` first.
 
-1. **Repo name** — exact directory name under `/Users/danilulmashev/Documents/GitHub/`
-   - e.g., `kitchen-display-widget`, `restohub-mobile`, `restohub-ops-cli`
+1. **Repo name** — exact directory name where you keep your repos (e.g., `~/code/`, `~/projects/`)
+   - e.g., `kitchen-display-widget`, `my-app-mobile`, `my-app-ops-cli`
 2. **Short slug** — kebab-case, used in STATUS filenames and deep-reference files
    - e.g., `kds-widget`, `mobile`, `ops-cli`
 3. **Display name** — human-readable, for headers and docs

@@ -28,3 +28,14 @@ _The single most important next step. Keep this current._
 
 ## Open questions
 _Things blocked on user input. Remove when resolved._
+
+---
+
+## 🔍 Audit Report
+
+> **Required:** After every audit request, paste the full standardized report here.
+> Do NOT leave the audit only in chat — it must be anchored here so the next session has it.
+> Format: `.platform/workflow.md` → Stream / Feature Analysis Protocol → Step 4 template.
+> After a clean re-audit (all 🟢), remove this section before stream closure.
+
+_Status: not yet run_
