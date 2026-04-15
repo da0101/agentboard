@@ -283,6 +283,8 @@ agentboard help
 
 As Agentboard evolves, `agentboard update` lets a project pull in newer process files without clobbering project truth.
 
+For older projects that still use the legacy framework shape, use the dedicated migration flow in [MIGRATION_GUIDE.md](/Users/danilulmashev/Documents/GitHub/agentboard/MIGRATION_GUIDE.md).
+
 It updates things like:
 
 - `workflow.md`
@@ -302,6 +304,22 @@ It does **not** overwrite project-authored operational state such as:
 - `log.md`
 - `work/*`
 - `domains/*`
+
+### Migrating older projects
+
+If a project already has an older `.platform/` layout, the current upgrade path is:
+
+```bash
+agentboard update
+agentboard migrate
+agentboard migrate --apply
+agentboard brief-upgrade <stream-slug> --apply
+agentboard doctor
+```
+
+Use `brief-upgrade <stream-slug>` without `--apply` first if you want to preview the rewritten BRIEF before writing it.
+
+The full step-by-step guide lives in [MIGRATION_GUIDE.md](/Users/danilulmashev/Documents/GitHub/agentboard/MIGRATION_GUIDE.md).
 
 ---
 
