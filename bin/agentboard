@@ -691,6 +691,12 @@ cmd_doctor() {
   local domains_dir="./.platform/domains"
   local sync_script="./.platform/scripts/sync-context.sh"
   local root_claude="./CLAUDE.md"
+  local repos_file="./.platform/repos.md"
+  local is_hub=0
+
+  if [[ -f "$root_claude" ]] && grep -q "PLATFORM BRAINS HUB" "$root_claude"; then
+    is_hub=1
+  fi
 
   printf '\n%s%sagentboard doctor%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
 
@@ -845,6 +851,51 @@ cmd_doctor() {
     fi
   fi
 
+  if (( is_hub )) && [[ -f "$repos_file" ]]; then
+    local repo_rows=""
+    repo_rows="$(awk -F'|' '
+      function trim(s) { gsub(/^[ \t`]+|[ \t`]+$/, "", s); return s }
+      /^## Repos/ { in_repos = 1; next }
+      in_repos && /^## / { exit }
+      {
+        if (!in_repos) next
+        repo = trim($2)
+        path = trim($3)
+        stack = trim($4)
+        ref = trim($5)
+        if (repo == "" || repo == "Repo" || repo ~ /^-+$/) next
+        printf "%s|%s|%s|%s\n", repo, path, stack, ref
+      }
+    ' "$repos_file")"
+
+    if [[ -z "$repo_rows" ]]; then
+      warn "Hub mode detected but .platform/repos.md has no repo rows"
+      errors=$((errors + 1))
+    else
+      local repo_name repo_path repo_stack repo_ref resolved_path
+      while IFS='|' read -r repo_name repo_path repo_stack repo_ref; do
+        [[ -z "$repo_name" ]] && continue
+
+        if [[ "$repo_name" =~ ^_repo- || "$repo_path" =~ \.\./repo- ]]; then
+          warn "Hub repos.md still contains placeholder row '$repo_name'"
+          errors=$((errors + 1))
+          continue
+        fi
+
+        if [[ "$repo_path" = /* ]]; then
+          resolved_path="$repo_path"
+        else
+          resolved_path="$(cd . && cd "$(dirname "$repos_file")/.." && cd "$repo_path" 2>/dev/null && pwd)" || resolved_path=""
+        fi
+
+        if [[ -z "$resolved_path" || ! -d "$resolved_path" ]]; then
+          warn "Hub repo path '$repo_path' for '$repo_name' does not exist"
+          errors=$((errors + 1))
+        fi
+      done <<< "$repo_rows"
+    fi
+  fi
+
   say
   if (( errors > 0 )); then
     printf '%s%sDoctor found issues%s\n' "$C_BOLD" "$C_RED" "$C_RESET"
@@ -868,6 +919,15 @@ cmd_add_repo() {
   local repo_path="${1:-}"
   [[ -n "$repo_path" ]] || die "Usage: agentboard add-repo <path-to-repo>"
   [[ -d "$repo_path" ]] || die "$repo_path does not exist"
+
+  local existing=""
+  local entry
+  for entry in CLAUDE.md AGENTS.md GEMINI.md; do
+    if [[ -e "$repo_path/$entry" ]]; then
+      existing="${existing:+$existing, }$entry"
+    fi
+  done
+  [[ -z "$existing" ]] || die "$repo_path already has root entry files ($existing). add-repo will not overwrite them."
 
   say "See .platform/templates/repo/ADDING-A-REPO.md for the full runbook."
   say "Copying entry file templates to $repo_path..."
@@ -1169,6 +1229,7 @@ COMMANDS
   log "<one line>"           Append a timestamped line to .platform/log.md
   status                     Print .platform/STATUS.md to stdout
   add-repo <path>            Copy per-repo entry file templates to a new repo
+                             Refuses to overwrite existing entry files.
   version                    Print version
   help                       Show this help
 

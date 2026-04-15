@@ -261,7 +261,7 @@ agentboard help
 - `claim` and `release` manage `.platform/sessions/ACTIVE.md`
 - `log` appends to `.platform/log.md`
 - `status` prints `.platform/STATUS.md`
-- `add-repo` scaffolds entry files into a sibling repo in hub mode
+- `add-repo` scaffolds entry files into a sibling repo in hub mode and refuses to overwrite existing root entry files
 
 ---
 
