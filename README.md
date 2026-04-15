@@ -242,6 +242,7 @@ So the shipped scaffold is the operational shell; activation fills in the projec
 agentboard init
 agentboard update [--dry-run]
 agentboard sync [--apply|--list]
+agentboard bootstrap
 agentboard doctor
 agentboard new-domain <slug> [repo-id ...] [--repo <repo-id>]
 agentboard new-stream <slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]
@@ -261,6 +262,7 @@ agentboard help
 - `init` scaffolds the kit into the current directory
 - `update` refreshes shipped process files and skill protocols without touching project-specific docs
 - `sync` keeps `AGENTS.md` and `GEMINI.md` aligned with `CLAUDE.md`
+- `bootstrap` discovers repo layout, fills `repos.md`, scaffolds missing deep-reference files, and syncs hub repo paths into `sync-context.sh`; it does not invent feature/domain truth
 - `doctor` validates active `.platform/` state, stream/domain metadata, domain references, and repo IDs against the repo registry
 - `new-domain` bootstraps a domain file with metadata and can assign multiple repo IDs up front
 - `new-stream` bootstraps a stream file, registers it in `work/ACTIVE.md`, and seeds `work/BRIEF.md` when the brief is still a placeholder; repeat `--domain` and `--repo` when the stream spans multiple areas or repos
