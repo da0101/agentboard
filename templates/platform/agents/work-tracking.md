@@ -100,6 +100,9 @@ When all done criteria are met:
    - Append one line to `.platform/log.md`
    - Update `memory/` if anything learned should persist cross-session
 
+Hard blocker:
+- The closure hook blocks removal from `ACTIVE.md` unless `closure_approved: true` is present and every item under `## Done criteria` is checked.
+
 ## What NOT to put in a stream file
 
 - Full implementation plans (those live in chat)

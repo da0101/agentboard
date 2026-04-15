@@ -314,4 +314,4 @@ test_node_backend_role_hint
 test_ios_role_hint_safe_defaults
 test_local_context_artifacts_are_listed
 
-printf 'PASS: bootstrap_phase2_test\n'
+printf 'PASS: integration\n'
