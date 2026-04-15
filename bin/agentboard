@@ -876,40 +876,43 @@ EOF
 print_banner() {
   [[ -z "$C_YELLOW" ]] && return 0  # skip if NO_COLOR or non-TTY
 
-  # Block-pixel art banner — Gemini-style colored squares
-  # Font: 5 cols × 7 rows per letter. Each pixel = 2 background-colored spaces.
-  # Letters: A  G  E  N  T  B  O  A  R  D
-  local A_PX="01110 10001 10001 11111 10001 10001 10001"
-  local G_PX="01110 10000 10000 10111 10001 10001 01110"
-  local E_PX="11111 10000 10000 11110 10000 10000 11111"
-  local N_PX="10001 11001 10101 10011 10001 10001 10001"
-  local T_PX="11111 00100 00100 00100 00100 00100 00100"
-  local B_PX="11110 10001 10001 11110 10001 10001 11110"
-  local O_PX="01110 10001 10001 10001 10001 10001 01110"
-  local R_PX="11110 10001 10001 11110 10100 10010 10001"
-  local D_PX="11110 10001 10001 10001 10001 10001 11110"
+  # Block-pixel art — Gemini-style scanlines
+  # Each pixel = ▀ (upper-half block, foreground=letter color, background=terminal dark)
+  # The dark bottom-half of every ▀ creates continuous horizontal scanlines across the full word.
+  # 5×5 font, left→right gradient, stippled diagonal shadow.
+  local A_PX="01110 10001 11111 10001 10001"
+  local G_PX="01111 10000 10011 10001 01111"
+  local E_PX="11111 10000 11100 10000 11111"
+  local N_PX="10001 11001 10101 10011 10001"
+  local T_PX="11111 00100 00100 00100 00100"
+  local B_PX="11110 10001 11110 10001 11110"
+  local O_PX="01110 10001 10001 10001 01110"
+  local R_PX="11110 10001 11110 10010 10001"
+  local D_PX="11110 10001 10001 10001 11110"
 
-  # Word order + synthwave gradient (cyan → purple → magenta)
   local -a _letters=("$A_PX" "$G_PX" "$E_PX" "$N_PX" "$T_PX" "$B_PX" "$O_PX" "$A_PX" "$R_PX" "$D_PX")
-  local -a _colors=(51 75 99 105 129 141 165 177 201 207)
+  local -a _colors=(116 117 123 147 153 183 177 219 213 218)
+  local SHADOW=238
 
-  local row li col pixel row_str
+  local row li col main_px shad_px sc sr _clr
   local -a _rows
+
   printf '\n'
-  for row in 0 1 2 3 4 5 6; do
+  for (( row=0; row<=5; row++ )); do
     printf '  '
     for (( li=0; li<10; li++ )); do
+      _clr="${_colors[$li]}"
       read -ra _rows <<< "${_letters[$li]}"
-      row_str="${_rows[$row]}"
-      for (( col=0; col<5; col++ )); do
-        pixel="${row_str:$col:1}"
-        if [[ "$pixel" == "1" ]]; then
-          printf '\033[48;5;%dm  \033[0m' "${_colors[$li]}"
-        else
-          printf '  '
-        fi
+      for (( col=0; col<6; col++ )); do
+        main_px=0
+        [[ $row -lt 5 && $col -lt 5 ]] && main_px="${_rows[$row]:$col:1}"
+        shad_px=0; sr=$(( row-1 )); sc=$(( col-1 ))
+        [[ $sr -ge 0 && $sr -lt 5 && $sc -ge 0 && $sc -lt 5 ]] && shad_px="${_rows[$sr]:$sc:1}"
+        if   [[ "$main_px" == "1" ]]; then printf '\033[38;5;%dm▀\033[0m' "$_clr"
+        elif [[ "$shad_px" == "1" ]]; then printf '\033[38;5;%dm░\033[0m' "$SHADOW"
+        else printf ' '; fi
       done
-      printf ' '  # gap between letters
+      printf ' '
     done
     printf '\n'
   done
