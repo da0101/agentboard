@@ -6,19 +6,18 @@
 
 ## Rule 1 — Announce every dispatch
 
-Before every `Task` tool call, print a one-line manifest in chat:
+Before every `Task` tool call, print a manifest block in chat:
 
-```
-Dispatching N agent(s): <Name> [<model>] — <purpose>; <Name> [<model>] — <purpose>; ...
-```
+> **⚡ Dispatching N agent(s)**
+>
+> | Agent | Model | Task |
+> |---|---|---|
+> | **Max the Mapper** | 🔵 `sonnet` | map widget dataflow |
+> | **Kai the Coder** | 🟣 `opus` | rewrite data layer |
 
-Example:
+Model emoji: 🔵 `sonnet` · 🟣 `opus` · 🟡 `haiku`
 
-```
-Dispatching 2 agent(s): Max the Mapper [sonnet] — map widget dataflow; Kai the Coder [opus] — rewrite data layer
-```
-
-Never dispatch silently. The announcement lets the user see how many agents were spawned and which model each is burning, so nothing is hidden behind the abstraction.
+This renders as a visually distinct blockquote table in Claude Code's chat — never plain text. Never dispatch silently. The announcement lets the user see how many agents were spawned and which model each is burning.
 
 ---
 
@@ -50,7 +49,7 @@ Personas make parallel dispatch logs readable and encourage thoughtful role assi
 
 ## Summary checklist (before every Task dispatch)
 
-1. Print the manifest line: `Dispatching N agent(s): ...`
-2. Include name + model + purpose for each agent
+1. Print the manifest **block** (blockquote table — not a one-liner)
+2. Include name + emoji model + purpose for each agent
 3. Ensure `model` is passed explicitly in the Task call
-4. Sonnet for read-only; Opus for code writing; Haiku only for trivial ops
+4. 🔵 Sonnet for read-only; 🟣 Opus for code writing; 🟡 Haiku only for trivial ops

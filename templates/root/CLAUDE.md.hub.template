@@ -50,21 +50,23 @@ See `.platform/agents/work-tracking.md` for the full protocol.
 
 ## Subagent Model Assignment (Claude Code only)
 
-Before every `Task` tool dispatch, print a manifest line in chat:
+Before every `Task` tool dispatch, print a manifest block in chat:
 
-```
-Dispatching N agent(s): <Name> [<model>] — <purpose>; ...
-```
+> **⚡ Dispatching N agent(s)**
+>
+> | Agent | Model | Task |
+> |---|---|---|
+> | **Name** | 🔵 `sonnet` | purpose |
 
-Pass `model` explicitly on every `Task` call — never omit it (omitting inherits Opus and wastes tokens).
+Model emoji: 🔵 `sonnet` · 🟣 `opus` · 🟡 `haiku`. Pass `model` explicitly on every `Task` call — never omit it (omitting inherits Opus and wastes tokens).
 
 | Work type | Model |
 |---|---|
-| Research, audit, exploration, doc writing, code review, test writing, security audit | **`sonnet`** |
-| Code implementation, hard architectural decisions, executors handling deviations | **`opus`** |
-| Mechanical / trivial narrow operations | **`haiku`** |
+| Research, audit, exploration, doc writing, code review, test writing, security audit | 🔵 **`sonnet`** |
+| Code implementation, hard architectural decisions, executors handling deviations | 🟣 **`opus`** |
+| Mechanical / trivial narrow operations | 🟡 **`haiku`** |
 
-Name agents with a persona — e.g., "Max the Mapper [sonnet]", "Kai the Coder [opus]". Full rule: `.platform/agents/subagent-dispatch.md`.
+Name agents with a persona — e.g., "Max the Mapper", "Kai the Coder". Full rule: `.platform/agents/subagent-dispatch.md`.
 
 ## Skills available to you
 
