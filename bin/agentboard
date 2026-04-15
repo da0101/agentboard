@@ -697,6 +697,7 @@ cmd_update() {
   if [[ -d "$TEMPLATES_PLATFORM/conventions" ]]; then
     local csrc
     for csrc in "$TEMPLATES_PLATFORM/conventions"/*.md; do
+      [[ -f "$csrc" ]] || continue  # glob matched nothing (empty dir) — skip
       local cfname; cfname="$(basename "$csrc")"
       local cdst="./.platform/conventions/$cfname"
       local conv_is_new=0
@@ -724,6 +725,7 @@ cmd_update() {
   if [[ -d "$TEMPLATES_PLATFORM/agents" ]]; then
     local asrc
     for asrc in "$TEMPLATES_PLATFORM/agents"/*.md; do
+      [[ -f "$asrc" ]] || continue  # glob matched nothing (empty dir) — skip
       local afname; afname="$(basename "$asrc")"
       local adst="./.platform/agents/$afname"
       local agent_is_new=0
