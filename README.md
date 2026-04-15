@@ -245,6 +245,7 @@ agentboard sync [--apply|--list]
 agentboard doctor
 agentboard new-domain <slug> [repo-id ...] [--repo <repo-id>]
 agentboard new-stream <slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]
+agentboard resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>
 agentboard handoff [stream-slug]
 agentboard claim "<task>"
 agentboard release
@@ -263,6 +264,7 @@ agentboard help
 - `doctor` validates active `.platform/` state, stream/domain metadata, domain references, and repo IDs against the repo registry
 - `new-domain` bootstraps a domain file with metadata and can assign multiple repo IDs up front
 - `new-stream` bootstraps a stream file, registers it in `work/ACTIVE.md`, and seeds `work/BRIEF.md` when the brief is still a placeholder; repeat `--domain` and `--repo` when the stream spans multiple areas or repos
+- `resolve` turns a canonical stream/domain/repo reference into the exact file or repo record to load
 - `handoff` prints the minimum file load order, repo scope, and current-state summary another LLM needs to resume a stream without a full re-brief
 - `claim` and `release` manage `.platform/sessions/ACTIVE.md`
 - `log` appends to `.platform/log.md`

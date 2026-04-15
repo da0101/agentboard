@@ -6,7 +6,7 @@ Last updated: {{TODAY}}
 
 ## Repos
 
-| Slug | Path | Stack | Deep reference |
+| Repo ID | Path | Stack | Deep reference |
 |---|---|---|---|
 | _example-backend_ | `../example-backend` | Django 5 / DRF / Postgres | `example-backend.md` |
 | _example-frontend_ | `../example-frontend` | React 19 / Vite / RTK Query | `example-frontend.md` |

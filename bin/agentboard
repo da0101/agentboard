@@ -200,6 +200,10 @@ frontmatter_inline_array() {
   printf '[%s]\n' "$out"
 }
 
+join_lines_comma() {
+  awk 'NF { out = out ? out ", " $0 : $0 } END { print out }'
+}
+
 brief_is_placeholder() {
   local brief="$1"
   [[ ! -f "$brief" ]] && return 0
@@ -235,7 +239,7 @@ repo_rows_from_registry() {
       path = trim($3)
       stack = trim($4)
       ref = trim($5)
-      if (repo == "" || repo == "Slug" || repo == "Repo" || repo ~ /^-+$/) next
+      if (repo == "" || repo == "Slug" || repo == "Repo" || repo == "Repo ID" || repo ~ /^-+$/) next
       printf "%s|%s|%s|%s\n", repo, path, stack, ref
     }
   ' "$repos_file"
@@ -257,6 +261,58 @@ resolve_repo_path() {
       pwd
     )
   fi
+}
+
+canonical_stream_id() {
+  printf 'stream-%s\n' "$1"
+}
+
+canonical_domain_id() {
+  printf 'dom-%s\n' "$1"
+}
+
+stream_files() {
+  local file base
+  for file in ./.platform/work/*.md; do
+    [[ -f "$file" ]] || continue
+    base="$(basename "$file")"
+    case "$base" in
+      ACTIVE.md|BRIEF.md|TEMPLATE.md)
+        continue
+        ;;
+    esac
+    printf '%s\n' "$file"
+  done
+}
+
+domain_files() {
+  local file base
+  for file in ./.platform/domains/*.md; do
+    [[ -f "$file" ]] || continue
+    base="$(basename "$file")"
+    [[ "$base" == "TEMPLATE.md" ]] && continue
+    printf '%s\n' "$file"
+  done
+}
+
+stream_file_by_id() {
+  local wanted_id="$1" file
+  while IFS= read -r file; do
+    [[ "$(frontmatter_value "$file" "stream_id")" == "$wanted_id" ]] || continue
+    printf '%s\n' "$file"
+    return 0
+  done < <(stream_files)
+  return 1
+}
+
+domain_file_by_id() {
+  local wanted_id="$1" file
+  while IFS= read -r file; do
+    [[ "$(frontmatter_value "$file" "domain_id")" == "$wanted_id" ]] || continue
+    printf '%s\n' "$file"
+    return 0
+  done < <(domain_files)
+  return 1
 }
 
 stream_next_action() {
@@ -935,6 +991,57 @@ cmd_doctor() {
     warnings=$((warnings + 1))
   fi
 
+  local seen_stream_ids="" seen_domain_ids=""
+  local stream_file stream_slug stream_id
+  while IFS= read -r stream_file; do
+    [[ -n "$stream_file" ]] || continue
+    stream_slug="$(basename "$stream_file" .md)"
+    stream_id="$(frontmatter_value "$stream_file" "stream_id")"
+
+    if is_placeholder_value "$stream_id"; then
+      warn "Stream '$stream_slug' is missing frontmatter key 'stream_id'"
+      errors=$((errors + 1))
+      continue
+    fi
+
+    if [[ "$stream_id" != "$(canonical_stream_id "$stream_slug")" ]]; then
+      warn "Stream '$stream_slug' has non-canonical stream_id '$stream_id' (expected '$(canonical_stream_id "$stream_slug")')"
+      errors=$((errors + 1))
+    fi
+
+    if printf '%s\n' "$seen_stream_ids" | grep -Fxq "$stream_id"; then
+      warn "Duplicate stream_id '$stream_id' detected"
+      errors=$((errors + 1))
+    else
+      seen_stream_ids="${seen_stream_ids}"$'\n'"$stream_id"
+    fi
+  done < <(stream_files)
+
+  local domain_file domain_slug domain_id
+  while IFS= read -r domain_file; do
+    [[ -n "$domain_file" ]] || continue
+    domain_slug="$(basename "$domain_file" .md)"
+    domain_id="$(frontmatter_value "$domain_file" "domain_id")"
+
+    if is_placeholder_value "$domain_id"; then
+      warn "Domain '$domain_slug' is missing frontmatter key 'domain_id'"
+      errors=$((errors + 1))
+      continue
+    fi
+
+    if [[ "$domain_id" != "$(canonical_domain_id "$domain_slug")" ]]; then
+      warn "Domain '$domain_slug' has non-canonical domain_id '$domain_id' (expected '$(canonical_domain_id "$domain_slug")')"
+      errors=$((errors + 1))
+    fi
+
+    if printf '%s\n' "$seen_domain_ids" | grep -Fxq "$domain_id"; then
+      warn "Duplicate domain_id '$domain_id' detected"
+      errors=$((errors + 1))
+    else
+      seen_domain_ids="${seen_domain_ids}"$'\n'"$domain_id"
+    fi
+  done < <(domain_files)
+
   if [[ -f "$active" ]]; then
     local stream_rows=""
     stream_rows="$(stream_rows_from_active "$active" | awk -F'|' '{ printf "%s|%s|%s|%s\n", $1, $2, $3, $4 }')"
@@ -1097,6 +1204,7 @@ cmd_doctor() {
       warn "Hub mode detected but .platform/repos.md has no repo rows"
       errors=$((errors + 1))
     else
+      local seen_repo_ids=""
       local repo_name repo_path repo_stack repo_ref resolved_path
       while IFS='|' read -r repo_name repo_path repo_stack repo_ref; do
         [[ -z "$repo_name" ]] && continue
@@ -1105,6 +1213,18 @@ cmd_doctor() {
           warn "Hub repos.md still contains placeholder row '$repo_name'"
           errors=$((errors + 1))
           continue
+        fi
+
+        if [[ ! "$repo_name" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+          warn "Hub repo id '$repo_name' must be kebab-case"
+          errors=$((errors + 1))
+        fi
+
+        if printf '%s\n' "$seen_repo_ids" | grep -Fxq "$repo_name"; then
+          warn "Duplicate repo id '$repo_name' in .platform/repos.md"
+          errors=$((errors + 1))
+        else
+          seen_repo_ids="${seen_repo_ids}"$'\n'"$repo_name"
         fi
 
         resolved_path="$(resolve_repo_path "$repos_file" "$repo_path" 2>/dev/null)" || resolved_path=""
@@ -1309,6 +1429,103 @@ cmd_new_stream() {
   ok "Registered stream in .platform/work/ACTIVE.md"
 }
 
+cmd_resolve() {
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+
+  local target="${1:-}"
+  [[ -n "$target" ]] || die "Usage: agentboard resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>"
+
+  local repos_file="./.platform/repos.md"
+  local repo_rows=""
+  [[ -f "$repos_file" ]] && repo_rows="$(repo_rows_from_registry "$repos_file")"
+
+  local stream_file=""
+  if [[ -f "./.platform/work/${target}.md" ]]; then
+    stream_file="./.platform/work/${target}.md"
+  else
+    stream_file="$(stream_file_by_id "$target" 2>/dev/null || true)"
+  fi
+
+  if [[ -n "$stream_file" ]]; then
+    local slug type stream_id repo_ids domain_slugs
+    slug="$(basename "$stream_file" .md)"
+    type="$(frontmatter_value "$stream_file" "type")"
+    stream_id="$(frontmatter_value "$stream_file" "stream_id")"
+    repo_ids="$(frontmatter_value "$stream_file" "repo_ids")"
+    domain_slugs="$(frontmatter_value "$stream_file" "domain_slugs")"
+
+    printf '\n%s%sagentboard resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+    printf '  type: %s\n' "stream"
+    printf '  id:   %s\n' "${stream_id:-$(canonical_stream_id "$slug")}"
+    printf '  slug: %s\n' "$slug"
+    printf '  file: .platform/work/%s.md\n' "$slug"
+    printf '  kind: %s\n' "${type:-unknown}"
+    if [[ -n "$(inline_array_items "$domain_slugs")" ]]; then
+      printf '  domains: %s\n' "$(inline_array_items "$domain_slugs" | join_lines_comma)"
+    fi
+    if [[ -n "$(inline_array_items "$repo_ids")" ]]; then
+      printf '  repos:   %s\n' "$(inline_array_items "$repo_ids" | join_lines_comma)"
+    fi
+    say
+    return 0
+  fi
+
+  local domain_file=""
+  if [[ -f "./.platform/domains/${target}.md" ]]; then
+    domain_file="./.platform/domains/${target}.md"
+  else
+    domain_file="$(domain_file_by_id "$target" 2>/dev/null || true)"
+  fi
+
+  if [[ -n "$domain_file" ]]; then
+    local slug domain_id repo_ids
+    slug="$(basename "$domain_file" .md)"
+    domain_id="$(frontmatter_value "$domain_file" "domain_id")"
+    repo_ids="$(frontmatter_value "$domain_file" "repo_ids")"
+
+    printf '\n%s%sagentboard resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+    printf '  type: %s\n' "domain"
+    printf '  id:   %s\n' "${domain_id:-$(canonical_domain_id "$slug")}"
+    printf '  slug: %s\n' "$slug"
+    printf '  file: .platform/domains/%s.md\n' "$slug"
+    if [[ -n "$(inline_array_items "$repo_ids")" ]]; then
+      printf '  repos: %s\n' "$(inline_array_items "$repo_ids" | join_lines_comma)"
+    fi
+    say
+    return 0
+  fi
+
+  local repo_row=""
+  repo_row="$(repo_row_for_id "$repo_rows" "$target" 2>/dev/null || true)"
+  if [[ -n "$repo_row" ]]; then
+    local repo_name repo_path repo_stack repo_ref
+    IFS='|' read -r repo_name repo_path repo_stack repo_ref <<< "$repo_row"
+
+    printf '\n%s%sagentboard resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+    printf '  type: %s\n' "repo"
+    printf '  id:   %s\n' "$repo_name"
+    printf '  path: %s\n' "${repo_path:-unknown}"
+    printf '  stack:%s %s\n' "${repo_stack:+ }" "${repo_stack:-unknown}"
+    if [[ -n "$repo_ref" ]] && ! is_placeholder_value "$repo_ref"; then
+      printf '  deep reference: .platform/%s\n' "$repo_ref"
+    fi
+    say
+    return 0
+  fi
+
+  if [[ "$target" == "repo-primary" ]]; then
+    printf '\n%s%sagentboard resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+    printf '  type: %s\n' "repo"
+    printf '  id:   %s\n' "repo-primary"
+    printf '  path: %s\n' "."
+    printf '  stack: %s\n' "(see .platform/repos.md or activation output)"
+    say
+    return 0
+  fi
+
+  die "Could not resolve '$target' as a stream, domain, or repo id."
+}
+
 cmd_handoff() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
 
@@ -1368,6 +1585,7 @@ cmd_handoff() {
 
   printf '\n%s%sagentboard handoff%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   printf '  stream: %s%s%s\n' "$C_BOLD" "$slug" "$C_RESET"
+  printf '  id:     %s\n' "$(frontmatter_value "$stream_file" "stream_id")"
   printf '  type:   %s\n' "${type:-unknown}"
   printf '  status: %s\n' "${status:-unknown}"
   printf '  owner:  %s\n' "${agent:-unknown}"
@@ -1750,6 +1968,7 @@ COMMANDS
   doctor                     Validate active .platform state and metadata
   new-domain <slug> ...      Create a domain file from the shared template
   new-stream <slug> ...      Create a stream file and register it in work/ACTIVE.md
+  resolve <target>           Resolve a stream, domain, or repo by canonical id
   handoff [stream-slug]      Print a low-token provider handoff packet
   claim "<task>"             Add a row to .platform/sessions/ACTIVE.md
   release                    Remove your rows from .platform/sessions/ACTIVE.md
@@ -1835,6 +2054,7 @@ main() {
     doctor)      cmd_doctor "$@" ;;
     new-domain)  cmd_new_domain "$@" ;;
     new-stream)  cmd_new_stream "$@" ;;
+    resolve)     cmd_resolve "$@" ;;
     handoff)     cmd_handoff "$@" ;;
     claim)       cmd_claim "$@" ;;
     release)     cmd_release "$@" ;;

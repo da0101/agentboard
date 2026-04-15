@@ -10,7 +10,7 @@ updated_at: YYYY-MM-DD
 
 # <domain-slug>
 
-_Metadata rules: `slug` must match the filename, `repo_ids` should name the repos this domain touches, and `updated_at` should change whenever contracts or touch-points change._
+_Metadata rules: `domain_id` must be `dom-<slug>`, `slug` must match the filename, `repo_ids` should name the repos this domain touches, and `updated_at` should change whenever contracts or touch-points change._
 
 ## What this domain does
 

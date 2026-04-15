@@ -48,6 +48,7 @@ This keeps context windows lean and prevents agents from being briefed on work t
 2. **Update `work/BRIEF.md`** — replace with the new feature brief; set `## Relevant context` to the domain file(s) this workstream touches.
 3. Copy `TEMPLATE.md` to `work/<stream-slug>.md`
 4. Fill in the frontmatter first: `stream_id`, `slug`, `type`, `status`, `agent_owner`, `domain_slugs`, `repo_ids`, `created_at`, `updated_at`
+   `stream_id` should stay canonical: `stream-<slug>`.
 5. Fill in: scope (3–5 bullets), done criteria (measurable), next action
 6. Add a row to `ACTIVE.md`
 
@@ -56,6 +57,7 @@ If you want a fast, valid bootstrap instead of hand-editing, use:
 ```bash
 agentboard new-domain <domain-slug> [repo-id ...] [--repo <repo-id>]
 agentboard new-stream <stream-slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]
+agentboard resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>
 ```
 
 Stream slug: short-kebab-case, e.g. `stripe-webhook-retry` or `menu-banner-bug`.

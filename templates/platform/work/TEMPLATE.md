@@ -13,7 +13,7 @@ closure_approved: false
 
 # <stream-slug>
 
-_Metadata rules: `slug` must match the filename, `status` must match `work/ACTIVE.md`, and `updated_at` should change whenever ownership or state changes._
+_Metadata rules: `stream_id` must be `stream-<slug>`, `slug` must match the filename, `status` must match `work/ACTIVE.md`, and `updated_at` should change whenever ownership or state changes._
 
 ## Scope
 - _TODO: 3–5 bullets describing what's in scope_

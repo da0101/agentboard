@@ -38,6 +38,7 @@ Organize docs by **feature domain**, not by repo. Each domain file is cross-laye
 ## What goes in a domain file
 
 - **Frontmatter metadata** — `domain_id`, `slug`, `status`, `repo_ids`, `related_domain_slugs`, `created_at`, `updated_at`
+  `domain_id` should stay canonical: `dom-<slug>`.
 - **What this domain does** — 2 sentences, user-facing outcome.
 - **Backend** — the Django/Rails/Express/etc. app(s) for this domain: models, endpoints, services, key invariants. Include file paths.
 - **Admin / frontend** — the feature domain inside the admin app: routes, state, any notable components.

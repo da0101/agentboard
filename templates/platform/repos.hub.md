@@ -12,7 +12,7 @@ This folder is a **platform brains hub** — it coordinates context across multi
 
 Fill one row per sibling repo. Paths are relative to this hub folder (e.g. `../my-backend`) or absolute. The **Deep reference** column points at a per-repo reference file under `.platform/` (you'll create these during activation or as each repo is onboarded via `agentboard add-repo`).
 
-| Repo | Path | Stack | Deep reference |
+| Repo ID | Path | Stack | Deep reference |
 |---|---|---|---|
 | _repo-1_ | `../repo-1` | _e.g. Django 5 / DRF / Postgres_ | `repo-1.md` |
 | _repo-2_ | `../repo-2` | _e.g. React 19 / Vite / RTK Query_ | `repo-2.md` |
