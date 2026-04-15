@@ -176,6 +176,30 @@ replace_template_literals() {
   rm -f "${file}.bak"
 }
 
+replace_frontmatter_line() {
+  local file="$1" key="$2" value="$3"
+  sed -i.bak -E "s|^${key}: .*|${key}: ${value}|" "$file"
+  rm -f "${file}.bak"
+}
+
+unique_nonempty_lines() {
+  awk 'NF && !seen[$0]++'
+}
+
+frontmatter_inline_array() {
+  local item out=""
+  while IFS= read -r item; do
+    item="$(trim "$item")"
+    [[ -z "$item" ]] && continue
+    if [[ -z "$out" ]]; then
+      out="$item"
+    else
+      out="$out, $item"
+    fi
+  done
+  printf '[%s]\n' "$out"
+}
+
 brief_is_placeholder() {
   local brief="$1"
   [[ ! -f "$brief" ]] && return 0
@@ -268,7 +292,15 @@ markdown_section_excerpt() {
 }
 
 write_brief_stub() {
-  local brief="$1" project_name="$2" stream_slug="$3" domain_slug="$4" status="$5"
+  local brief="$1" project_name="$2" stream_slug="$3" domain_slugs="$4" status="$5"
+  local relevant_context=""
+  local domain_slug
+  while IFS= read -r domain_slug; do
+    [[ -z "$domain_slug" ]] && continue
+    relevant_context="${relevant_context}- \`.platform/domains/${domain_slug}.md\` — relevant domain for this stream"$'\n'
+  done <<< "$domain_slugs"
+  [[ -n "$relevant_context" ]] || relevant_context="- \`.platform/domains/<name>.md\` — primary domain for this stream"$'\n'
+
   cat > "$brief" <<EOF
 # Feature Brief — $project_name
 
@@ -313,7 +345,7 @@ See \`work/ACTIVE.md\` for stream status.
 > Prefer \`.platform/domains/<name>.md\` files (cross-layer, focused) over repo-wide files.
 > Repo files (\`backend.md\`, \`admin.md\`, etc.) are conventions — load only if you need to understand patterns.
 
-- \`.platform/domains/$domain_slug.md\` — primary domain for this stream
+${relevant_context}
 
 **Do not load:** _TODO_
 **Never load:** \`work/archive/*\`
@@ -1118,10 +1150,34 @@ cmd_doctor() {
 cmd_new_domain() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
   local slug="${1:-}"
-  [[ -n "$slug" ]] || die "Usage: agentboard new-domain <domain-slug> [repo-id]"
+  shift || true
+  [[ -n "$slug" ]] || die "Usage: agentboard new-domain <domain-slug> [repo-id ...] [--repo <repo-id>]"
   [[ "$slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Domain slug must be kebab-case."
 
-  local repo_id="${2:-repo-primary}"
+  local -a repo_ids=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --repo)
+        [[ -n "${2:-}" ]] || die "new-domain requires a value after --repo"
+        repo_ids+=("$2")
+        shift 2
+        ;;
+      *)
+        repo_ids+=("$1")
+        shift
+        ;;
+    esac
+  done
+  ((${#repo_ids[@]})) || repo_ids=("repo-primary")
+
+  local repo_ids_text repo_id repo_ids_literal
+  repo_ids_text="$(printf '%s\n' "${repo_ids[@]}" | unique_nonempty_lines)"
+  while IFS= read -r repo_id; do
+    [[ -n "$repo_id" ]] || continue
+    [[ "$repo_id" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Repo ID '$repo_id' must be kebab-case."
+  done <<< "$repo_ids_text"
+  repo_ids_literal="$(frontmatter_inline_array <<< "$repo_ids_text")"
+
   local template="./.platform/domains/TEMPLATE.md"
   local target="./.platform/domains/${slug}.md"
 
@@ -1132,8 +1188,8 @@ cmd_new_domain() {
   cp "$template" "$target"
   replace_template_literals "$target" \
     "<domain-slug>" "$slug" \
-    "repo-primary" "$repo_id" \
     "YYYY-MM-DD" "$(today)"
+  replace_frontmatter_line "$target" "repo_ids" "$repo_ids_literal"
 
   ok "Created domain: .platform/domains/${slug}.md"
 }
@@ -1143,18 +1199,19 @@ cmd_new_stream() {
 
   local slug="${1:-}"
   shift || true
-  [[ -n "$slug" ]] || die "Usage: agentboard new-stream <stream-slug> --domain <domain-slug> [--type feature] [--agent codex] [--repo repo-primary]"
+  [[ -n "$slug" ]] || die "Usage: agentboard new-stream <stream-slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]"
   [[ "$slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Stream slug must be kebab-case."
 
-  local domain_slug=""
+  local -a domain_slugs=()
   local stream_type="feature"
   local agent_owner="codex"
-  local repo_id="repo-primary"
+  local -a repo_ids=()
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --domain)
-        domain_slug="${2:-}"
+        [[ -n "${2:-}" ]] || die "new-stream requires a value after --domain"
+        domain_slugs+=("$2")
         shift 2
         ;;
       --type)
@@ -1166,7 +1223,8 @@ cmd_new_stream() {
         shift 2
         ;;
       --repo)
-        repo_id="${2:-}"
+        [[ -n "${2:-}" ]] || die "new-stream requires a value after --repo"
+        repo_ids+=("$2")
         shift 2
         ;;
       *)
@@ -1175,31 +1233,49 @@ cmd_new_stream() {
     esac
   done
 
-  [[ -n "$domain_slug" ]] || die "new-stream requires --domain <domain-slug>"
-  [[ "$domain_slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Domain slug must be kebab-case."
+  ((${#domain_slugs[@]})) || die "new-stream requires at least one --domain <domain-slug>"
+  ((${#repo_ids[@]})) || repo_ids=("repo-primary")
 
   local stream_template="./.platform/work/TEMPLATE.md"
   local stream_target="./.platform/work/${slug}.md"
   local active="./.platform/work/ACTIVE.md"
   local brief="./.platform/work/BRIEF.md"
-  local domain_file="./.platform/domains/${domain_slug}.md"
   local project_name
   project_name="$(basename "$(pwd)")"
 
   [[ -f "$stream_template" ]] || die "$stream_template not found."
   [[ -f "$active" ]] || die "$active not found."
   [[ ! -e "$stream_target" ]] || die "$stream_target already exists."
-  [[ -f "$domain_file" ]] || die "$domain_file does not exist. Create the domain first."
+
+  local domain_slugs_text domain_slug domain_file
+  domain_slugs_text="$(printf '%s\n' "${domain_slugs[@]}" | unique_nonempty_lines)"
+  while IFS= read -r domain_slug; do
+    [[ -n "$domain_slug" ]] || continue
+    [[ "$domain_slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Domain slug '$domain_slug' must be kebab-case."
+    domain_file="./.platform/domains/${domain_slug}.md"
+    [[ -f "$domain_file" ]] || die "$domain_file does not exist. Create the domain first."
+  done <<< "$domain_slugs_text"
+
+  local repo_ids_text repo_id
+  repo_ids_text="$(printf '%s\n' "${repo_ids[@]}" | unique_nonempty_lines)"
+  while IFS= read -r repo_id; do
+    [[ -n "$repo_id" ]] || continue
+    [[ "$repo_id" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Repo ID '$repo_id' must be kebab-case."
+  done <<< "$repo_ids_text"
+
+  local domain_slugs_literal repo_ids_literal
+  domain_slugs_literal="$(frontmatter_inline_array <<< "$domain_slugs_text")"
+  repo_ids_literal="$(frontmatter_inline_array <<< "$repo_ids_text")"
 
   cp "$stream_template" "$stream_target"
   replace_template_literals "$stream_target" \
     "<stream-slug>" "$slug" \
-    "<domain-slug>" "$domain_slug" \
     "type: feature" "type: $stream_type" \
     "agent_owner: claude-code" "agent_owner: $agent_owner" \
-    "repo-primary" "$repo_id" \
     "status: planning" "status: planning" \
     "YYYY-MM-DD" "$(today)"
+  replace_frontmatter_line "$stream_target" "domain_slugs" "$domain_slugs_literal"
+  replace_frontmatter_line "$stream_target" "repo_ids" "$repo_ids_literal"
 
   local row="| $slug | $stream_type | planning | $agent_owner | $(today) |"
   if grep -qF "| _(none)_ | — | — | — | — |" "$active"; then
@@ -1223,7 +1299,7 @@ cmd_new_stream() {
   fi
 
   if brief_is_placeholder "$brief"; then
-    write_brief_stub "$brief" "$project_name" "$slug" "$domain_slug" "planning"
+    write_brief_stub "$brief" "$project_name" "$slug" "$domain_slugs_text" "planning"
     ok "Updated work/BRIEF.md with a starter brief"
   else
     warn "work/BRIEF.md already has content. Stream created, but BRIEF.md was left untouched."
@@ -1672,7 +1748,7 @@ COMMANDS
 
   sync [--apply|--list]      Sync AGENTS.md + GEMINI.md from CLAUDE.md (default: check)
   doctor                     Validate active .platform state and metadata
-  new-domain <slug> [repo]   Create a domain file from the shared template
+  new-domain <slug> ...      Create a domain file from the shared template
   new-stream <slug> ...      Create a stream file and register it in work/ACTIVE.md
   handoff [stream-slug]      Print a low-token provider handoff packet
   claim "<task>"             Add a row to .platform/sessions/ACTIVE.md
