@@ -693,20 +693,56 @@ cmd_update() {
     updated=$((updated + 1))
   done
 
-  # conventions/*.md
+  # conventions/*.md — upsert: update existing AND add new ones
   if [[ -d "$TEMPLATES_PLATFORM/conventions" ]]; then
     local csrc
     for csrc in "$TEMPLATES_PLATFORM/conventions"/*.md; do
       local cfname; cfname="$(basename "$csrc")"
       local cdst="./.platform/conventions/$cfname"
-      [[ -f "$cdst" ]] || continue  # project doesn't have this convention file
+      local conv_is_new=0
+      [[ -f "$cdst" ]] || conv_is_new=1
       if (( dry_run )); then
-        printf '  %s~%s conventions/%s\n' "$C_YELLOW" "$C_RESET" "$cfname"
+        if (( conv_is_new )); then
+          printf '  %s+%s conventions/%s  %s(would add)%s\n' "$C_GREEN" "$C_RESET" "$cfname" "$C_DIM" "$C_RESET"
+        else
+          printf '  %s~%s conventions/%s\n' "$C_YELLOW" "$C_RESET" "$cfname"
+        fi
       else
+        mkdir -p "./.platform/conventions"
         cp "$csrc" "$cdst"
-        printf '  %s↻%s %sconventions/%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$cfname" "$C_RESET"
+        if (( conv_is_new )); then
+          printf '  %s+%s %sconventions/%s%s  %s(new)%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$cfname" "$C_RESET" "$C_DIM" "$C_RESET"
+        else
+          printf '  %s↻%s %sconventions/%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$cfname" "$C_RESET"
+        fi
       fi
       updated=$((updated + 1))
+    done
+  fi
+
+  # skills — always replace (pure protocol content; project-specific work lives in .platform/)
+  local skills_dir_claude="./.claude/skills"
+  local skills_dir_agents="./.agents/skills"
+  if [[ -d "$TEMPLATES_SKILLS" ]] && { [[ -d "$skills_dir_claude" ]] || [[ -d "$skills_dir_agents" ]]; }; then
+    local sk_src sk_name sk_dst_c sk_dst_a
+    for sk_src in "$TEMPLATES_SKILLS"/*/; do
+      sk_name="$(basename "$sk_src")"
+      sk_dst_c="$skills_dir_claude/$sk_name"
+      sk_dst_a="$skills_dir_agents/$sk_name"
+      local skill_updated=0
+      for sk_dst in "$sk_dst_c" "$sk_dst_a"; do
+        [[ -d "$sk_dst" ]] || continue
+        if (( dry_run )); then
+          printf '  %s~%s skills/%s\n' "$C_YELLOW" "$C_RESET" "$sk_name"
+        else
+          cp -R "$sk_src/." "$sk_dst/"
+          printf '  %s↻%s %sskills/%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$sk_name" "$C_RESET"
+        fi
+        skill_updated=1
+        updated=$((updated + 1))
+      done
+      # avoid double-counting when both dirs exist
+      [[ $skill_updated -eq 1 && -d "$sk_dst_c" && -d "$sk_dst_a" ]] && updated=$((updated - 1))
     done
   fi
 
