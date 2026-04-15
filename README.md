@@ -243,6 +243,8 @@ agentboard init
 agentboard update [--dry-run]
 agentboard sync [--apply|--list]
 agentboard doctor
+agentboard new-domain <slug> [repo]
+agentboard new-stream <slug> --domain <domain-slug> [--type feature] [--agent codex] [--repo repo-primary]
 agentboard claim "<task>"
 agentboard release
 agentboard log "<one line>"
@@ -258,6 +260,8 @@ agentboard help
 - `update` refreshes shipped process files and skill protocols without touching project-specific docs
 - `sync` keeps `AGENTS.md` and `GEMINI.md` aligned with `CLAUDE.md`
 - `doctor` validates active `.platform/` state, stream metadata, and domain references
+- `new-domain` bootstraps a domain file with metadata
+- `new-stream` bootstraps a stream file, registers it in `work/ACTIVE.md`, and seeds `work/BRIEF.md` when the brief is still a placeholder
 - `claim` and `release` manage `.platform/sessions/ACTIVE.md`
 - `log` appends to `.platform/log.md`
 - `status` prints `.platform/STATUS.md`

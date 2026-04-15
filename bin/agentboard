@@ -165,6 +165,82 @@ is_placeholder_value() {
   return 1
 }
 
+replace_template_literals() {
+  local file="$1"; shift
+  local old new new_esc
+  while [[ $# -gt 0 ]]; do
+    old="$1"; new="$2"; shift 2
+    new_esc="${new//|/\\|}"
+    sed -i.bak "s|$old|$new_esc|g" "$file"
+  done
+  rm -f "${file}.bak"
+}
+
+brief_is_placeholder() {
+  local brief="$1"
+  [[ ! -f "$brief" ]] && return 0
+  grep -q "_not yet set — fill this in when you start your first workstream_" "$brief"
+}
+
+write_brief_stub() {
+  local brief="$1" project_name="$2" stream_slug="$3" domain_slug="$4" status="$5"
+  cat > "$brief" <<EOF
+# Feature Brief — $project_name
+
+> Read this first — every session, every agent (Claude, Codex, Gemini).
+> 30-second orientation: what we're building, why, and where we stand.
+> Replace entirely when the active feature changes. Keep ≤60 lines.
+
+**Feature:** $stream_slug
+**Status:** $status
+**Stream file:** \`work/$stream_slug.md\`
+
+---
+
+## What we're building
+
+_TODO: describe the feature in 2–3 sentences._
+
+## Why
+
+_TODO: state the user or business reason._
+
+## What done looks like
+
+- _TODO_
+- _TODO_
+- _TODO_
+
+## Architecture decisions locked
+
+- _TODO_
+- _TODO_
+
+## Current state
+
+_TODO: summarize what exists and what is left._
+
+See \`work/ACTIVE.md\` for stream status.
+
+## Relevant context
+
+> Only load the files listed here. Everything else is out of scope for this feature.
+> Prefer \`.platform/domains/<name>.md\` files (cross-layer, focused) over repo-wide files.
+> Repo files (\`backend.md\`, \`admin.md\`, etc.) are conventions — load only if you need to understand patterns.
+
+- \`.platform/domains/$domain_slug.md\` — primary domain for this stream
+
+**Do not load:** _TODO_
+**Never load:** \`work/archive/*\`
+
+## Key files
+
+- _TODO_
+- _TODO_
+- _TODO_
+EOF
+}
+
 # -----------------------------------------------------------------------------
 # Empty-folder / hub detection
 # -----------------------------------------------------------------------------
@@ -851,6 +927,35 @@ cmd_doctor() {
     fi
   fi
 
+  if [[ -f "$brief" ]] && ! brief_is_placeholder "$brief"; then
+    local brief_stream=""
+    brief_stream="$(sed -n 's/^\*\*Stream file:\*\* `work\/\([^`]*\)\.md`$/\1/p' "$brief")"
+    brief_stream="${brief_stream%%$'\n'*}"
+    if [[ -z "$brief_stream" ]]; then
+      warn "work/BRIEF.md is missing a valid Stream file reference"
+      errors=$((errors + 1))
+    elif [[ ! -f "./.platform/work/${brief_stream}.md" ]]; then
+      warn "work/BRIEF.md references missing stream file .platform/work/${brief_stream}.md"
+      errors=$((errors + 1))
+    fi
+
+    local brief_domain_count=0
+    local brief_domain
+    while IFS= read -r brief_domain; do
+      [[ -z "$brief_domain" ]] && continue
+      brief_domain_count=$((brief_domain_count + 1))
+      if [[ ! -f "./.platform/domains/${brief_domain}.md" ]]; then
+        warn "work/BRIEF.md references missing domain file .platform/domains/${brief_domain}.md"
+        errors=$((errors + 1))
+      fi
+    done < <(sed -n 's/^- `\.platform\/domains\/\([^` ]*\)\.md`.*$/\1/p' "$brief")
+
+    if (( brief_domain_count == 0 )); then
+      warn "work/BRIEF.md has no concrete domain references"
+      errors=$((errors + 1))
+    fi
+  fi
+
   if (( is_hub )) && [[ -f "$repos_file" ]]; then
     local repo_rows=""
     repo_rows="$(awk -F'|' '
@@ -891,6 +996,12 @@ cmd_doctor() {
         if [[ -z "$resolved_path" || ! -d "$resolved_path" ]]; then
           warn "Hub repo path '$repo_path' for '$repo_name' does not exist"
           errors=$((errors + 1))
+          continue
+        fi
+
+        if [[ -x "$sync_script" ]] && ! grep -Fq "\"$repo_path\"" "$sync_script" && ! grep -Fq "\"$resolved_path\"" "$sync_script"; then
+          warn "Hub repo '$repo_name' is not listed in scripts/sync-context.sh REPOS array"
+          warnings=$((warnings + 1))
         fi
       done <<< "$repo_rows"
     fi
@@ -911,6 +1022,124 @@ cmd_doctor() {
     "$C_BOLD" "$C_RESET" \
     "$C_BOLD" "$warnings" "$C_RESET"
   say
+}
+
+cmd_new_domain() {
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  local slug="${1:-}"
+  [[ -n "$slug" ]] || die "Usage: agentboard new-domain <domain-slug> [repo-id]"
+  [[ "$slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Domain slug must be kebab-case."
+
+  local repo_id="${2:-repo-primary}"
+  local template="./.platform/domains/TEMPLATE.md"
+  local target="./.platform/domains/${slug}.md"
+
+  [[ -f "$template" ]] || die "$template not found. Update agentboard templates first."
+  [[ ! -e "$target" ]] || die "$target already exists."
+
+  mkdir -p "./.platform/domains"
+  cp "$template" "$target"
+  replace_template_literals "$target" \
+    "<domain-slug>" "$slug" \
+    "repo-primary" "$repo_id" \
+    "YYYY-MM-DD" "$(today)"
+
+  ok "Created domain: .platform/domains/${slug}.md"
+}
+
+cmd_new_stream() {
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+
+  local slug="${1:-}"
+  shift || true
+  [[ -n "$slug" ]] || die "Usage: agentboard new-stream <stream-slug> --domain <domain-slug> [--type feature] [--agent codex] [--repo repo-primary]"
+  [[ "$slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Stream slug must be kebab-case."
+
+  local domain_slug=""
+  local stream_type="feature"
+  local agent_owner="codex"
+  local repo_id="repo-primary"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --domain)
+        domain_slug="${2:-}"
+        shift 2
+        ;;
+      --type)
+        stream_type="${2:-}"
+        shift 2
+        ;;
+      --agent)
+        agent_owner="${2:-}"
+        shift 2
+        ;;
+      --repo)
+        repo_id="${2:-}"
+        shift 2
+        ;;
+      *)
+        die "Unknown flag for new-stream: $1"
+        ;;
+    esac
+  done
+
+  [[ -n "$domain_slug" ]] || die "new-stream requires --domain <domain-slug>"
+  [[ "$domain_slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Domain slug must be kebab-case."
+
+  local stream_template="./.platform/work/TEMPLATE.md"
+  local stream_target="./.platform/work/${slug}.md"
+  local active="./.platform/work/ACTIVE.md"
+  local brief="./.platform/work/BRIEF.md"
+  local domain_file="./.platform/domains/${domain_slug}.md"
+  local project_name
+  project_name="$(basename "$(pwd)")"
+
+  [[ -f "$stream_template" ]] || die "$stream_template not found."
+  [[ -f "$active" ]] || die "$active not found."
+  [[ ! -e "$stream_target" ]] || die "$stream_target already exists."
+  [[ -f "$domain_file" ]] || die "$domain_file does not exist. Create the domain first."
+
+  cp "$stream_template" "$stream_target"
+  replace_template_literals "$stream_target" \
+    "<stream-slug>" "$slug" \
+    "<domain-slug>" "$domain_slug" \
+    "type: feature" "type: $stream_type" \
+    "agent_owner: claude-code" "agent_owner: $agent_owner" \
+    "repo-primary" "$repo_id" \
+    "status: planning" "status: planning" \
+    "YYYY-MM-DD" "$(today)"
+
+  local row="| $slug | $stream_type | planning | $agent_owner | $(today) |"
+  if grep -qF "| _(none)_ | — | — | — | — |" "$active"; then
+    local tmp
+    tmp="$(mktemp)"
+    awk -v row="$row" '
+      $0 == "| _(none)_ | — | — | — | — |" { print row; next }
+      { print }
+    ' "$active" > "$tmp"
+    mv "$tmp" "$active"
+  elif grep -qF "| $slug |" "$active"; then
+    die "work/ACTIVE.md already has a row for '$slug'"
+  else
+    local tmp
+    tmp="$(mktemp)"
+    awk -v row="$row" '
+      /^---$/ && !inserted { print row; inserted=1 }
+      { print }
+    ' "$active" > "$tmp"
+    mv "$tmp" "$active"
+  fi
+
+  if brief_is_placeholder "$brief"; then
+    write_brief_stub "$brief" "$project_name" "$slug" "$domain_slug" "planning"
+    ok "Updated work/BRIEF.md with a starter brief"
+  else
+    warn "work/BRIEF.md already has content. Stream created, but BRIEF.md was left untouched."
+  fi
+
+  ok "Created stream: .platform/work/${slug}.md"
+  ok "Registered stream in .platform/work/ACTIVE.md"
 }
 
 cmd_add_repo() {
@@ -1224,6 +1453,8 @@ COMMANDS
 
   sync [--apply|--list]      Sync AGENTS.md + GEMINI.md from CLAUDE.md (default: check)
   doctor                     Validate active .platform state and metadata
+  new-domain <slug> [repo]   Create a domain file from the shared template
+  new-stream <slug> ...      Create a stream file and register it in work/ACTIVE.md
   claim "<task>"             Add a row to .platform/sessions/ACTIVE.md
   release                    Remove your rows from .platform/sessions/ACTIVE.md
   log "<one line>"           Append a timestamped line to .platform/log.md
@@ -1306,6 +1537,8 @@ main() {
     update)      cmd_update "$@" ;;
     sync)        cmd_sync "$@" ;;
     doctor)      cmd_doctor "$@" ;;
+    new-domain)  cmd_new_domain "$@" ;;
+    new-stream)  cmd_new_stream "$@" ;;
     claim)       cmd_claim "$@" ;;
     release)     cmd_release "$@" ;;
     log)         cmd_log "$@" ;;

@@ -51,6 +51,13 @@ This keeps context windows lean and prevents agents from being briefed on work t
 5. Fill in: scope (3–5 bullets), done criteria (measurable), next action
 6. Add a row to `ACTIVE.md`
 
+If you want a fast, valid bootstrap instead of hand-editing, use:
+
+```bash
+agentboard new-domain <domain-slug> [repo-id]
+agentboard new-stream <stream-slug> --domain <domain-slug> [--type feature] [--agent codex] [--repo repo-primary]
+```
+
 Stream slug: short-kebab-case, e.g. `stripe-webhook-retry` or `menu-banner-bug`.
 
 ## Adding a missing domain file (rescan)
