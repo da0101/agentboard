@@ -74,6 +74,41 @@ In hub mode:
 
 ---
 
+## CI and merge protection
+
+Agentboard now ships a GitHub Actions merge-gate workflow in `.github/workflows/ci.yml`.
+
+It runs on:
+
+- pull requests targeting `develop`
+- pull requests targeting `main`
+- direct pushes to `develop`
+- direct pushes to `main`
+
+The workflow runs:
+
+- `unit-tests` → `bash tests/unit.sh`
+- `integration-tests` → `bash tests/integration.sh`
+- `ci-gate` → final required gate that depends on both jobs
+
+Important: **GitHub Actions alone does not block merges.**
+To actually prevent merges when tests fail, you must configure GitHub branch protection or rulesets for both `develop` and `main` and mark these checks as required:
+
+- `unit-tests`
+- `integration-tests`
+- `ci-gate`
+
+Recommended rules for both branches:
+
+- require a pull request before merging
+- require status checks to pass before merging
+- require branches to be up to date before merging
+- include administrators if you want the rule to apply to everyone
+
+If you later add a deploy workflow, make it depend on the same green checks or only allow deploys from protected branches.
+
+---
+
 ## What `agentboard init` does
 
 `init` is intentionally small and generic. It does **not** make stack-specific decisions.
