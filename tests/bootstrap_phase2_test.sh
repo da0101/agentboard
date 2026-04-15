@@ -20,9 +20,15 @@ assert_file_contains() {
   grep -Fq "$needle" "$file" || fail "expected $file to contain: $needle"
 }
 
+slugify() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//; s/-{2,}/-/g'
+}
+
 make_single_repo_fixture() {
   local dir="$1"
   mkdir -p "$dir/src/features/auth" "$dir/src/features/billing"
+  printf 'export const auth = true;\n' > "$dir/src/features/auth/index.ts"
+  printf 'export const billing = true;\n' > "$dir/src/features/billing/index.ts"
   printf '{\n  "name": "single",\n  "scripts": {\n    "dev": "vite",\n    "test": "vitest",\n    "build": "vite build"\n  }\n}\n' > "$dir/package.json"
   git -C "$dir" init -b feat-auth-session >/dev/null 2>&1
   git -C "$dir" config user.email test@example.com
@@ -34,6 +40,7 @@ make_single_repo_fixture() {
 make_dirty_default_branch_fixture() {
   local dir="$1"
   mkdir -p "$dir/src/features/auth"
+  printf 'export const auth = true;\n' > "$dir/src/features/auth/index.ts"
   printf '{\n  "name": "dirty",\n  "scripts": {\n    "dev": "vite",\n    "test": "vitest",\n    "build": "vite build"\n  }\n}\n' > "$dir/package.json"
   git -C "$dir" init -b main >/dev/null 2>&1
   git -C "$dir" config user.email test@example.com
@@ -47,7 +54,9 @@ make_hub_fixture() {
   mkdir -p "$dir/backend/accounts" "$dir/frontend/src/features/auth" "$dir/frontend/src/features/billing"
   printf 'from django.apps import AppConfig\n' > "$dir/backend/accounts/apps.py"
   printf 'print(\"ok\")\n' > "$dir/backend/manage.py"
-  printf '{\n  "name": "frontend",\n  "scripts": {\n    "dev": "vite",\n    "test": "vitest",\n    "build": "vite build"\n  }\n}\n' > "$dir/frontend/package.json"
+  printf 'export const auth = true;\n' > "$dir/frontend/src/features/auth/index.ts"
+  printf 'export const billing = true;\n' > "$dir/frontend/src/features/billing/index.ts"
+  printf '{\n  "name": "frontend",\n  "dependencies": {\n    "react": "^19.0.0"\n  },\n  "scripts": {\n    "dev": "vite",\n    "test": "vitest",\n    "build": "vite build"\n  }\n}\n' > "$dir/frontend/package.json"
   git -C "$dir/backend" init -b feat-auth-hardening >/dev/null 2>&1
   git -C "$dir/backend" config user.email test@example.com
   git -C "$dir/backend" config user.name "Agentboard Test"
@@ -58,6 +67,41 @@ make_hub_fixture() {
   git -C "$dir/frontend" config user.name "Agentboard Test"
   git -C "$dir/frontend" add .
   git -C "$dir/frontend" commit -m "initial" >/dev/null 2>&1
+}
+
+make_unknown_repo_fixture() {
+  local dir="$1"
+  mkdir -p "$dir/scripts"
+  printf '#!/usr/bin/env bash\necho helper\n' > "$dir/scripts/helper.sh"
+  chmod +x "$dir/scripts/helper.sh"
+  git -C "$dir" init -b main >/dev/null 2>&1
+  git -C "$dir" config user.email test@example.com
+  git -C "$dir" config user.name "Agentboard Test"
+  git -C "$dir" add .
+  git -C "$dir" commit -m "initial" >/dev/null 2>&1
+}
+
+make_node_backend_fixture() {
+  local dir="$1"
+  mkdir -p "$dir/src"
+  printf '{\n  "name": "api-service",\n  "dependencies": {\n    "express": "^5.0.0"\n  },\n  "scripts": {\n    "start": "node src/server.js",\n    "test": "node --test",\n    "build": "tsup src/server.ts"\n  }\n}\n' > "$dir/package.json"
+  printf 'console.log(\"ok\")\n' > "$dir/src/server.js"
+  git -C "$dir" init -b main >/dev/null 2>&1
+  git -C "$dir" config user.email test@example.com
+  git -C "$dir" config user.name "Agentboard Test"
+  git -C "$dir" add .
+  git -C "$dir" commit -m "initial" >/dev/null 2>&1
+}
+
+make_ios_fixture() {
+  local dir="$1"
+  mkdir -p "$dir/App.xcodeproj" "$dir/ios"
+  printf '// project placeholder\n' > "$dir/App.xcodeproj/project.pbxproj"
+  git -C "$dir" init -b main >/dev/null 2>&1
+  git -C "$dir" config user.email test@example.com
+  git -C "$dir" config user.name "Agentboard Test"
+  git -C "$dir" add .
+  git -C "$dir" commit -m "initial" >/dev/null 2>&1
 }
 
 init_project() {
@@ -159,17 +203,78 @@ test_hub_bootstrap_references_and_high_confidence_streams() {
   assert_contains "$output" "billing-bug"
   assert_contains "$output" "agentboard new-stream billing-bug --domain billing --type bug --repo frontend"
 
+  assert_file_contains "$dir/.platform/backend.md" 'Repo role: backend'
+  assert_file_contains "$dir/.platform/backend.md" 'Stack hint: django'
   assert_file_contains "$dir/.platform/backend.md" 'Dev: `python manage.py runserver`'
   assert_file_contains "$dir/.platform/backend.md" 'Test: `python manage.py test`'
   assert_file_contains "$dir/.platform/backend.md" 'Likely serves APIs, auth, or shared contracts to `frontend`'
+  assert_file_contains "$dir/.platform/frontend.md" 'Repo role: frontend'
+  assert_file_contains "$dir/.platform/frontend.md" 'Stack hint: react'
   assert_file_contains "$dir/.platform/frontend.md" 'Dev: `npm run dev`'
   assert_file_contains "$dir/.platform/frontend.md" 'Build: `npm run build`'
   assert_file_contains "$dir/.platform/frontend.md" 'Likely consumes APIs or contracts from `backend`'
+}
+
+test_unknown_repo_safe_fallback() {
+  local dir ref_file
+  dir="$(mktemp -d)"
+  make_unknown_repo_fixture "$dir"
+  init_project "$dir"
+  ref_file="$dir/.platform/$(slugify "$(basename "$dir")").md"
+
+  (
+    cd "$dir"
+    "$AGENTBOARD" bootstrap >/dev/null
+  )
+
+  assert_file_contains "$ref_file" 'Repo role: unknown'
+  assert_file_contains "$ref_file" 'Stack hint: unknown'
+  assert_file_contains "$ref_file" 'Dev: `_fill during activation_`'
+}
+
+test_node_backend_role_hint() {
+  local dir ref_file
+  dir="$(mktemp -d)"
+  make_node_backend_fixture "$dir"
+  init_project "$dir"
+  ref_file="$dir/.platform/$(slugify "$(basename "$dir")").md"
+
+  (
+    cd "$dir"
+    "$AGENTBOARD" bootstrap >/dev/null
+  )
+
+  assert_file_contains "$ref_file" 'Repo role: backend'
+  assert_file_contains "$ref_file" 'Stack hint: node-service'
+  assert_file_contains "$ref_file" 'Dev: `npm start`'
+  assert_file_contains "$ref_file" 'Test: `npm test`'
+  assert_file_contains "$ref_file" 'Build: `npm run build`'
+}
+
+test_ios_role_hint_safe_defaults() {
+  local dir ref_file
+  dir="$(mktemp -d)"
+  make_ios_fixture "$dir"
+  init_project "$dir"
+  ref_file="$dir/.platform/$(slugify "$(basename "$dir")").md"
+
+  (
+    cd "$dir"
+    "$AGENTBOARD" bootstrap >/dev/null
+  )
+
+  assert_file_contains "$ref_file" 'Repo role: mobile'
+  assert_file_contains "$ref_file" 'Stack hint: ios'
+  assert_file_contains "$ref_file" 'Test: `xcodebuild test -scheme <fill>`'
+  assert_file_contains "$ref_file" 'Build: `xcodebuild build -scheme <fill>`'
 }
 
 test_single_repo_branch_inference
 test_apply_domains_creates_stubs
 test_default_branch_dirty_worktree_inference
 test_hub_bootstrap_references_and_high_confidence_streams
+test_unknown_repo_safe_fallback
+test_node_backend_role_hint
+test_ios_role_hint_safe_defaults
 
 printf 'PASS: bootstrap_phase2_test\n'

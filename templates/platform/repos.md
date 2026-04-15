@@ -6,10 +6,10 @@ Last updated: {{TODAY}}
 
 ## Repos
 
-| Repo ID | Path | Stack | Deep reference |
+| Repo ID | Path | Role / stack hint | Deep reference |
 |---|---|---|---|
-| _example-backend_ | `../example-backend` | Django 5 / DRF / Postgres | `example-backend.md` |
-| _example-frontend_ | `../example-frontend` | React 19 / Vite / RTK Query | `example-frontend.md` |
+| _example-backend_ | `../example-backend` | backend / django | `example-backend.md` |
+| _example-frontend_ | `../example-frontend` | frontend / react-vite | `example-frontend.md` |
 
 For single-repo projects, this file just has one row.
 

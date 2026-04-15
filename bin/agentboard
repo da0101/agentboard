@@ -499,11 +499,18 @@ ignore_bootstrap_domain_slug() {
     api|apis|app|apps|backend|frontend|mobile|web|site|core|common|shared|lib|libs|utils|util|helpers|helper| \
     component|components|page|pages|screen|screens|hook|hooks|model|models|service|services|store|stores| \
     state|types|generated|assets|styles|theme|themes|public|static|vendor|config|configs|script|scripts| \
-    docs|doc|test|tests|spec|specs|fixture|fixtures|example|examples|sample|samples|android|ios|macos|windows|linux)
+    docs|doc|test|tests|spec|specs|fixture|fixtures|example|examples|sample|samples|android|ios|macos|windows|linux| \
+    package|packages|sdk|sdks|contract|contracts|client|clients|proto|protos|schema|schemas|migration|migrations| \
+    build|dist|coverage|storybook|stories|workspace|workspaces|feature|features|domain|domains|module|modules)
       return 0
       ;;
   esac
   return 1
+}
+
+dir_has_project_content() {
+  local dir="$1"
+  find "$dir" -mindepth 1 -maxdepth 2 \( -type f -o -type d \) ! -name '.DS_Store' 2>/dev/null | grep -q .
 }
 
 repo_feature_dir_candidates() {
@@ -518,10 +525,17 @@ repo_feature_dir_candidates() {
     "$repo_path/lib/modules"/* \
     "$repo_path/lib/domains"/* \
     "$repo_path/lib/screens"/* \
-    "$repo_path/src/screens"/*; do
+    "$repo_path/src/screens"/* \
+    "$repo_path/apps"/* \
+    "$repo_path/packages"/* \
+    "$repo_path/services"/* \
+    "$repo_path/features"/* \
+    "$repo_path/domains"/* \
+    "$repo_path/modules"/*; do
     [[ -d "$candidate" ]] || continue
     base="$(basename "$candidate")"
     [[ "$base" =~ ^[\[\(\._@] ]] && continue
+    dir_has_project_content "$candidate" || continue
     slug="$(slugify "$base")"
     [[ -n "$slug" ]] || continue
     ignore_bootstrap_domain_slug "$slug" && continue
@@ -792,9 +806,148 @@ package_json_has_script() {
   grep -Eq "\"${script_name}\"[[:space:]]*:" "$package_json"
 }
 
-repo_bootstrap_commands() {
+package_json_matches() {
+  local package_json="$1" pattern="$2"
+  [[ -f "$package_json" ]] || return 1
+  grep -Eiq "$pattern" "$package_json"
+}
+
+node_package_runner() {
   local repo_path="$1"
+  if [[ -f "$repo_path/pnpm-lock.yaml" ]]; then
+    printf '%s\n' "pnpm"
+  elif [[ -f "$repo_path/yarn.lock" ]]; then
+    printf '%s\n' "yarn"
+  elif [[ -f "$repo_path/bun.lockb" || -f "$repo_path/bun.lock" ]]; then
+    printf '%s\n' "bun"
+  else
+    printf '%s\n' "npm"
+  fi
+}
+
+repo_id_matches() {
+  local repo_id="$1" pattern="$2"
+  printf '%s' "$(slugify "$repo_id")" | grep -Eq "(^|-)(${pattern})(-|$)"
+}
+
+detect_repo_role() {
+  local repo_path="$1" repo_id="${2:-}"
   local package_json="$repo_path/package.json"
+
+  if [[ -d "$repo_path/terraform" || -d "$repo_path/charts" || -d "$repo_path/k8s" || -f "$repo_path/main.tf" || -f "$repo_path/docker-compose.yml" || -f "$repo_path/docker-compose.yaml" ]]; then
+    printf '%s\n' "infra"
+  elif [[ -f "$repo_path/pubspec.yaml" || -f "$repo_path/Podfile" || -f "$repo_path/build.gradle" || -f "$repo_path/build.gradle.kts" ]] \
+    || compgen -G "$repo_path/*.xcodeproj" >/dev/null \
+    || [[ -f "$repo_path/app/src/main/AndroidManifest.xml" ]]; then
+    printf '%s\n' "mobile"
+  elif [[ -f "$repo_path/firebase.json" && ( -d "$repo_path/functions" || -f "$repo_path/functions/package.json" ) ]]; then
+    printf '%s\n' "backend"
+  elif [[ -f "$repo_path/manage.py" || -f "$repo_path/go.mod" || -f "$repo_path/Cargo.toml" ]]; then
+    printf '%s\n' "backend"
+  elif [[ -f "$repo_path/pyproject.toml" || -f "$repo_path/requirements.txt" ]]; then
+    if grep -Eiq 'fastapi|flask|django|starlette|uvicorn|gunicorn' "$repo_path/pyproject.toml" "$repo_path/requirements.txt" 2>/dev/null; then
+      printf '%s\n' "backend"
+    elif repo_id_matches "$repo_id" 'backend|api|server|worker|jobs?|functions?' || [[ -d "$repo_path/api" || -d "$repo_path/server" ]]; then
+      printf '%s\n' "backend"
+    else
+      printf '%s\n' "unknown"
+    fi
+  elif [[ -f "$repo_path/angular.json" || -f "$repo_path/next.config.js" || -f "$repo_path/next.config.mjs" || -f "$repo_path/next.config.ts" \
+    || -f "$repo_path/vite.config.ts" || -f "$repo_path/vite.config.js" || -f "$repo_path/vite.config.mjs" || -f "$repo_path/vite.config.cjs" ]]; then
+    printf '%s\n' "frontend"
+  elif [[ -f "$package_json" ]]; then
+    if package_json_matches "$package_json" '"(express|fastify|koa|hono|nest|firebase-functions|@nestjs|apollo-server|trpc)"'; then
+      printf '%s\n' "backend"
+    elif package_json_matches "$package_json" '"(react|next|vue|nuxt|svelte|solid-js|@angular/core|gatsby)"' || [[ -f "$repo_path/index.html" ]]; then
+      printf '%s\n' "frontend"
+    elif repo_id_matches "$repo_id" 'shared|sdk|contracts?|types?|common|design-system|ui-kit'; then
+      printf '%s\n' "shared"
+    elif repo_id_matches "$repo_id" 'backend|api|server|worker|jobs?|functions?'; then
+      printf '%s\n' "backend"
+    elif repo_id_matches "$repo_id" 'frontend|web|site|admin|dashboard|console|client'; then
+      printf '%s\n' "frontend"
+    else
+      printf '%s\n' "unknown"
+    fi
+  elif [[ -f "$repo_path/ProjectSettings/ProjectVersion.txt" || -d "$repo_path/Assets" ]]; then
+    printf '%s\n' "unknown"
+  elif repo_id_matches "$repo_id" 'mobile|ios|android'; then
+    printf '%s\n' "mobile"
+  elif repo_id_matches "$repo_id" 'backend|api|server|worker|jobs?|functions?'; then
+    printf '%s\n' "backend"
+  elif repo_id_matches "$repo_id" 'frontend|web|site|admin|dashboard|console|client'; then
+    printf '%s\n' "frontend"
+  elif repo_id_matches "$repo_id" 'shared|sdk|contracts?|types?|common|design-system|ui-kit'; then
+    printf '%s\n' "shared"
+  elif repo_id_matches "$repo_id" 'infra|ops|platform|deploy|devops'; then
+    printf '%s\n' "infra"
+  else
+    printf '%s\n' "unknown"
+  fi
+}
+
+detect_repo_stack_hint() {
+  local repo_path="$1" repo_id="${2:-}" role="${3:-unknown}"
+  local package_json="$repo_path/package.json"
+
+  if [[ -f "$repo_path/firebase.json" && ( -d "$repo_path/functions" || -f "$repo_path/functions/package.json" ) ]] || package_json_matches "$package_json" '"firebase-functions"'; then
+    printf '%s\n' "serverless-functions"
+  elif [[ -f "$repo_path/manage.py" ]] || grep -Eiq 'django' "$repo_path/pyproject.toml" "$repo_path/requirements.txt" 2>/dev/null; then
+    printf '%s\n' "django"
+  elif grep -Eiq 'fastapi|starlette|uvicorn' "$repo_path/pyproject.toml" "$repo_path/requirements.txt" 2>/dev/null; then
+    printf '%s\n' "fastapi"
+  elif [[ -f "$repo_path/pubspec.yaml" ]]; then
+    printf '%s\n' "flutter"
+  elif compgen -G "$repo_path/*.xcodeproj" >/dev/null || [[ -f "$repo_path/Podfile" ]]; then
+    printf '%s\n' "ios"
+  elif [[ -f "$repo_path/build.gradle" || -f "$repo_path/build.gradle.kts" || -f "$repo_path/app/src/main/AndroidManifest.xml" ]]; then
+    printf '%s\n' "android"
+  elif [[ -f "$repo_path/ProjectSettings/ProjectVersion.txt" || -d "$repo_path/Assets" ]]; then
+    printf '%s\n' "unity"
+  elif [[ -f "$repo_path/go.mod" ]]; then
+    printf '%s\n' "go"
+  elif [[ -f "$repo_path/Cargo.toml" ]]; then
+    printf '%s\n' "rust"
+  elif [[ -f "$repo_path/angular.json" ]] || package_json_matches "$package_json" '"@angular/core"'; then
+    printf '%s\n' "angular"
+  elif package_json_matches "$package_json" '"next"'; then
+    printf '%s\n' "nextjs"
+  elif package_json_matches "$package_json" '"react"'; then
+    if [[ -f "$repo_path/vite.config.ts" || -f "$repo_path/vite.config.js" || -f "$repo_path/vite.config.mjs" || -f "$repo_path/vite.config.cjs" ]]; then
+      printf '%s\n' "react-vite"
+    else
+      printf '%s\n' "react"
+    fi
+  elif package_json_matches "$package_json" '"vue"'; then
+    printf '%s\n' "vue"
+  elif package_json_matches "$package_json" '"svelte"'; then
+    printf '%s\n' "svelte"
+  elif [[ -f "$package_json" && "$role" == "backend" ]]; then
+    printf '%s\n' "node-service"
+  elif [[ -f "$package_json" && "$role" == "shared" ]]; then
+    printf '%s\n' "node-package"
+  elif [[ "$role" == "infra" ]]; then
+    printf '%s\n' "infrastructure"
+  elif [[ "$role" == "backend" && ( -f "$repo_path/pyproject.toml" || -f "$repo_path/requirements.txt" ) ]]; then
+    printf '%s\n' "python-service"
+  else
+    printf '%s\n' ""
+  fi
+}
+
+format_repo_stack() {
+  local role="$1" hint="$2"
+  if [[ -n "$hint" ]]; then
+    printf '%s / %s\n' "$role" "$hint"
+  else
+    printf '%s\n' "$role"
+  fi
+}
+
+repo_bootstrap_commands() {
+  local repo_path="$1" role="${2:-unknown}" hint="${3:-}"
+  local package_json="$repo_path/package.json"
+  local runner
   local dev="_fill during activation_" test="_fill during activation_" build="_fill during activation_"
   if [[ -f "$repo_path/manage.py" ]]; then
     dev="python manage.py runserver"
@@ -804,6 +957,15 @@ repo_bootstrap_commands() {
       test="python manage.py test"
     fi
     build="python manage.py check"
+  elif [[ "$hint" == "fastapi" ]]; then
+    if [[ -f "$repo_path/app/main.py" ]]; then
+      dev="uvicorn app.main:app --reload"
+    elif [[ -f "$repo_path/main.py" ]]; then
+      dev="uvicorn main:app --reload"
+    fi
+    if [[ -f "$repo_path/pytest.ini" || -d "$repo_path/tests" ]]; then
+      test="pytest"
+    fi
   elif [[ -f "$repo_path/pubspec.yaml" ]]; then
     dev="flutter run"
     test="flutter test"
@@ -817,14 +979,34 @@ repo_bootstrap_commands() {
     test="go test ./..."
     build="go build ./..."
   elif [[ -f "$package_json" ]]; then
-    if package_json_has_script "$package_json" "dev"; then dev="npm run dev"
-    elif package_json_has_script "$package_json" "start"; then dev="npm start"
+    runner="$(node_package_runner "$repo_path")"
+    if package_json_has_script "$package_json" "dev"; then dev="${runner} run dev"
+    elif package_json_has_script "$package_json" "start"; then
+      if [[ "$runner" == "npm" ]]; then
+        dev="npm start"
+      else
+        dev="${runner} start"
+      fi
     fi
-    if package_json_has_script "$package_json" "test"; then test="npm test"
-    elif package_json_has_script "$package_json" "test:unit"; then test="npm run test:unit"
+    if package_json_has_script "$package_json" "test"; then
+      if [[ "$runner" == "npm" ]]; then
+        test="npm test"
+      else
+        test="${runner} test"
+      fi
+    elif package_json_has_script "$package_json" "test:unit"; then test="${runner} run test:unit"
     fi
-    if package_json_has_script "$package_json" "build"; then build="npm run build"
+    if package_json_has_script "$package_json" "build"; then build="${runner} run build"
     fi
+  elif [[ "$hint" == "android" && -f "$repo_path/gradlew" ]]; then
+    test="./gradlew test"
+    build="./gradlew assembleDebug"
+  elif [[ "$hint" == "ios" ]]; then
+    test="xcodebuild test -scheme <fill>"
+    build="xcodebuild build -scheme <fill>"
+  elif [[ "$hint" == "infrastructure" ]]; then
+    dev="terraform plan"
+    test="terraform validate"
   elif [[ -f "$repo_path/Makefile" ]]; then
     dev="make dev"
     test="make test"
@@ -834,22 +1016,103 @@ repo_bootstrap_commands() {
   return 0
 }
 
+repo_entrypoint_lines() {
+  local repo_path="$1"
+  local lines=""
+  local entry
+  for entry in \
+    "manage.py" \
+    "app/main.py" \
+    "main.py" \
+    "main.go" \
+    "cmd/" \
+    "src/main.ts" \
+    "src/main.tsx" \
+    "src/index.ts" \
+    "src/index.tsx" \
+    "src/index.js" \
+    "src/index.jsx" \
+    "server.js" \
+    "server.ts" \
+    "lib/main.dart" \
+    "functions/src/index.ts" \
+    "functions/src/index.js" \
+    "functions/index.ts" \
+    "functions/index.js" \
+    "app/src/main/AndroidManifest.xml" \
+    "Assets/" \
+    "ProjectSettings/"; do
+    if [[ "$entry" == */ ]]; then
+      [[ -e "$repo_path/${entry%/}" ]] || continue
+    else
+      [[ -e "$repo_path/$entry" ]] || continue
+    fi
+    lines="${lines}- \`${entry}\`"$'\n'
+  done
+  for entry in "$repo_path"/*.xcodeproj; do
+    [[ -e "$entry" ]] || continue
+    lines="${lines}- \`$(basename "$entry")\`"$'\n'
+  done
+  [[ -n "$lines" ]] || lines="- _No clear entrypoint inferred during bootstrap._"$'\n'
+  printf '%s' "$lines"
+}
+
+repo_boundary_lines() {
+  local repo_path="$1" source_dir="$2"
+  local lines="- Runtime / source: \`${source_dir}\`"$'\n'
+  [[ -f "$repo_path/package.json" ]] && lines="${lines}- Package boundary: \`package.json\`"$'\n'
+  [[ -f "$repo_path/pyproject.toml" ]] && lines="${lines}- Python project boundary: \`pyproject.toml\`"$'\n'
+  [[ -f "$repo_path/requirements.txt" ]] && lines="${lines}- Dependency boundary: \`requirements.txt\`"$'\n'
+  [[ -d "$repo_path/tests" ]] && lines="${lines}- Tests: \`tests/\`"$'\n'
+  [[ -d "$repo_path/test" ]] && lines="${lines}- Tests: \`test/\`"$'\n'
+  [[ -d "$repo_path/functions" ]] && lines="${lines}- Serverless boundary: \`functions/\`"$'\n'
+  [[ -d "$repo_path/infra" ]] && lines="${lines}- Infra boundary: \`infra/\`"$'\n'
+  [[ -d "$repo_path/terraform" ]] && lines="${lines}- Infra boundary: \`terraform/\`"$'\n'
+  [[ -d "$repo_path/charts" ]] && lines="${lines}- Deployment boundary: \`charts/\`"$'\n'
+  [[ -d "$repo_path/android" ]] && lines="${lines}- Android boundary: \`android/\`"$'\n'
+  [[ -d "$repo_path/ios" ]] && lines="${lines}- iOS boundary: \`ios/\`"$'\n'
+  [[ -d "$repo_path/Assets" ]] && lines="${lines}- Unity assets boundary: \`Assets/\`"$'\n'
+  printf '%s' "$lines"
+}
+
 repo_relationship_lines() {
-  local current_repo_id="$1" current_stack="$2" discovered_rows="$3"
-  local lines="" repo_id repo_path repo_stack repo_ref repo_abs repo_name
+  local current_repo_id="$1" current_repo_path="$2" discovered_rows="$3"
+  local current_role current_hint
+  current_role="$(detect_repo_role "$current_repo_path" "$current_repo_id")"
+  current_hint="$(detect_repo_stack_hint "$current_repo_path" "$current_repo_id" "$current_role")"
+  local lines="" repo_id repo_path repo_stack repo_ref repo_abs repo_name repo_role repo_hint
   while IFS='|' read -r repo_id repo_path repo_stack repo_ref repo_abs repo_name; do
     [[ -n "$repo_id" && "$repo_id" != "$current_repo_id" ]] || continue
-    if [[ "$current_stack" == *Frontend* || "$current_stack" == *Next.js* || "$current_stack" == *React* || "$current_repo_id" == *frontend* || "$current_repo_id" == *web* ]]; then
-      if [[ "$repo_stack" == *Django* || "$repo_stack" == *Python* || "$repo_stack" == *Go* || "$repo_stack" == *Rust* || "$repo_id" == *backend* || "$repo_id" == *api* ]]; then
+    [[ -n "$repo_abs" ]] || continue
+    repo_role="$(detect_repo_role "$repo_abs" "$repo_id")"
+    repo_hint="$(detect_repo_stack_hint "$repo_abs" "$repo_id" "$repo_role")"
+    if [[ "$current_role" == "frontend" ]]; then
+      if [[ "$repo_role" == "backend" ]]; then
         lines="${lines}- Likely consumes APIs or contracts from \`${repo_id}\`"$'\n'
+      elif [[ "$repo_role" == "shared" ]]; then
+        lines="${lines}- Likely imports shared UI, SDK, or contract code from \`${repo_id}\`"$'\n'
       fi
-    elif [[ "$current_stack" == *Flutter* || "$current_stack" == *iOS* || "$current_stack" == *Android* || "$current_repo_id" == *mobile* || "$current_repo_id" == *ios* || "$current_repo_id" == *android* ]]; then
-      if [[ "$repo_stack" == *Django* || "$repo_stack" == *Python* || "$repo_stack" == *Go* || "$repo_stack" == *Rust* || "$repo_id" == *backend* || "$repo_id" == *api* ]]; then
+    elif [[ "$current_role" == "mobile" ]]; then
+      if [[ "$repo_role" == "backend" ]]; then
         lines="${lines}- Likely depends on backend or auth contracts from \`${repo_id}\`"$'\n'
+      elif [[ "$repo_role" == "shared" ]]; then
+        lines="${lines}- Likely shares client models or SDK code with \`${repo_id}\`"$'\n'
       fi
-    elif [[ "$current_stack" == *Django* || "$current_stack" == *Python* || "$current_stack" == *Go* || "$current_stack" == *Rust* || "$current_repo_id" == *backend* || "$current_repo_id" == *api* ]]; then
-      if [[ "$repo_stack" == *Frontend* || "$repo_stack" == *Next.js* || "$repo_stack" == *React* || "$repo_stack" == *Flutter* || "$repo_stack" == *iOS* || "$repo_stack" == *Android* || "$repo_id" == *frontend* || "$repo_id" == *web* || "$repo_id" == *mobile* || "$repo_id" == *ios* || "$repo_id" == *android* ]]; then
+    elif [[ "$current_role" == "backend" ]]; then
+      if [[ "$repo_role" == "frontend" || "$repo_role" == "mobile" ]]; then
         lines="${lines}- Likely serves APIs, auth, or shared contracts to \`${repo_id}\`"$'\n'
+      elif [[ "$repo_role" == "shared" ]]; then
+        lines="${lines}- Likely depends on shared packages or schema contracts from \`${repo_id}\`"$'\n'
+      elif [[ "$repo_hint" == "serverless-functions" ]]; then
+        lines="${lines}- Likely exchanges events, queues, or auth state with \`${repo_id}\`"$'\n'
+      fi
+    elif [[ "$current_role" == "shared" ]]; then
+      if [[ "$repo_role" == "frontend" || "$repo_role" == "backend" || "$repo_role" == "mobile" ]]; then
+        lines="${lines}- Likely exports shared types, SDKs, or contracts to \`${repo_id}\`"$'\n'
+      fi
+    elif [[ "$current_role" == "infra" ]]; then
+      if [[ "$repo_role" != "infra" ]]; then
+        lines="${lines}- Likely provisions deployment, runtime, or environment wiring used by \`${repo_id}\`"$'\n'
       fi
     fi
   done <<< "$discovered_rows"
@@ -939,43 +1202,11 @@ repo_primary_source_dir() {
 }
 
 guess_repo_stack() {
-  local repo_path="$1"
-  local package_json="$repo_path/package.json"
-  if [[ -f "$repo_path/pubspec.yaml" ]]; then
-    printf '%s\n' "Flutter / Dart"
-  elif [[ -f "$repo_path/Cargo.toml" ]]; then
-    printf '%s\n' "Rust / Cargo"
-  elif [[ -f "$repo_path/go.mod" ]]; then
-    printf '%s\n' "Go"
-  elif [[ -f "$repo_path/manage.py" ]]; then
-    printf '%s\n' "Django / Python"
-  elif [[ -f "$repo_path/pyproject.toml" || -f "$repo_path/requirements.txt" ]]; then
-    if [[ -f "$repo_path/manage.py" ]]; then
-      printf '%s\n' "Django / Python"
-    else
-      printf '%s\n' "Python"
-    fi
-  elif [[ -f "$package_json" ]]; then
-    if grep -qi '"next"' "$package_json"; then
-      printf '%s\n' "Next.js / React"
-    elif [[ -f "$repo_path/vite.config.ts" || -f "$repo_path/vite.config.js" || -f "$repo_path/vite.config.mjs" || -f "$repo_path/vite.config.cjs" ]]; then
-      if grep -qi '"react"' "$package_json"; then
-        printf '%s\n' "React / Vite"
-      else
-        printf '%s\n' "Vite / Node"
-      fi
-    elif grep -qi '"react"' "$package_json"; then
-      printf '%s\n' "React / Node"
-    else
-      printf '%s\n' "Node / npm"
-    fi
-  elif [[ -f "$repo_path/Podfile" ]] || compgen -G "$repo_path/*.xcodeproj" >/dev/null; then
-    printf '%s\n' "iOS / Xcode"
-  elif [[ -f "$repo_path/build.gradle" || -f "$repo_path/build.gradle.kts" ]]; then
-    printf '%s\n' "Android / Gradle"
-  else
-    printf '%s\n' "Unknown — fill during activation"
-  fi
+  local repo_path="$1" repo_id="${2:-}"
+  local role hint
+  role="$(detect_repo_role "$repo_path" "$repo_id")"
+  hint="$(detect_repo_stack_hint "$repo_path" "$repo_id" "$role")"
+  format_repo_stack "$role" "$hint"
 }
 
 discover_child_repos() {
@@ -1005,7 +1236,7 @@ discover_child_repos() {
     (( is_repo )) || continue
     repo_id="$(slugify "$name")"
     abs_path="$(cd "$entry" && pwd)"
-    stack="$(guess_repo_stack "$entry")"
+    stack="$(guess_repo_stack "$entry" "$repo_id")"
     ref_file="${repo_id}.md"
     printf '%s|%s|%s|%s|%s|%s\n' "$repo_id" "./$name" "$stack" "$ref_file" "$abs_path" "$name"
   done
@@ -1075,7 +1306,7 @@ write_sync_repos_array() {
 }
 
 write_bootstrap_reference() {
-  local target="$1" repo_name="$2" repo_display_name="$3" repo_abs_path="$4" stack="$5" manifest="$6" source_dir="$7" commands="$8" relationships="$9"
+  local target="$1" repo_name="$2" repo_display_name="$3" repo_abs_path="$4" role="$5" hint="$6" manifest="$7" source_dir="$8" commands="$9" relationships="${10}" entrypoints="${11}" boundaries="${12}"
   local dev_cmd test_cmd build_cmd
   IFS='|' read -r dev_cmd test_cmd build_cmd <<< "$commands"
   cat > "$target" <<EOF
@@ -1088,18 +1319,22 @@ write_bootstrap_reference() {
 
 _Bootstrap placeholder: summarize the repo purpose, users, and scope._
 
-## Detected stack
+## Inferred identity
 
-- Stack: $stack
+- Repo role: $role
+- Stack hint: ${hint:-unknown}
 - Manifest: ${manifest:-unknown}
 - Primary source dir: $source_dir
 
-## Key paths
+## Likely entrypoints
 
-- \`$source_dir\`
-- \`${manifest:-<manifest-file>}\`
+${entrypoints}
 
-## Commands
+## Likely boundaries
+
+${boundaries}
+
+## Inferred commands
 
 - Dev: \`${dev_cmd}\`
 - Test: \`${test_cmd}\`
@@ -1908,7 +2143,7 @@ cmd_bootstrap() {
     local repo_name repo_id stack ref_file abs_path
     repo_name="$(basename "$(pwd)")"
     repo_id="repo-primary"
-    stack="$(guess_repo_stack ".")"
+    stack="$(guess_repo_stack "." "$repo_id")"
     ref_file="$(slugify "$repo_name").md"
     abs_path="$(pwd)"
     discovered_rows="$(printf '%s|%s|%s|%s|%s|%s\n' "$repo_id" "." "$stack" "$ref_file" "$abs_path" "$repo_name")"
@@ -1925,14 +2160,18 @@ cmd_bootstrap() {
 
     local ref_target="./.platform/${repo_ref}"
     if [[ ! -f "$ref_target" ]]; then
-      local repo_fs_path manifest source_dir commands relationships
+      local repo_fs_path manifest source_dir commands relationships role hint entrypoints boundaries
       repo_fs_path="."
       [[ "$repo_path" != "." && -n "$repo_abs" ]] && repo_fs_path="$repo_abs"
+      role="$(detect_repo_role "$repo_fs_path" "$repo_id")"
+      hint="$(detect_repo_stack_hint "$repo_fs_path" "$repo_id" "$role")"
       manifest="$(repo_manifest_file "$repo_fs_path" 2>/dev/null || true)"
       source_dir="$(repo_primary_source_dir "$repo_fs_path")"
-      commands="$(repo_bootstrap_commands "$repo_fs_path")"
-      relationships="$(repo_relationship_lines "$repo_id" "$repo_stack" "$discovered_rows")"
-      write_bootstrap_reference "$ref_target" "$repo_id" "$repo_name" "${repo_abs:-$(pwd)}" "$repo_stack" "$manifest" "$source_dir" "$commands" "$relationships"
+      commands="$(repo_bootstrap_commands "$repo_fs_path" "$role" "$hint")"
+      relationships="$(repo_relationship_lines "$repo_id" "$repo_fs_path" "$discovered_rows")"
+      entrypoints="$(repo_entrypoint_lines "$repo_fs_path")"
+      boundaries="$(repo_boundary_lines "$repo_fs_path" "$source_dir")"
+      write_bootstrap_reference "$ref_target" "$repo_id" "$repo_name" "${repo_abs:-$(pwd)}" "$role" "$hint" "$manifest" "$source_dir" "$commands" "$relationships" "$entrypoints" "$boundaries"
       ok "Created deep reference stub: .platform/${repo_ref}"
     fi
   done <<< "$discovered_rows"
