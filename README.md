@@ -260,10 +260,10 @@ agentboard help
 - `init` scaffolds the kit into the current directory
 - `update` refreshes shipped process files and skill protocols without touching project-specific docs
 - `sync` keeps `AGENTS.md` and `GEMINI.md` aligned with `CLAUDE.md`
-- `doctor` validates active `.platform/` state, stream metadata, and domain references
+- `doctor` validates active `.platform/` state, stream/domain metadata, domain references, and repo IDs against the repo registry
 - `new-domain` bootstraps a domain file with metadata
 - `new-stream` bootstraps a stream file, registers it in `work/ACTIVE.md`, and seeds `work/BRIEF.md` when the brief is still a placeholder
-- `handoff` prints the minimum file load order and current-state summary another LLM needs to resume a stream without a full re-brief
+- `handoff` prints the minimum file load order, repo scope, and current-state summary another LLM needs to resume a stream without a full re-brief
 - `claim` and `release` manage `.platform/sessions/ACTIVE.md`
 - `log` appends to `.platform/log.md`
 - `status` prints `.platform/STATUS.md`

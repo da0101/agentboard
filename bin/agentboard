@@ -199,6 +199,42 @@ stream_rows_from_active() {
   ' "$active"
 }
 
+repo_rows_from_registry() {
+  local repos_file="$1"
+  awk -F'|' '
+    function trim(s) { gsub(/^[ \t`]+|[ \t`]+$/, "", s); return s }
+    /^## Repos/ { in_repos = 1; next }
+    in_repos && /^## / { exit }
+    {
+      if (!in_repos) next
+      repo = trim($2)
+      path = trim($3)
+      stack = trim($4)
+      ref = trim($5)
+      if (repo == "" || repo == "Slug" || repo == "Repo" || repo ~ /^-+$/) next
+      printf "%s|%s|%s|%s\n", repo, path, stack, ref
+    }
+  ' "$repos_file"
+}
+
+repo_row_for_id() {
+  local repo_rows="$1" repo_id="$2"
+  printf '%s\n' "$repo_rows" | awk -F'|' -v repo_id="$repo_id" '$1 == repo_id { print; exit }'
+}
+
+resolve_repo_path() {
+  local repos_file="$1" repo_path="$2"
+  if [[ "$repo_path" = /* ]]; then
+    printf '%s\n' "$repo_path"
+  else
+    (
+      cd "$(dirname "$repos_file")/.." 2>/dev/null || exit 1
+      cd "$repo_path" 2>/dev/null || exit 1
+      pwd
+    )
+  fi
+}
+
 stream_next_action() {
   local stream_file="$1"
   awk '
@@ -818,9 +854,14 @@ cmd_doctor() {
   local root_claude="./CLAUDE.md"
   local repos_file="./.platform/repos.md"
   local is_hub=0
+  local repo_rows=""
 
   if [[ -f "$root_claude" ]] && grep -q "PLATFORM BRAINS HUB" "$root_claude"; then
     is_hub=1
+  fi
+
+  if [[ -f "$repos_file" ]]; then
+    repo_rows="$(repo_rows_from_registry "$repos_file")"
   fi
 
   printf '\n%s%sagentboard doctor%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
@@ -864,18 +905,7 @@ cmd_doctor() {
 
   if [[ -f "$active" ]]; then
     local stream_rows=""
-    stream_rows="$(awk -F'|' '
-      function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
-      /^## / { exit }
-      {
-        slug = trim($2)
-        type = trim($3)
-        status = trim($4)
-        agent = trim($5)
-        if (slug == "" || slug == "Stream" || slug == "_(none)_" || slug ~ /^-+$/) next
-        printf "%s|%s|%s|%s\n", slug, type, status, agent
-      }
-    ' "$active")"
+    stream_rows="$(stream_rows_from_active "$active" | awk -F'|' '{ printf "%s|%s|%s|%s\n", $1, $2, $3, $4 }')"
 
     if [[ -z "$stream_rows" ]]; then
       ok "No active streams registered"
@@ -937,6 +967,19 @@ cmd_doctor() {
           warnings=$((warnings + 1))
         fi
 
+        local repo_id repo_row
+        while IFS= read -r repo_id; do
+          [[ -z "$repo_id" ]] && continue
+          repo_row="$(repo_row_for_id "$repo_rows" "$repo_id")"
+          if [[ -n "$repo_row" ]]; then
+            continue
+          fi
+          if (( is_hub )) || [[ "$repo_id" != "repo-primary" ]]; then
+            warn "Stream '$slug' references repo_id '$repo_id' that is not defined in .platform/repos.md"
+            errors=$((errors + 1))
+          fi
+        done < <(inline_array_items "$(frontmatter_value "$stream_file" "repo_ids")")
+
         local domain_slug domain_file domain_value
         while IFS= read -r domain_slug; do
           [[ -z "$domain_slug" ]] && continue
@@ -971,6 +1014,18 @@ cmd_doctor() {
             warn "Domain '$domain_slug' has slug '$domain_value' in frontmatter"
             errors=$((errors + 1))
           fi
+
+          while IFS= read -r repo_id; do
+            [[ -z "$repo_id" ]] && continue
+            repo_row="$(repo_row_for_id "$repo_rows" "$repo_id")"
+            if [[ -n "$repo_row" ]]; then
+              continue
+            fi
+            if (( is_hub )) || [[ "$repo_id" != "repo-primary" ]]; then
+              warn "Domain '$domain_slug' references repo_id '$repo_id' that is not defined in .platform/repos.md"
+              errors=$((errors + 1))
+            fi
+          done < <(inline_array_items "$(frontmatter_value "$domain_file" "repo_ids")")
         done < <(inline_array_items "$(frontmatter_value "$stream_file" "domain_slugs")")
       done <<< "$stream_rows"
     fi
@@ -1006,22 +1061,6 @@ cmd_doctor() {
   fi
 
   if (( is_hub )) && [[ -f "$repos_file" ]]; then
-    local repo_rows=""
-    repo_rows="$(awk -F'|' '
-      function trim(s) { gsub(/^[ \t`]+|[ \t`]+$/, "", s); return s }
-      /^## Repos/ { in_repos = 1; next }
-      in_repos && /^## / { exit }
-      {
-        if (!in_repos) next
-        repo = trim($2)
-        path = trim($3)
-        stack = trim($4)
-        ref = trim($5)
-        if (repo == "" || repo == "Repo" || repo ~ /^-+$/) next
-        printf "%s|%s|%s|%s\n", repo, path, stack, ref
-      }
-    ' "$repos_file")"
-
     if [[ -z "$repo_rows" ]]; then
       warn "Hub mode detected but .platform/repos.md has no repo rows"
       errors=$((errors + 1))
@@ -1036,16 +1075,19 @@ cmd_doctor() {
           continue
         fi
 
-        if [[ "$repo_path" = /* ]]; then
-          resolved_path="$repo_path"
-        else
-          resolved_path="$(cd . && cd "$(dirname "$repos_file")/.." && cd "$repo_path" 2>/dev/null && pwd)" || resolved_path=""
-        fi
-
+        resolved_path="$(resolve_repo_path "$repos_file" "$repo_path" 2>/dev/null)" || resolved_path=""
         if [[ -z "$resolved_path" || ! -d "$resolved_path" ]]; then
           warn "Hub repo path '$repo_path' for '$repo_name' does not exist"
           errors=$((errors + 1))
           continue
+        fi
+
+        if is_placeholder_value "$repo_ref"; then
+          warn "Hub repo '$repo_name' is missing a concrete deep reference file"
+          warnings=$((warnings + 1))
+        elif [[ ! -f "./.platform/$repo_ref" ]]; then
+          warn "Hub repo '$repo_name' deep reference file .platform/$repo_ref does not exist"
+          warnings=$((warnings + 1))
         fi
 
         if [[ -x "$sync_script" ]] && ! grep -Fq "\"$repo_path\"" "$sync_script" && ! grep -Fq "\"$resolved_path\"" "$sync_script"; then
@@ -1197,11 +1239,14 @@ cmd_handoff() {
   local requested_slug="${1:-}"
   local active="./.platform/work/ACTIVE.md"
   local brief="./.platform/work/BRIEF.md"
+  local repos_file="./.platform/repos.md"
   [[ -f "$active" ]] || die "$active not found."
   [[ -f "$brief" ]] || die "$brief not found."
 
   local rows
   rows="$(stream_rows_from_active "$active")"
+  local repo_rows=""
+  [[ -f "$repos_file" ]] && repo_rows="$(repo_rows_from_registry "$repos_file")"
 
   local slug="" type="" status="" agent="" updated=""
   if [[ -n "$requested_slug" ]]; then
@@ -1265,6 +1310,38 @@ cmd_handoff() {
     domain_index=$((domain_index + 1))
   done < <(inline_array_items "$(frontmatter_value "$stream_file" "domain_slugs")")
   say
+
+  local repo_scope=""
+  repo_scope="$(inline_array_items "$(frontmatter_value "$stream_file" "repo_ids")")"
+  while IFS= read -r domain_slug; do
+    [[ -z "$domain_slug" ]] && continue
+    local domain_file="./.platform/domains/${domain_slug}.md"
+    [[ -f "$domain_file" ]] || continue
+    repo_scope="${repo_scope}"$'\n'"$(inline_array_items "$(frontmatter_value "$domain_file" "repo_ids")")"
+  done < <(inline_array_items "$(frontmatter_value "$stream_file" "domain_slugs")")
+  repo_scope="$(printf '%s\n' "$repo_scope" | awk 'NF && !seen[$0]++')"
+
+  if [[ -n "$repo_scope" ]]; then
+    local repo_id repo_row repo_name repo_path repo_stack repo_ref
+    printf '%sRepos in scope:%s\n' "$C_BOLD" "$C_RESET"
+    while IFS= read -r repo_id; do
+      [[ -z "$repo_id" ]] && continue
+      repo_row="$(repo_row_for_id "$repo_rows" "$repo_id")"
+      if [[ -n "$repo_row" ]]; then
+        IFS='|' read -r repo_name repo_path repo_stack repo_ref <<< "$repo_row"
+        if [[ -n "$repo_ref" ]] && ! is_placeholder_value "$repo_ref"; then
+          printf '  - %s -> %s (%s; deep ref: .platform/%s)\n' "$repo_id" "${repo_path:-unknown path}" "${repo_stack:-unknown stack}" "$repo_ref"
+        else
+          printf '  - %s -> %s (%s)\n' "$repo_id" "${repo_path:-unknown path}" "${repo_stack:-unknown stack}"
+        fi
+      elif [[ "$repo_id" == "repo-primary" ]]; then
+        printf '  - %s -> . (current repo)\n' "$repo_id"
+      else
+        printf '  - %s -> (not found in .platform/repos.md)\n' "$repo_id"
+      fi
+    done <<< "$repo_scope"
+    say
+  fi
 
   printf '%sNext action:%s %s\n' "$C_BOLD" "$C_RESET" "$next_action"
   if [[ -n "$build_excerpt" ]]; then
