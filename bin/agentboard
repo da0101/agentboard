@@ -493,6 +493,218 @@ path_contains_dir() {
   return 1
 }
 
+ignore_bootstrap_domain_slug() {
+  local slug="$1"
+  case "$slug" in
+    api|apis|app|apps|backend|frontend|mobile|web|site|core|common|shared|lib|libs|utils|util|helpers|helper| \
+    component|components|page|pages|screen|screens|hook|hooks|model|models|service|services|store|stores| \
+    state|types|generated|assets|styles|theme|themes|public|static|vendor|config|configs|script|scripts| \
+    docs|doc|test|tests|spec|specs|fixture|fixtures|example|examples|sample|samples|android|ios|macos|windows|linux)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+repo_feature_dir_candidates() {
+  local repo_path="$1"
+  local candidate base slug
+  for candidate in \
+    "$repo_path/src/features"/* \
+    "$repo_path/src/modules"/* \
+    "$repo_path/src/domains"/* \
+    "$repo_path/src/apps"/* \
+    "$repo_path/lib/features"/* \
+    "$repo_path/lib/modules"/* \
+    "$repo_path/lib/domains"/* \
+    "$repo_path/lib/screens"/* \
+    "$repo_path/src/screens"/*; do
+    [[ -d "$candidate" ]] || continue
+    base="$(basename "$candidate")"
+    [[ "$base" =~ ^[\[\(\._@] ]] && continue
+    slug="$(slugify "$base")"
+    [[ -n "$slug" ]] || continue
+    ignore_bootstrap_domain_slug "$slug" && continue
+    printf '%s\n' "$slug"
+  done
+  return 0
+}
+
+repo_django_app_candidates() {
+  local repo_path="$1"
+  local dir base slug
+  for dir in "$repo_path"/*; do
+    [[ -d "$dir" ]] || continue
+    base="$(basename "$dir")"
+    [[ "$base" =~ ^[._] ]] && continue
+    [[ -f "$dir/apps.py" || -f "$dir/models.py" || -f "$dir/views.py" || -f "$dir/serializers.py" || -f "$dir/urls.py" ]] || continue
+    slug="$(slugify "$base")"
+    [[ -n "$slug" ]] || continue
+    ignore_bootstrap_domain_slug "$slug" && continue
+    printf '%s\n' "$slug"
+  done
+  return 0
+}
+
+repo_bootstrap_domain_candidates() {
+  local repo_path="$1"
+  repo_feature_dir_candidates "$repo_path"
+  repo_django_app_candidates "$repo_path"
+  return 0
+}
+
+infer_bootstrap_domains() {
+  local discovered_rows="$1"
+  local repo_id repo_path repo_stack repo_ref repo_abs repo_name slug
+  while IFS='|' read -r repo_id repo_path repo_stack repo_ref repo_abs repo_name; do
+    [[ -n "$repo_id" && -n "$repo_abs" ]] || continue
+    while IFS= read -r slug; do
+      [[ -n "$slug" ]] || continue
+      printf '%s|%s\n' "$slug" "$repo_id"
+    done < <(repo_bootstrap_domain_candidates "$repo_abs" | unique_nonempty_lines)
+  done <<< "$discovered_rows"
+  return 0
+}
+
+merge_bootstrap_domain_rows() {
+  awk -F'|' '
+    NF >= 2 {
+      key = $1 "|" $2
+      if (!seen[key]++) print $1 "|" $2
+    }
+  '
+}
+
+domain_repo_rows() {
+  local repos_file="$1"
+  local domain_file slug repo_id repo_ids
+  while IFS= read -r domain_file; do
+    [[ -n "$domain_file" ]] || continue
+    slug="$(basename "$domain_file" .md)"
+    if has_frontmatter "$domain_file"; then
+      repo_ids="$(inline_array_items "$(frontmatter_value "$domain_file" "repo_ids")")"
+    else
+      repo_ids="$(infer_domain_repo_ids "$domain_file" "$repos_file")"
+    fi
+    while IFS= read -r repo_id; do
+      [[ -n "$repo_id" ]] || continue
+      printf '%s|%s\n' "$slug" "$repo_id"
+    done <<< "$repo_ids"
+  done < <(domain_files)
+  return 0
+}
+
+current_git_branch() {
+  local repo_path="$1"
+  git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+  git -C "$repo_path" symbolic-ref --quiet --short HEAD 2>/dev/null || git -C "$repo_path" rev-parse --short HEAD 2>/dev/null || true
+}
+
+repo_has_dirty_worktree() {
+  local repo_path="$1"
+  git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+  [[ -n "$(git -C "$repo_path" status --porcelain 2>/dev/null)" ]]
+}
+
+branch_to_stream_type() {
+  local branch_slug="$1"
+  case "$branch_slug" in
+    fix-*|bug-*|bugfix-*|hotfix-*) printf '%s\n' "bug" ;;
+    chore-*|task-*|refactor-*|cleanup-*|spike-*|investigate-*) printf '%s\n' "improvement" ;;
+    *) printf '%s\n' "feature" ;;
+  esac
+}
+
+branch_to_stream_slug() {
+  local branch="$1" slug
+  slug="$(slugify "$branch")"
+  case "$slug" in
+    feature-*|feat-*|fix-*|bug-*|bugfix-*|hotfix-*|chore-*|task-*|refactor-*|cleanup-*|spike-*|investigate-*)
+      slug="${slug#*-}"
+      ;;
+  esac
+  printf '%s\n' "$slug"
+}
+
+is_default_branch_name() {
+  local branch="$1"
+  case "$branch" in
+    main|master|develop|development|dev|staging|stage|production|prod|release)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+best_domain_matches_for_stream() {
+  local stream_slug="$1" repo_id="$2" domain_rows="$3"
+  local best_score=0 score row domain_slug domain_repo matches=""
+  while IFS='|' read -r domain_slug domain_repo; do
+    [[ -n "$domain_slug" && -n "$domain_repo" ]] || continue
+    [[ "$domain_repo" == "$repo_id" ]] || continue
+    score="$(score_slug_similarity "$stream_slug" "$domain_slug")"
+    if (( score > best_score )); then
+      best_score="$score"
+      matches="$domain_slug"
+    elif (( score > 0 && score == best_score )); then
+      matches="${matches}"$'\n'"$domain_slug"
+    fi
+  done <<< "$domain_rows"
+  if (( best_score == 0 )); then
+    while IFS='|' read -r domain_slug domain_repo; do
+      [[ -n "$domain_slug" ]] || continue
+      score="$(score_slug_similarity "$stream_slug" "$domain_slug")"
+      if (( score > best_score )); then
+        best_score="$score"
+        matches="$domain_slug"
+      elif (( score > 0 && score == best_score )); then
+        matches="${matches}"$'\n'"$domain_slug"
+      fi
+    done <<< "$domain_rows"
+  fi
+  if (( best_score > 0 )); then
+    printf '%s\n' "$matches" | unique_nonempty_lines
+  fi
+  return 0
+}
+
+infer_bootstrap_stream_suggestions() {
+  local discovered_rows="$1" domain_rows="$2"
+  local repo_id repo_path repo_stack repo_ref repo_abs repo_name branch branch_slug stream_slug stream_type matched_domains
+  while IFS='|' read -r repo_id repo_path repo_stack repo_ref repo_abs repo_name; do
+    [[ -n "$repo_id" && -n "$repo_abs" ]] || continue
+    branch="$(current_git_branch "$repo_abs")"
+    [[ -n "$branch" ]] || continue
+    if is_default_branch_name "$branch" && ! repo_has_dirty_worktree "$repo_abs"; then
+      continue
+    fi
+    stream_slug="$(branch_to_stream_slug "$branch")"
+    [[ -n "$stream_slug" ]] || continue
+    stream_type="$(branch_to_stream_type "$(slugify "$branch")")"
+    matched_domains="$(best_domain_matches_for_stream "$stream_slug" "$repo_id" "$domain_rows")"
+    [[ -n "$matched_domains" ]] || continue
+    printf '%s|%s|%s|%s|%s\n' "$repo_id" "$branch" "$stream_slug" "$stream_type" "$(printf '%s' "$matched_domains" | join_lines_comma)"
+  done <<< "$discovered_rows"
+  return 0
+}
+
+create_domain_stub() {
+  local slug="$1" repo_ids_text="$2"
+  local template="./.platform/domains/TEMPLATE.md"
+  local target="./.platform/domains/${slug}.md"
+  local repo_ids_literal
+  [[ -f "$template" ]] || die "$template not found. Update agentboard templates first."
+  [[ ! -e "$target" ]] || return 0
+  repo_ids_literal="$(frontmatter_inline_array <<< "$repo_ids_text")"
+  mkdir -p "./.platform/domains"
+  cp "$template" "$target"
+  replace_template_literals "$target" \
+    "<domain-slug>" "$slug" \
+    "YYYY-MM-DD" "$(today)"
+  replace_frontmatter_line "$target" "repo_ids" "$repo_ids_literal"
+  return 0
+}
+
 canonical_stream_id() {
   printf 'stream-%s\n' "$1"
 }
@@ -1495,6 +1707,19 @@ NOTICE
 cmd_bootstrap() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
 
+  local apply_domains=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --apply-domains)
+        apply_domains=1
+        shift
+        ;;
+      *)
+        die "Usage: agentboard bootstrap [--apply-domains]"
+        ;;
+    esac
+  done
+
   local repos_file="./.platform/repos.md"
   local sync_script="./.platform/scripts/sync-context.sh"
   local brief="./.platform/work/BRIEF.md"
@@ -1562,6 +1787,62 @@ cmd_bootstrap() {
     ok "Updated .platform/scripts/sync-context.sh repo list"
   fi
 
+  local inferred_domain_rows existing_domain_rows combined_domain_rows
+  inferred_domain_rows="$(infer_bootstrap_domains "$discovered_rows" | merge_bootstrap_domain_rows)"
+  existing_domain_rows="$(domain_repo_rows "$repos_file" | merge_bootstrap_domain_rows)"
+  combined_domain_rows="$(printf '%s\n%s\n' "$existing_domain_rows" "$inferred_domain_rows" | merge_bootstrap_domain_rows)"
+
+  if [[ -n "$inferred_domain_rows" ]]; then
+    head "Inferred domains"
+    local domain_slug repo_ids_text repo_id domain_created=0
+    while IFS='|' read -r domain_slug repo_id; do
+      [[ -n "$domain_slug" && -n "$repo_id" ]] || continue
+      repo_ids_text="$(printf '%s\n' "$inferred_domain_rows" | awk -F'|' -v slug="$domain_slug" '$1 == slug { print $2 }' | unique_nonempty_lines)"
+      if [[ -f "./.platform/domains/${domain_slug}.md" ]]; then
+        printf '  %s↷%s %s%s%s  %s(existing)%s\n' "$C_YELLOW" "$C_RESET" "$C_CYAN" "$domain_slug" "$C_RESET" "$C_DIM" "$C_RESET"
+      else
+        if (( apply_domains )); then
+          create_domain_stub "$domain_slug" "$repo_ids_text"
+          ok "Created inferred domain: .platform/domains/${domain_slug}.md"
+          domain_created=$((domain_created + 1))
+        else
+          printf '  %s~%s %s%s%s -> repos %s[%s]%s\n' \
+            "$C_YELLOW" "$C_RESET" "$C_CYAN" "$domain_slug" "$C_RESET" \
+            "$C_BOLD" "$(printf '%s\n' "$repo_ids_text" | join_lines_comma)" "$C_RESET"
+        fi
+      fi
+    done < <(printf '%s\n' "$inferred_domain_rows" | awk -F'|' '!seen[$1]++ { print $1 "|" $2 }')
+    if (( !apply_domains )); then
+      printf '  %sRun %sagentboard bootstrap --apply-domains%s to scaffold the missing inferred domain stubs.%s\n' \
+        "$C_DIM" "$C_BOLD" "$C_RESET$C_DIM" "$C_RESET"
+    elif (( domain_created == 0 )); then
+      printf '  %sNo new inferred domains needed to be created.%s\n' "$C_DIM" "$C_RESET"
+    fi
+    say
+  fi
+
+  local stream_suggestions
+  stream_suggestions="$(infer_bootstrap_stream_suggestions "$discovered_rows" "$combined_domain_rows")"
+  if [[ -n "$stream_suggestions" ]]; then
+    head "Suggested streams"
+    local branch stream_slug stream_type domain_slugs_csv domain_flags domain_name
+    while IFS='|' read -r repo_id branch stream_slug stream_type domain_slugs_csv; do
+      [[ -n "$stream_slug" ]] || continue
+      domain_flags=""
+      while IFS= read -r domain_name; do
+        [[ -n "$domain_name" ]] || continue
+        domain_flags="${domain_flags} --domain ${domain_name}"
+      done < <(printf '%s\n' "$domain_slugs_csv" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+      printf '  %s%s%s  %s(branch: %s)%s\n' "$C_CYAN" "$stream_slug" "$C_RESET" "$C_DIM" "$branch" "$C_RESET"
+      printf '     type: %s\n' "$stream_type"
+      printf '     repos: [%s]\n' "$repo_id"
+      printf '     domains: [%s]\n' "$domain_slugs_csv"
+      printf '     next: %sagentboard new-stream %s%s --type %s --repo %s%s\n' \
+        "$C_BOLD" "$stream_slug" "$domain_flags" "$stream_type" "$repo_id" "$C_RESET"
+    done <<< "$stream_suggestions"
+    say
+  fi
+
   if [[ -f "$brief" && -f "$active" ]] && brief_is_placeholder "$brief"; then
     local rows count selected_slug selected_status selected_stream_file selected_domain_slugs
     rows="$(stream_rows_from_active "$active")"
@@ -1584,11 +1865,12 @@ cmd_bootstrap() {
   bold "Bootstrap complete"
   if (( is_hub )); then
     printf '  1. Review %s.platform/repos.md%s and the new repo reference stubs.\n' "$C_CYAN" "$C_RESET"
-    printf '  2. Run %sagentboard doctor%s to verify the shared state.\n' "$C_BOLD" "$C_RESET"
-    printf '  3. Fill repo/domain/stream truth during activation or real work.\n'
+    printf '  2. Review inferred domains/streams above and apply what is real.\n'
+    printf '  3. Run %sagentboard doctor%s to verify the shared state.\n' "$C_BOLD" "$C_RESET"
   else
     printf '  1. Review %s.platform/repos.md%s and %s.platform/*.md%s.\n' "$C_CYAN" "$C_RESET" "$C_CYAN" "$C_RESET"
-    printf '  2. Run %sagentboard doctor%s, then create real domains/streams as needed.\n' "$C_BOLD" "$C_RESET"
+    printf '  2. Review inferred domains/streams above and apply what is real.\n'
+    printf '  3. Run %sagentboard doctor%s, then create real domains/streams as needed.\n' "$C_BOLD" "$C_RESET"
   fi
   say
 }
@@ -3052,7 +3334,7 @@ COMMANDS
                                except domains/TEMPLATE.md
 
   sync [--apply|--list]      Sync AGENTS.md + GEMINI.md from CLAUDE.md (default: check)
-  bootstrap                  Discover repos and scaffold starter repo references
+  bootstrap [--apply-domains] Discover repos, infer starter domains, and suggest streams
   migrate [--apply]          Upgrade legacy stream/domain files to metadata v1
   brief-upgrade [slug] ...   Rewrite legacy BRIEF.md for one target stream
   doctor                     Validate active .platform state and metadata

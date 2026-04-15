@@ -243,7 +243,7 @@ agentboard install
 agentboard init
 agentboard update [--dry-run]
 agentboard sync [--apply|--list]
-agentboard bootstrap
+agentboard bootstrap [--apply-domains]
 agentboard migrate [--apply]
 agentboard brief-upgrade [stream-slug] [--apply]
 agentboard doctor
@@ -266,7 +266,7 @@ agentboard help
 - `init` scaffolds the kit into the current directory
 - `update` refreshes shipped process files and skill protocols without touching project-specific docs
 - `sync` keeps `AGENTS.md` and `GEMINI.md` aligned with `CLAUDE.md`
-- `bootstrap` discovers repo layout, fills `repos.md`, scaffolds missing deep-reference files, and syncs hub repo paths into `sync-context.sh`; it does not invent feature/domain truth
+- `bootstrap` discovers repo layout, fills `repos.md`, scaffolds missing deep-reference files, infers starter domains from repo structure, suggests stream commands from git branch state, and syncs hub repo paths into `sync-context.sh`; use `--apply-domains` to create the inferred domain stubs
 - `migrate` upgrades legacy pre-frontmatter stream/domain files to metadata v1 when Agentboard can infer the missing fields safely
 - `brief-upgrade` rewrites a legacy multi-stream `work/BRIEF.md` into the newer single-stream format for one chosen stream
 - `doctor` validates active `.platform/` state, stream/domain metadata, domain references, and repo IDs against the repo registry
