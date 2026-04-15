@@ -11,7 +11,7 @@ TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
 TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
 TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
 
-VERSION="1.1.0"
+VERSION="1.1.1"
 
 # -----------------------------------------------------------------------------
 # Colors (honors NO_COLOR, disables if stdout isn't a TTY)
@@ -874,23 +874,46 @@ EOF
 # -----------------------------------------------------------------------------
 
 print_banner() {
-  [[ -z "$C_YELLOW" ]] && return 0  # skip if colors are off (NO_COLOR or non-TTY)
-  # Synthwave gradient: electric cyan → purple → hot magenta (256-color)
-  local SW1=$'\033[38;5;51m'   # electric cyan
-  local SW2=$'\033[38;5;87m'   # cyan-purple
-  local SW3=$'\033[38;5;135m'  # purple
-  local SW4=$'\033[38;5;165m'  # purple-pink
-  local SW5=$'\033[38;5;201m'  # hot magenta
-  local L1='    _    ____ _____ _   _ _____ ____   ___    _    ____  ____'
-  local L2='   / \  / ___| ____| \ | |_   _| __ ) / _ \  / \  |  _ \|  _ \'
-  local L3='  / _ \| |  _|  _| |  \| | | | |  _ \| | | |/ _ \ | |_) | | | |'
-  local L4=' / ___ \ |_| | |___| |\  | | | | |_) | |_| / ___ \|  _ <| |_| |'
-  local L5='/_/   \_\____|_____|_| \_| |_| |____/ \___/_/   \_\_| \_\____/'
-  printf '%s\n' "${C_BOLD}${SW1}${L1}${C_RESET}"
-  printf '%s\n' "${C_BOLD}${SW2}${L2}${C_RESET}"
-  printf '%s\n' "${C_BOLD}${SW3}${L3}${C_RESET}"
-  printf '%s\n' "${C_BOLD}${SW4}${L4}${C_RESET}"
-  printf '%s\n' "${C_BOLD}${SW5}${L5}${C_RESET}"
+  [[ -z "$C_YELLOW" ]] && return 0  # skip if NO_COLOR or non-TTY
+
+  # Block-pixel art banner — Gemini-style colored squares
+  # Font: 5 cols × 7 rows per letter. Each pixel = 2 background-colored spaces.
+  # Letters: A  G  E  N  T  B  O  A  R  D
+  local A_PX="01110 10001 10001 11111 10001 10001 10001"
+  local G_PX="01110 10000 10000 10111 10001 10001 01110"
+  local E_PX="11111 10000 10000 11110 10000 10000 11111"
+  local N_PX="10001 11001 10101 10011 10001 10001 10001"
+  local T_PX="11111 00100 00100 00100 00100 00100 00100"
+  local B_PX="11110 10001 10001 11110 10001 10001 11110"
+  local O_PX="01110 10001 10001 10001 10001 10001 01110"
+  local R_PX="11110 10001 10001 11110 10100 10010 10001"
+  local D_PX="11110 10001 10001 10001 10001 10001 11110"
+
+  # Word order + synthwave gradient (cyan → purple → magenta)
+  local -a _letters=("$A_PX" "$G_PX" "$E_PX" "$N_PX" "$T_PX" "$B_PX" "$O_PX" "$A_PX" "$R_PX" "$D_PX")
+  local -a _colors=(51 75 99 105 129 141 165 177 201 207)
+
+  local row li col pixel row_str
+  local -a _rows
+  printf '\n'
+  for row in 0 1 2 3 4 5 6; do
+    printf '  '
+    for (( li=0; li<10; li++ )); do
+      read -ra _rows <<< "${_letters[$li]}"
+      row_str="${_rows[$row]}"
+      for (( col=0; col<5; col++ )); do
+        pixel="${row_str:$col:1}"
+        if [[ "$pixel" == "1" ]]; then
+          printf '\033[48;5;%dm  \033[0m' "${_colors[$li]}"
+        else
+          printf '  '
+        fi
+      done
+      printf ' '  # gap between letters
+    done
+    printf '\n'
+  done
+
   printf '\n%s  AI agent context kit — v%s%s\n\n' "$C_DIM" "$VERSION" "$C_RESET"
 }
 
