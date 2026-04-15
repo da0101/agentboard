@@ -124,7 +124,7 @@ init_project() {
   local dir="$1"
   (
     cd "$dir"
-    printf '\n\n' | "$AGENTBOARD" init >/dev/null
+    printf '\n\n' | "$AGENTBOARD" init >/dev/null 2>&1
     git config user.email test@example.com
     git config user.name "Agentboard Test"
     git add .
@@ -136,7 +136,7 @@ init_hub() {
   local dir="$1"
   (
     cd "$dir"
-    printf '\n\nY\n' | "$AGENTBOARD" init >/dev/null
+    printf '\n\nY\n' | "$AGENTBOARD" init >/dev/null 2>&1
     git init >/dev/null 2>&1 || true
     git config user.email test@example.com
     git config user.name "Agentboard Test"
