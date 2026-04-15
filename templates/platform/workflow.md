@@ -41,7 +41,7 @@ Trivial tasks (typo fix, rename, 1-line config change) skip directly to Stage 5.
 
 **Why this is non-negotiable:** if the context is cleared, the computer restarts, or a different agent picks up the work, the stream file is the only way to resume. Zero registration = zero traceability = zero resumability. A workstream without a domain file has no focused context for the next agent.
 
-Full protocol: `conventions/work-tracking.md` § "Starting a new workstream".
+Full protocol: `agents/work-tracking.md` § "Starting a new workstream".
 
 **Exit:** domain file exists, stream file exists, `ACTIVE.md` has the row, `BRIEF.md` is current.
 

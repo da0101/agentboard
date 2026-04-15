@@ -44,7 +44,7 @@ This keeps context windows lean and prevents agents from being briefed on work t
 
 1. **Check for a domain file.** Does `.platform/domains/<feature>.md` exist for this feature?
    - **Yes** → continue
-   - **No** → create it first (see `conventions/context-organization.md`). A workstream without a domain file has no focused context for the next agent to load.
+   - **No** → create it first (see `agents/context-organization.md`). A workstream without a domain file has no focused context for the next agent to load.
 2. **Update `work/BRIEF.md`** — replace with the new feature brief; set `## Relevant context` to the domain file(s) this workstream touches.
 3. Copy `TEMPLATE.md` to `work/<stream-slug>.md`
 4. Fill in: type, scope (3–5 bullets), done criteria (measurable), next action

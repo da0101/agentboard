@@ -151,7 +151,7 @@ Then ask: "Does this look right, or should I revise any section?"
 
 ## Hub-mode activation rules (so you don't mess this up)
 
-0. **Subagent dispatch rule.** If you use `Task` tool calls to parallelize the sibling-repo scan (Step 1), follow the dispatch convention: print `Dispatching N agent(s): <Name> [<model>] — <purpose>; ...` before every dispatch, pass `model` explicitly (Sonnet for read-only scan work, Opus only if writing code mid-activation), and give each agent a persona name. Full rule: `.platform/conventions/subagent-dispatch.md`.
+0. **Subagent dispatch rule.** If you use `Task` tool calls to parallelize the sibling-repo scan (Step 1), follow the dispatch convention: print `Dispatching N agent(s): <Name> [<model>] — <purpose>; ...` before every dispatch, pass `model` explicitly (Sonnet for read-only scan work, Opus only if writing code mid-activation), and give each agent a persona name. Full rule: `.platform/agents/subagent-dispatch.md`.
 1. **Read before you write.** Scan the actual sibling repo files before generating any content. No hallucinating the stack.
 2. **Do not scan this hub folder for code.** It is deliberately empty of code. All scanning happens inside sibling repos.
 3. **Ask when you're unsure.** If `.platform/repos.md` is not filled in, stop and ask for the sibling paths before trying to scan anything.

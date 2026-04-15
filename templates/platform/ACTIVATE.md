@@ -51,7 +51,7 @@ Based on scan + interview, generate these files. Write them one at a time, then 
 
 **`.platform/repos.md`** — list the repo(s). For single-repo projects, one row. For multi-repo, one row per repo with stack + deep-reference-file name.
 
-**`.platform/domains/`** — create one file per major feature domain you discover in the scan. Each domain file is cross-layer: it covers the backend app, admin/frontend feature section, and any widgets/clients that touch this domain. Keep each under 150 lines. This is how agents load focused context per feature — instead of loading all of `backend.md` for every task, they load only the domain file relevant to what they're building. See `.platform/conventions/context-organization.md` for the full pattern.
+**`.platform/domains/`** — create one file per major feature domain you discover in the scan. Each domain file is cross-layer: it covers the backend app, admin/frontend feature section, and any widgets/clients that touch this domain. Keep each under 150 lines. This is how agents load focused context per feature — instead of loading all of `backend.md` for every task, they load only the domain file relevant to what they're building. See `.platform/agents/context-organization.md` for the full pattern.
 
 **`.platform/conventions/`** — write a **separate** file for each stack you detected AND for each cross-cutting area that applies:
 
@@ -161,7 +161,7 @@ Then ask: "Does this look right, or should I revise any section?"
 
 ## Activation rules (so you don't mess this up)
 
-0. **Subagent dispatch rule.** If you use `Task` tool calls to parallelize any scan step, follow the dispatch convention: print `Dispatching N agent(s): <Name> [<model>] — <purpose>; ...` before every dispatch, pass `model` explicitly (Sonnet for read-only scan work, Opus only if writing code mid-activation), and give each agent a persona name. Full rule: `.platform/conventions/subagent-dispatch.md`.
+0. **Subagent dispatch rule.** If you use `Task` tool calls to parallelize any scan step, follow the dispatch convention: print `Dispatching N agent(s): <Name> [<model>] — <purpose>; ...` before every dispatch, pass `model` explicitly (Sonnet for read-only scan work, Opus only if writing code mid-activation), and give each agent a persona name. Full rule: `.platform/agents/subagent-dispatch.md`.
 1. **Read before you write.** Scan the actual files before generating any content. No hallucinating the stack.
 2. **Ask when you're unsure.** If the scan is ambiguous (e.g., you see both a `package.json` and a `pyproject.toml`), ask which is the primary.
 3. **Don't ship placeholder content in `.platform/` files.** If the user hasn't answered a question, write `_TODO: <specific thing to fill in>_` so it's greppable.
@@ -204,7 +204,7 @@ These files are generic and ship verbatim — you don't need to rewrite them:
 - **`.platform/work/ACTIVE.md`** — active workstream registry (read every session start, after BRIEF.md)
 - **`.platform/work/TEMPLATE.md`** — skeleton for new workstreams; copy to `work/<slug>.md` when starting work
 - **`.platform/work/archive/`** — completed workstreams land here after the done ritual
-- **`.platform/conventions/work-tracking.md`** — the full work tracking protocol
+- **`.platform/agents/work-tracking.md`** — the full work tracking protocol
 
 These are your starting points — read them but don't rewrite them unless the user explicitly asks.
 

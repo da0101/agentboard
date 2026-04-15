@@ -720,6 +720,33 @@ cmd_update() {
     done
   fi
 
+  # agents/*.md — upsert: update existing AND add new ones (agentboard-global protocol files)
+  if [[ -d "$TEMPLATES_PLATFORM/agents" ]]; then
+    local asrc
+    for asrc in "$TEMPLATES_PLATFORM/agents"/*.md; do
+      local afname; afname="$(basename "$asrc")"
+      local adst="./.platform/agents/$afname"
+      local agent_is_new=0
+      [[ -f "$adst" ]] || agent_is_new=1
+      if (( dry_run )); then
+        if (( agent_is_new )); then
+          printf '  %s+%s agents/%s  %s(would add)%s\n' "$C_GREEN" "$C_RESET" "$afname" "$C_DIM" "$C_RESET"
+        else
+          printf '  %s~%s agents/%s\n' "$C_YELLOW" "$C_RESET" "$afname"
+        fi
+      else
+        mkdir -p "./.platform/agents"
+        cp "$asrc" "$adst"
+        if (( agent_is_new )); then
+          printf '  %s+%s %sagents/%s%s  %s(new)%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$afname" "$C_RESET" "$C_DIM" "$C_RESET"
+        else
+          printf '  %s↻%s %sagents/%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$afname" "$C_RESET"
+        fi
+      fi
+      updated=$((updated + 1))
+    done
+  fi
+
   # skills — always replace (pure protocol content; project-specific work lives in .platform/)
   local skills_dir_claude="./.claude/skills"
   local skills_dir_agents="./.agents/skills"

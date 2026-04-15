@@ -38,7 +38,7 @@ Claude Code, Codex CLI, Gemini CLI, or any other AI tool — this file is auto-l
 
 **Read `.platform/work/ACTIVE.md` first every session** — before STATUS.md, before anything else.
 It tells you what's currently in progress so you can orient in seconds, not minutes.
-See `.platform/conventions/work-tracking.md` for the full protocol.
+See `.platform/agents/work-tracking.md` for the full protocol.
 
 ## Reference pack
 
@@ -64,7 +64,7 @@ Pass `model` explicitly on every `Task` call — never omit it (omitting inherit
 | Code implementation, hard architectural decisions, executors handling deviations | **`opus`** |
 | Mechanical / trivial narrow operations | **`haiku`** |
 
-Name agents with a persona — e.g., "Max the Mapper [sonnet]", "Kai the Coder [opus]". Full rule: `.platform/conventions/subagent-dispatch.md`.
+Name agents with a persona — e.g., "Max the Mapper [sonnet]", "Kai the Coder [opus]". Full rule: `.platform/agents/subagent-dispatch.md`.
 
 ## Skills available to you
 
