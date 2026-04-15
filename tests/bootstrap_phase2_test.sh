@@ -49,6 +49,22 @@ make_dirty_default_branch_fixture() {
   git -C "$dir" commit -m "initial" >/dev/null 2>&1
 }
 
+make_doc_artifact_fixture() {
+  local dir="$1"
+  mkdir -p "$dir/src/features/auth" "$dir/docs"
+  printf 'export const auth = true;\n' > "$dir/src/features/auth/index.ts"
+  printf '# Sample\n' > "$dir/README.md"
+  printf '# Architecture\n' > "$dir/architecture.md"
+  printf '# Decisions\n' > "$dir/decisions.md"
+  printf 'openapi: 3.0.0\n' > "$dir/openapi.yaml"
+  printf '{\n  "name": "doc-artifacts",\n  "scripts": {\n    "dev": "vite",\n    "test": "vitest",\n    "build": "vite build"\n  }\n}\n' > "$dir/package.json"
+  git -C "$dir" init -b main >/dev/null 2>&1
+  git -C "$dir" config user.email test@example.com
+  git -C "$dir" config user.name "Agentboard Test"
+  git -C "$dir" add .
+  git -C "$dir" commit -m "initial" >/dev/null 2>&1
+}
+
 make_hub_fixture() {
   local dir="$1"
   mkdir -p "$dir/backend/accounts" "$dir/frontend/src/features/auth" "$dir/frontend/src/features/billing"
@@ -171,7 +187,7 @@ test_default_branch_dirty_worktree_inference() {
   dir="$(mktemp -d)"
   make_dirty_default_branch_fixture "$dir"
   init_project "$dir"
-  printf 'changed\n' > "$dir/src/features/auth/view.tsx"
+  printf 'export function normalizeAuthError(err) { return err?.message ?? \"auth fix\"; }\n' > "$dir/src/features/auth/errors.ts"
 
   local output
   output="$(
@@ -179,10 +195,10 @@ test_default_branch_dirty_worktree_inference() {
     "$AGENTBOARD" bootstrap
   )"
 
-  assert_contains "$output" "auth-worktree"
+  assert_contains "$output" "auth-errors-fix"
   assert_contains "$output" "branch: main"
-  assert_contains "$output" "confidence: medium"
-  assert_contains "$output" "agentboard new-stream auth-worktree --domain auth --type improvement --repo repo-primary"
+  assert_contains "$output" "confidence: high"
+  assert_contains "$output" "agentboard new-stream auth-errors-fix --domain auth --type bug --repo repo-primary"
 }
 
 test_hub_bootstrap_references_and_high_confidence_streams() {
@@ -269,6 +285,26 @@ test_ios_role_hint_safe_defaults() {
   assert_file_contains "$ref_file" 'Build: `xcodebuild build -scheme <fill>`'
 }
 
+test_local_context_artifacts_are_listed() {
+  local dir ref_file
+  dir="$(mktemp -d)"
+  make_doc_artifact_fixture "$dir"
+  init_project "$dir"
+  ref_file="$dir/.platform/$(slugify "$(basename "$dir")").md"
+
+  (
+    cd "$dir"
+    "$AGENTBOARD" bootstrap >/dev/null
+  )
+
+  assert_file_contains "$ref_file" '## Local context artifacts'
+  assert_file_contains "$ref_file" '`README.md`'
+  assert_file_contains "$ref_file" '`docs/`'
+  assert_file_contains "$ref_file" '`architecture.md`'
+  assert_file_contains "$ref_file" '`decisions.md`'
+  assert_file_contains "$ref_file" '`openapi.yaml`'
+}
+
 test_single_repo_branch_inference
 test_apply_domains_creates_stubs
 test_default_branch_dirty_worktree_inference
@@ -276,5 +312,6 @@ test_hub_bootstrap_references_and_high_confidence_streams
 test_unknown_repo_safe_fallback
 test_node_backend_role_hint
 test_ios_role_hint_safe_defaults
+test_local_context_artifacts_are_listed
 
 printf 'PASS: bootstrap_phase2_test\n'

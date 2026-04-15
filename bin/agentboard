@@ -630,6 +630,42 @@ repo_changed_files() {
   return 0
 }
 
+repo_diff_signal_text() {
+  local repo_path="$1"
+  git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+  {
+    git -C "$repo_path" diff --cached --unified=0 --no-color 2>/dev/null || true
+    git -C "$repo_path" diff --unified=0 --no-color 2>/dev/null || true
+  } | awk '
+    function ignore_path(path) {
+      return path ~ /^\.platform\// || path ~ /^\.claude\// || path ~ /^\.agents\// || \
+             path == "CLAUDE.md" || path == "AGENTS.md" || path == "GEMINI.md"
+    }
+    /^diff --git / { next }
+    /^index / { next }
+    /^@@ / { next }
+    /^\+\+\+ / {
+      path = $2
+      sub(/^b\//, "", path)
+      skip = ignore_path(path)
+      next
+    }
+    /^--- / {
+      path = $2
+      sub(/^a\//, "", path)
+      skip = ignore_path(path)
+      next
+    }
+    /^[+-]/ {
+      if (skip) next
+      line = substr($0, 2)
+      if (line ~ /^[[:space:]]*$/) next
+      print line
+    }
+  ' | sed -E 's/[^A-Za-z0-9_./ -]+/ /g'
+  return 0
+}
+
 repo_has_dirty_worktree() {
   local repo_path="$1"
   git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
@@ -748,19 +784,87 @@ stream_slug_from_domains() {
   printf '%s-worktree\n' "$first"
 }
 
+ignore_bootstrap_focus_token() {
+  local token="$1"
+  case "$token" in
+    index|main|app|apps|src|lib|server|client|view|views|screen|screens|page|pages|component|components| \
+    hook|hooks|model|models|service|services|store|stores|test|tests|spec|specs|util|utils|helper|helpers| \
+    api|types|schema|schemas|feature|features|domain|domains|module|modules|controller|controllers|route|routes| \
+    config|configs|package|packages|android|ios|assets|projectsettings|functions|function|common|shared)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+bootstrap_focus_token_from_paths() {
+  local paths="$1" domain_list="$2"
+  local domain_csv line token best="" domain_slug
+  domain_csv="$(printf '%s\n' "$domain_list" | join_lines_comma)"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    while IFS= read -r token; do
+      [[ -n "$token" ]] || continue
+      token="$(slugify "$token")"
+      [[ -n "$token" ]] || continue
+      ignore_bootstrap_focus_token "$token" && continue
+      if printf '%s\n' "$domain_csv" | tr ',' '\n' | grep -Fxq "$token"; then
+        continue
+      fi
+      best="$token"
+      break 2
+    done < <(printf '%s\n' "$line" | tr '/._-' '\n')
+  done <<< "$paths"
+  [[ -n "$best" ]] && printf '%s\n' "$best"
+}
+
+infer_stream_type_from_diff() {
+  local branch_slug="$1" changed_paths="$2" diff_text="$3"
+  local haystack
+  haystack="$(printf '%s\n%s\n%s\n' "$branch_slug" "$changed_paths" "$diff_text" | tr '[:upper:]' '[:lower:]')"
+  if printf '%s' "$haystack" | grep -Eiq '(^|[^a-z])(fix|fixes|bug|bugs|error|errors|fail|fails|failing|failure|failures|exception|exceptions|crash|crashes|hotfix|null|undefined|regress|regression|broken|retry|guard)([^a-z]|$)'; then
+    printf '%s\n' "bug"
+  elif printf '%s' "$haystack" | grep -Eiq '(^|[^a-z])(refactor|cleanup|rename|bump|upgrade|lint|format|optimi[sz]e|perf|performance|docs|documentation|chore|reorganize|rework)([^a-z]|$)'; then
+    printf '%s\n' "improvement"
+  elif [[ -n "$branch_slug" ]]; then
+    branch_to_stream_type "$branch_slug"
+  else
+    printf '%s\n' "feature"
+  fi
+}
+
+stream_slug_from_context() {
+  local domain_list="$1" stream_type="$2" changed_paths="$3" diff_text="$4"
+  local first_domain focus_token suffix
+  first_domain="$(printf '%s\n' "$domain_list" | awk 'NF { print; exit }')"
+  [[ -n "$first_domain" ]] || return 0
+  focus_token="$(bootstrap_focus_token_from_paths "$changed_paths" "$domain_list")"
+  case "$stream_type" in
+    bug) suffix="fix" ;;
+    feature) suffix="feature" ;;
+    *) suffix="worktree" ;;
+  esac
+  if [[ -n "$focus_token" ]]; then
+    printf '%s-%s-%s\n' "$first_domain" "$focus_token" "$suffix"
+  else
+    printf '%s-%s\n' "$first_domain" "$suffix"
+  fi
+}
+
 infer_bootstrap_stream_suggestions() {
   local discovered_rows="$1" domain_rows="$2"
-  local repo_id repo_path repo_stack repo_ref repo_abs repo_name branch branch_slug stream_slug stream_type matched_domains changed_paths confidence
+  local repo_id repo_path repo_stack repo_ref repo_abs repo_name branch branch_slug stream_slug stream_type matched_domains changed_paths confidence diff_text
   while IFS='|' read -r repo_id repo_path repo_stack repo_ref repo_abs repo_name; do
     [[ -n "$repo_id" && -n "$repo_abs" ]] || continue
     branch="$(current_git_branch "$repo_abs")"
     changed_paths="$(repo_changed_files "$repo_abs")"
+    diff_text="$(repo_diff_signal_text "$repo_abs")"
     if [[ -z "$branch" && -z "$changed_paths" ]]; then
       continue
     fi
     if [[ -n "$branch" ]] && ! is_default_branch_name "$branch"; then
       stream_slug="$(branch_to_stream_slug "$branch")"
-      stream_type="$(branch_to_stream_type "$(slugify "$branch")")"
+      stream_type="$(infer_stream_type_from_diff "$(slugify "$branch")" "$changed_paths" "$diff_text")"
       matched_domains="$(best_domain_matches_for_stream "$stream_slug" "$repo_id" "$domain_rows")"
       confidence="medium"
       if [[ -n "$changed_paths" ]]; then
@@ -772,9 +876,11 @@ infer_bootstrap_stream_suggestions() {
     else
       [[ -n "$changed_paths" ]] || continue
       matched_domains="$(best_domain_matches_for_paths "$repo_id" "$domain_rows" "$changed_paths")"
-      stream_slug="$(stream_slug_from_domains "$matched_domains")"
-      stream_type="improvement"
+      stream_type="$(infer_stream_type_from_diff "" "$changed_paths" "$diff_text")"
+      stream_slug="$(stream_slug_from_context "$matched_domains" "$stream_type" "$changed_paths" "$diff_text")"
+      [[ -n "$stream_slug" ]] || stream_slug="$(stream_slug_from_domains "$matched_domains")"
       confidence="medium"
+      [[ -n "$diff_text" || "$stream_type" != "feature" ]] && confidence="high"
     fi
     [[ -n "$stream_slug" ]] || continue
     [[ -n "$matched_domains" ]] || continue
@@ -1075,6 +1181,26 @@ repo_boundary_lines() {
   printf '%s' "$lines"
 }
 
+repo_context_artifact_lines() {
+  local repo_path="$1"
+  local lines="" candidate rel
+  for candidate in \
+    "README.md" "docs/" "architecture.md" "ARCHITECTURE.md" "decisions.md" "DECISIONS.md" \
+    "adr/" "ADRs/" "openapi.yaml" "openapi.yml" "swagger.yaml" "swagger.yml" \
+    "firebase.json" "schema.prisma" ".github/workflows/" ".github/pull_request_template.md"; do
+    if [[ "$candidate" == */ ]]; then
+      [[ -e "$repo_path/${candidate%/}" ]] || continue
+      rel="${candidate%/}/"
+    else
+      [[ -e "$repo_path/$candidate" ]] || continue
+      rel="$candidate"
+    fi
+    lines="${lines}- \`${rel}\`"$'\n'
+  done
+  [[ -n "$lines" ]] || lines="- _No obvious local architecture / contract artifacts detected during bootstrap._"$'\n'
+  printf '%s' "$lines"
+}
+
 repo_relationship_lines() {
   local current_repo_id="$1" current_repo_path="$2" discovered_rows="$3"
   local current_role current_hint
@@ -1306,7 +1432,7 @@ write_sync_repos_array() {
 }
 
 write_bootstrap_reference() {
-  local target="$1" repo_name="$2" repo_display_name="$3" repo_abs_path="$4" role="$5" hint="$6" manifest="$7" source_dir="$8" commands="$9" relationships="${10}" entrypoints="${11}" boundaries="${12}"
+  local target="$1" repo_name="$2" repo_display_name="$3" repo_abs_path="$4" role="$5" hint="$6" manifest="$7" source_dir="$8" commands="$9" relationships="${10}" entrypoints="${11}" boundaries="${12}" artifacts="${13}"
   local dev_cmd test_cmd build_cmd
   IFS='|' read -r dev_cmd test_cmd build_cmd <<< "$commands"
   cat > "$target" <<EOF
@@ -1333,6 +1459,10 @@ ${entrypoints}
 ## Likely boundaries
 
 ${boundaries}
+
+## Local context artifacts
+
+${artifacts}
 
 ## Inferred commands
 
@@ -2160,7 +2290,7 @@ cmd_bootstrap() {
 
     local ref_target="./.platform/${repo_ref}"
     if [[ ! -f "$ref_target" ]]; then
-      local repo_fs_path manifest source_dir commands relationships role hint entrypoints boundaries
+      local repo_fs_path manifest source_dir commands relationships role hint entrypoints boundaries artifacts
       repo_fs_path="."
       [[ "$repo_path" != "." && -n "$repo_abs" ]] && repo_fs_path="$repo_abs"
       role="$(detect_repo_role "$repo_fs_path" "$repo_id")"
@@ -2171,7 +2301,8 @@ cmd_bootstrap() {
       relationships="$(repo_relationship_lines "$repo_id" "$repo_fs_path" "$discovered_rows")"
       entrypoints="$(repo_entrypoint_lines "$repo_fs_path")"
       boundaries="$(repo_boundary_lines "$repo_fs_path" "$source_dir")"
-      write_bootstrap_reference "$ref_target" "$repo_id" "$repo_name" "${repo_abs:-$(pwd)}" "$role" "$hint" "$manifest" "$source_dir" "$commands" "$relationships" "$entrypoints" "$boundaries"
+      artifacts="$(repo_context_artifact_lines "$repo_fs_path")"
+      write_bootstrap_reference "$ref_target" "$repo_id" "$repo_name" "${repo_abs:-$(pwd)}" "$role" "$hint" "$manifest" "$source_dir" "$commands" "$relationships" "$entrypoints" "$boundaries" "$artifacts"
       ok "Created deep reference stub: .platform/${repo_ref}"
     fi
   done <<< "$discovered_rows"
