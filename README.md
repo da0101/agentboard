@@ -239,6 +239,7 @@ So the shipped scaffold is the operational shell; activation fills in the projec
 ## Commands
 
 ```bash
+agentboard install
 agentboard init
 agentboard update [--dry-run]
 agentboard sync [--apply|--list]
@@ -261,6 +262,7 @@ agentboard help
 
 ### Command notes
 
+- `install` creates a symlink for `agentboard` in your user bin directory and prints the PATH snippet to add if needed
 - `init` scaffolds the kit into the current directory
 - `update` refreshes shipped process files and skill protocols without touching project-specific docs
 - `sync` keeps `AGENTS.md` and `GEMINI.md` aligned with `CLAUDE.md`
@@ -360,10 +362,17 @@ The point of the kit is to scaffold the **structure** and let activation generat
 
 ```bash
 git clone https://github.com/[you]/agentboard ~/code/agentboard
-ln -sf ~/code/agentboard/bin/agentboard /usr/local/bin/agentboard
+~/code/agentboard/bin/agentboard install
 ```
 
-Or put `bin/agentboard` anywhere on your `$PATH`.
+By default, `agentboard install` symlinks into your user bin directory such as `~/.local/bin/agentboard` and tells you what to add to your shell config if that directory is not already on your `PATH`.
+
+You can also preview or override the target:
+
+```bash
+~/code/agentboard/bin/agentboard install --dry-run
+~/code/agentboard/bin/agentboard install --dir ~/bin
+```
 
 ---
 

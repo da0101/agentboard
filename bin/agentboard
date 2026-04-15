@@ -439,6 +439,60 @@ slugify() {
     | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//; s/-{2,}/-/g'
 }
 
+detect_shell_name() {
+  local shell_path="${SHELL:-}"
+  shell_path="${shell_path##*/}"
+  case "$shell_path" in
+    zsh|bash|fish) printf '%s\n' "$shell_path" ;;
+    *) printf '%s\n' "zsh" ;;
+  esac
+}
+
+default_user_bin_dir() {
+  if [[ -n "${XDG_BIN_HOME:-}" ]]; then
+    printf '%s\n' "$XDG_BIN_HOME"
+  elif [[ -d "$HOME/.local/bin" ]]; then
+    printf '%s\n' "$HOME/.local/bin"
+  elif [[ -d "$HOME/bin" ]]; then
+    printf '%s\n' "$HOME/bin"
+  else
+    printf '%s\n' "$HOME/.local/bin"
+  fi
+}
+
+shell_rc_file() {
+  local shell_name="$1"
+  case "$shell_name" in
+    zsh) printf '%s\n' "$HOME/.zshrc" ;;
+    bash)
+      if [[ -f "$HOME/.bash_profile" ]]; then
+        printf '%s\n' "$HOME/.bash_profile"
+      else
+        printf '%s\n' "$HOME/.bashrc"
+      fi
+      ;;
+    fish) printf '%s\n' "$HOME/.config/fish/config.fish" ;;
+    *) printf '%s\n' "$HOME/.profile" ;;
+  esac
+}
+
+shell_path_snippet() {
+  local shell_name="$1" bin_dir="$2"
+  case "$shell_name" in
+    fish) printf 'fish_add_path "%s"\n' "$bin_dir" ;;
+    *) printf 'export PATH="%s:$PATH"\n' "$bin_dir" ;;
+  esac
+}
+
+path_contains_dir() {
+  local dir="$1" entry
+  IFS=':' read -r -a entries <<< "${PATH:-}"
+  for entry in "${entries[@]}"; do
+    [[ "$entry" == "$dir" ]] && return 0
+  done
+  return 1
+}
+
 canonical_stream_id() {
   printf 'stream-%s\n' "$1"
 }
@@ -2624,6 +2678,82 @@ cmd_add_repo() {
   say "Or: tell your LLM 'onboard this new repo into the platform' and let it do the fill pass."
 }
 
+cmd_install() {
+  local bin_dir="" shell_name="" dry_run=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dir)
+        [[ -n "${2:-}" ]] || die "install requires a value after --dir"
+        bin_dir="$2"
+        shift 2
+        ;;
+      --shell)
+        [[ -n "${2:-}" ]] || die "install requires a value after --shell"
+        shell_name="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      *)
+        die "Usage: agentboard install [--dir <bin-dir>] [--shell zsh|bash|fish] [--dry-run]"
+        ;;
+    esac
+  done
+
+  [[ -n "${HOME:-}" ]] || die "HOME is not set."
+  [[ -n "$bin_dir" ]] || bin_dir="$(default_user_bin_dir)"
+  [[ -n "$shell_name" ]] || shell_name="$(detect_shell_name)"
+  case "$shell_name" in
+    zsh|bash|fish) ;;
+    *) die "Unsupported shell '$shell_name'. Use zsh, bash, or fish." ;;
+  esac
+
+  local source_bin install_path rc_file path_snippet
+  source_bin="$AGENTBOARD_ROOT/bin/agentboard"
+  install_path="$bin_dir/agentboard"
+  rc_file="$(shell_rc_file "$shell_name")"
+  path_snippet="$(shell_path_snippet "$shell_name" "$bin_dir")"
+
+  printf '\n%s%sagentboard install%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  if (( dry_run )); then
+    printf '%sDry-run mode — no files will be changed.%s\n' "$C_DIM" "$C_RESET"
+  fi
+  say
+
+  printf '  source: %s\n' "$source_bin"
+  printf '  target: %s\n' "$install_path"
+  printf '  shell:  %s\n' "$shell_name"
+  say
+
+  if (( dry_run )); then
+    printf '  %s~%s would create or update symlink %s%s%s -> %s%s%s\n' \
+      "$C_YELLOW" "$C_RESET" "$C_CYAN" "$install_path" "$C_RESET" "$C_CYAN" "$source_bin" "$C_RESET"
+  else
+    mkdir -p "$bin_dir"
+    ln -sf "$source_bin" "$install_path"
+    ok "Installed symlink: $install_path -> $source_bin"
+  fi
+
+  if path_contains_dir "$bin_dir"; then
+    ok "Bin dir already on PATH: $bin_dir"
+  else
+    warn "Bin dir is not currently on PATH: $bin_dir"
+    say
+    printf '%sAdd this to %s:%s\n' "$C_BOLD" "$rc_file" "$C_RESET"
+    printf '  %s\n' "$path_snippet"
+    say
+    printf '%sThen reload your shell:%s\n' "$C_BOLD" "$C_RESET"
+    case "$shell_name" in
+      zsh) printf '  source %s\n' "$rc_file" ;;
+      bash) printf '  source %s\n' "$rc_file" ;;
+      fish) printf '  source %s\n' "$rc_file" ;;
+    esac
+  fi
+  say
+}
+
 cmd_update() {
   local dry_run=0
   for arg in "$@"; do
@@ -2906,6 +3036,7 @@ USAGE
   agentboard <command> [args]
 
 COMMANDS
+  install [--dir ...]        Install agentboard onto your PATH via a symlink
   init                       Scaffold a .platform/ pack in the current directory.
                              After init, open the project in an AI CLI and say
                              "activate this project" — the LLM scans your code
@@ -3007,6 +3138,7 @@ main() {
   print_banner
   shift || true
   case "$cmd" in
+    install)     cmd_install "$@" ;;
     init)        cmd_init "$@" ;;
     update)      cmd_update "$@" ;;
     sync)        cmd_sync "$@" ;;
