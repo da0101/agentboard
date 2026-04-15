@@ -600,6 +600,22 @@ current_git_branch() {
   git -C "$repo_path" symbolic-ref --quiet --short HEAD 2>/dev/null || git -C "$repo_path" rev-parse --short HEAD 2>/dev/null || true
 }
 
+repo_changed_files() {
+  local repo_path="$1"
+  git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+  git -C "$repo_path" status --porcelain --untracked-files=all 2>/dev/null | awk '
+    {
+      path = $2
+      if (path ~ /^\.platform\//) next
+      if (path ~ /^\.claude\//) next
+      if (path ~ /^\.agents\//) next
+      if (path == "CLAUDE.md" || path == "AGENTS.md" || path == "GEMINI.md") next
+      print path
+    }
+  '
+  return 0
+}
+
 repo_has_dirty_worktree() {
   local repo_path="$1"
   git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
@@ -668,22 +684,87 @@ best_domain_matches_for_stream() {
   return 0
 }
 
+best_domain_matches_for_paths() {
+  local repo_id="$1" domain_rows="$2" paths="$3"
+  local best_score=0 total_score score domain_slug domain_repo path matches=""
+  while IFS='|' read -r domain_slug domain_repo; do
+    [[ -n "$domain_slug" && -n "$domain_repo" ]] || continue
+    [[ "$domain_repo" == "$repo_id" ]] || continue
+    total_score=0
+    while IFS= read -r path; do
+      [[ -n "$path" ]] || continue
+      score="$(score_slug_similarity "$(slugify "$path")" "$domain_slug")"
+      total_score=$((total_score + score))
+    done <<< "$paths"
+    if (( total_score > best_score )); then
+      best_score="$total_score"
+      matches="$domain_slug"
+    elif (( total_score > 0 && total_score == best_score )); then
+      matches="${matches}"$'\n'"$domain_slug"
+    fi
+  done <<< "$domain_rows"
+  if (( best_score == 0 )); then
+    while IFS='|' read -r domain_slug domain_repo; do
+      [[ -n "$domain_slug" ]] || continue
+      total_score=0
+      while IFS= read -r path; do
+        [[ -n "$path" ]] || continue
+        score="$(score_slug_similarity "$(slugify "$path")" "$domain_slug")"
+        total_score=$((total_score + score))
+      done <<< "$paths"
+      if (( total_score > best_score )); then
+        best_score="$total_score"
+        matches="$domain_slug"
+      elif (( total_score > 0 && total_score == best_score )); then
+        matches="${matches}"$'\n'"$domain_slug"
+      fi
+    done <<< "$domain_rows"
+  fi
+  if (( best_score > 0 )); then
+    printf '%s\n' "$matches" | unique_nonempty_lines
+  fi
+  return 0
+}
+
+stream_slug_from_domains() {
+  local domain_list="$1"
+  local first
+  first="$(printf '%s\n' "$domain_list" | awk 'NF { print; exit }')"
+  [[ -n "$first" ]] || return 0
+  printf '%s-worktree\n' "$first"
+}
+
 infer_bootstrap_stream_suggestions() {
   local discovered_rows="$1" domain_rows="$2"
-  local repo_id repo_path repo_stack repo_ref repo_abs repo_name branch branch_slug stream_slug stream_type matched_domains
+  local repo_id repo_path repo_stack repo_ref repo_abs repo_name branch branch_slug stream_slug stream_type matched_domains changed_paths confidence
   while IFS='|' read -r repo_id repo_path repo_stack repo_ref repo_abs repo_name; do
     [[ -n "$repo_id" && -n "$repo_abs" ]] || continue
     branch="$(current_git_branch "$repo_abs")"
-    [[ -n "$branch" ]] || continue
-    if is_default_branch_name "$branch" && ! repo_has_dirty_worktree "$repo_abs"; then
+    changed_paths="$(repo_changed_files "$repo_abs")"
+    if [[ -z "$branch" && -z "$changed_paths" ]]; then
       continue
     fi
-    stream_slug="$(branch_to_stream_slug "$branch")"
+    if [[ -n "$branch" ]] && ! is_default_branch_name "$branch"; then
+      stream_slug="$(branch_to_stream_slug "$branch")"
+      stream_type="$(branch_to_stream_type "$(slugify "$branch")")"
+      matched_domains="$(best_domain_matches_for_stream "$stream_slug" "$repo_id" "$domain_rows")"
+      confidence="medium"
+      if [[ -n "$changed_paths" ]]; then
+        local changed_domains
+        changed_domains="$(best_domain_matches_for_paths "$repo_id" "$domain_rows" "$changed_paths")"
+        [[ -n "$changed_domains" ]] && matched_domains="$changed_domains"
+        confidence="high"
+      fi
+    else
+      [[ -n "$changed_paths" ]] || continue
+      matched_domains="$(best_domain_matches_for_paths "$repo_id" "$domain_rows" "$changed_paths")"
+      stream_slug="$(stream_slug_from_domains "$matched_domains")"
+      stream_type="improvement"
+      confidence="medium"
+    fi
     [[ -n "$stream_slug" ]] || continue
-    stream_type="$(branch_to_stream_type "$(slugify "$branch")")"
-    matched_domains="$(best_domain_matches_for_stream "$stream_slug" "$repo_id" "$domain_rows")"
     [[ -n "$matched_domains" ]] || continue
-    printf '%s|%s|%s|%s|%s\n' "$repo_id" "$branch" "$stream_slug" "$stream_type" "$(printf '%s' "$matched_domains" | join_lines_comma)"
+    printf '%s|%s|%s|%s|%s|%s\n' "$repo_id" "${branch:-dirty-worktree}" "$stream_slug" "$stream_type" "$(printf '%s' "$matched_domains" | join_lines_comma)" "$confidence"
   done <<< "$discovered_rows"
   return 0
 }
@@ -702,6 +783,78 @@ create_domain_stub() {
     "<domain-slug>" "$slug" \
     "YYYY-MM-DD" "$(today)"
   replace_frontmatter_line "$target" "repo_ids" "$repo_ids_literal"
+  return 0
+}
+
+package_json_has_script() {
+  local package_json="$1" script_name="$2"
+  [[ -f "$package_json" ]] || return 1
+  grep -Eq "\"${script_name}\"[[:space:]]*:" "$package_json"
+}
+
+repo_bootstrap_commands() {
+  local repo_path="$1"
+  local package_json="$repo_path/package.json"
+  local dev="_fill during activation_" test="_fill during activation_" build="_fill during activation_"
+  if [[ -f "$repo_path/manage.py" ]]; then
+    dev="python manage.py runserver"
+    if [[ -f "$repo_path/pytest.ini" || -d "$repo_path/tests" ]] || compgen -G "$repo_path/*/tests" >/dev/null; then
+      test="pytest"
+    else
+      test="python manage.py test"
+    fi
+    build="python manage.py check"
+  elif [[ -f "$repo_path/pubspec.yaml" ]]; then
+    dev="flutter run"
+    test="flutter test"
+    build="flutter build <target>"
+  elif [[ -f "$repo_path/Cargo.toml" ]]; then
+    dev="cargo run"
+    test="cargo test"
+    build="cargo build"
+  elif [[ -f "$repo_path/go.mod" ]]; then
+    dev="go run ./..."
+    test="go test ./..."
+    build="go build ./..."
+  elif [[ -f "$package_json" ]]; then
+    if package_json_has_script "$package_json" "dev"; then dev="npm run dev"
+    elif package_json_has_script "$package_json" "start"; then dev="npm start"
+    fi
+    if package_json_has_script "$package_json" "test"; then test="npm test"
+    elif package_json_has_script "$package_json" "test:unit"; then test="npm run test:unit"
+    fi
+    if package_json_has_script "$package_json" "build"; then build="npm run build"
+    fi
+  elif [[ -f "$repo_path/Makefile" ]]; then
+    dev="make dev"
+    test="make test"
+    build="make build"
+  fi
+  printf '%s|%s|%s\n' "$dev" "$test" "$build"
+  return 0
+}
+
+repo_relationship_lines() {
+  local current_repo_id="$1" current_stack="$2" discovered_rows="$3"
+  local lines="" repo_id repo_path repo_stack repo_ref repo_abs repo_name
+  while IFS='|' read -r repo_id repo_path repo_stack repo_ref repo_abs repo_name; do
+    [[ -n "$repo_id" && "$repo_id" != "$current_repo_id" ]] || continue
+    if [[ "$current_stack" == *Frontend* || "$current_stack" == *Next.js* || "$current_stack" == *React* || "$current_repo_id" == *frontend* || "$current_repo_id" == *web* ]]; then
+      if [[ "$repo_stack" == *Django* || "$repo_stack" == *Python* || "$repo_stack" == *Go* || "$repo_stack" == *Rust* || "$repo_id" == *backend* || "$repo_id" == *api* ]]; then
+        lines="${lines}- Likely consumes APIs or contracts from \`${repo_id}\`"$'\n'
+      fi
+    elif [[ "$current_stack" == *Flutter* || "$current_stack" == *iOS* || "$current_stack" == *Android* || "$current_repo_id" == *mobile* || "$current_repo_id" == *ios* || "$current_repo_id" == *android* ]]; then
+      if [[ "$repo_stack" == *Django* || "$repo_stack" == *Python* || "$repo_stack" == *Go* || "$repo_stack" == *Rust* || "$repo_id" == *backend* || "$repo_id" == *api* ]]; then
+        lines="${lines}- Likely depends on backend or auth contracts from \`${repo_id}\`"$'\n'
+      fi
+    elif [[ "$current_stack" == *Django* || "$current_stack" == *Python* || "$current_stack" == *Go* || "$current_stack" == *Rust* || "$current_repo_id" == *backend* || "$current_repo_id" == *api* ]]; then
+      if [[ "$repo_stack" == *Frontend* || "$repo_stack" == *Next.js* || "$repo_stack" == *React* || "$repo_stack" == *Flutter* || "$repo_stack" == *iOS* || "$repo_stack" == *Android* || "$repo_id" == *frontend* || "$repo_id" == *web* || "$repo_id" == *mobile* || "$repo_id" == *ios* || "$repo_id" == *android* ]]; then
+        lines="${lines}- Likely serves APIs, auth, or shared contracts to \`${repo_id}\`"$'\n'
+      fi
+    fi
+  done <<< "$discovered_rows"
+  [[ -n "$lines" ]] || lines="- _No likely cross-repo dependency inferred during bootstrap._"$'\n'
+  printf '%s' "$lines"
   return 0
 }
 
@@ -794,6 +947,8 @@ guess_repo_stack() {
     printf '%s\n' "Rust / Cargo"
   elif [[ -f "$repo_path/go.mod" ]]; then
     printf '%s\n' "Go"
+  elif [[ -f "$repo_path/manage.py" ]]; then
+    printf '%s\n' "Django / Python"
   elif [[ -f "$repo_path/pyproject.toml" || -f "$repo_path/requirements.txt" ]]; then
     if [[ -f "$repo_path/manage.py" ]]; then
       printf '%s\n' "Django / Python"
@@ -920,7 +1075,9 @@ write_sync_repos_array() {
 }
 
 write_bootstrap_reference() {
-  local target="$1" repo_name="$2" repo_display_name="$3" repo_abs_path="$4" stack="$5" manifest="$6" source_dir="$7"
+  local target="$1" repo_name="$2" repo_display_name="$3" repo_abs_path="$4" stack="$5" manifest="$6" source_dir="$7" commands="$8" relationships="$9"
+  local dev_cmd test_cmd build_cmd
+  IFS='|' read -r dev_cmd test_cmd build_cmd <<< "$commands"
   cat > "$target" <<EOF
 # $repo_display_name — Deep Reference
 
@@ -944,13 +1101,13 @@ _Bootstrap placeholder: summarize the repo purpose, users, and scope._
 
 ## Commands
 
-- Dev: _fill during activation_
-- Test: _fill during activation_
-- Build: _fill during activation_
+- Dev: \`${dev_cmd}\`
+- Test: \`${test_cmd}\`
+- Build: \`${build_cmd}\`
 
 ## Cross-repo dependencies
 
-_Bootstrap placeholder: list which other repos this one depends on or serves._
+${relationships}
 
 ## Open questions
 
@@ -1768,12 +1925,14 @@ cmd_bootstrap() {
 
     local ref_target="./.platform/${repo_ref}"
     if [[ ! -f "$ref_target" ]]; then
-      local repo_fs_path manifest source_dir
+      local repo_fs_path manifest source_dir commands relationships
       repo_fs_path="."
       [[ "$repo_path" != "." && -n "$repo_abs" ]] && repo_fs_path="$repo_abs"
       manifest="$(repo_manifest_file "$repo_fs_path" 2>/dev/null || true)"
       source_dir="$(repo_primary_source_dir "$repo_fs_path")"
-      write_bootstrap_reference "$ref_target" "$repo_id" "$repo_name" "${repo_abs:-$(pwd)}" "$repo_stack" "$manifest" "$source_dir"
+      commands="$(repo_bootstrap_commands "$repo_fs_path")"
+      relationships="$(repo_relationship_lines "$repo_id" "$repo_stack" "$discovered_rows")"
+      write_bootstrap_reference "$ref_target" "$repo_id" "$repo_name" "${repo_abs:-$(pwd)}" "$repo_stack" "$manifest" "$source_dir" "$commands" "$relationships"
       ok "Created deep reference stub: .platform/${repo_ref}"
     fi
   done <<< "$discovered_rows"
@@ -1825,15 +1984,15 @@ cmd_bootstrap() {
   stream_suggestions="$(infer_bootstrap_stream_suggestions "$discovered_rows" "$combined_domain_rows")"
   if [[ -n "$stream_suggestions" ]]; then
     head "Suggested streams"
-    local branch stream_slug stream_type domain_slugs_csv domain_flags domain_name
-    while IFS='|' read -r repo_id branch stream_slug stream_type domain_slugs_csv; do
+    local branch stream_slug stream_type domain_slugs_csv domain_flags domain_name confidence
+    while IFS='|' read -r repo_id branch stream_slug stream_type domain_slugs_csv confidence; do
       [[ -n "$stream_slug" ]] || continue
       domain_flags=""
       while IFS= read -r domain_name; do
         [[ -n "$domain_name" ]] || continue
         domain_flags="${domain_flags} --domain ${domain_name}"
       done < <(printf '%s\n' "$domain_slugs_csv" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
-      printf '  %s%s%s  %s(branch: %s)%s\n' "$C_CYAN" "$stream_slug" "$C_RESET" "$C_DIM" "$branch" "$C_RESET"
+      printf '  %s%s%s  %s(branch: %s, confidence: %s)%s\n' "$C_CYAN" "$stream_slug" "$C_RESET" "$C_DIM" "$branch" "$confidence" "$C_RESET"
       printf '     type: %s\n' "$stream_type"
       printf '     repos: [%s]\n' "$repo_id"
       printf '     domains: [%s]\n' "$domain_slugs_csv"
