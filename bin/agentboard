@@ -137,6 +137,42 @@ frontmatter_value() {
   ' "$file"
 }
 
+has_frontmatter() {
+  local file="$1"
+  [[ -f "$file" ]] || return 1
+  local first_line
+  IFS= read -r first_line < "$file" || true
+  [[ "$first_line" == "---" ]]
+}
+
+legacy_stream_value() {
+  local file="$1" label="$2"
+  sed -n "s/^\\*\\*${label}:\\*\\* //p; /^\\*\\*${label}:\\*\\* /q" "$file"
+}
+
+is_legacy_stream_file() {
+  local file="$1"
+  has_frontmatter "$file" && return 1
+  grep -q '^# ' "$file" 2>/dev/null || return 1
+  grep -q '^\*\*Type:\*\* ' "$file" 2>/dev/null || return 1
+  grep -q '^\*\*Status:\*\* ' "$file" 2>/dev/null || return 1
+  return 0
+}
+
+is_legacy_domain_file() {
+  local file="$1"
+  has_frontmatter "$file" && return 1
+  grep -Eq '^# (Domain: |[[:alnum:]])' "$file" 2>/dev/null || return 1
+  grep -Eq '^## Backend|^## Frontend|^## Mobile|^## API endpoints|^## Key files' "$file" 2>/dev/null || return 1
+  return 0
+}
+
+is_legacy_brief_file() {
+  local file="$1"
+  [[ -f "$file" ]] || return 1
+  grep -q '^## Active streams' "$file" 2>/dev/null
+}
+
 inline_array_items() {
   local value
   value="$(trim "$1")"
@@ -1305,6 +1341,13 @@ cmd_doctor() {
   while IFS= read -r stream_file; do
     [[ -n "$stream_file" ]] || continue
     stream_slug="$(basename "$stream_file" .md)"
+
+    if is_legacy_stream_file "$stream_file"; then
+      warn "Stream '$stream_slug' uses the legacy pre-frontmatter format. Add metadata when you touch it next."
+      warnings=$((warnings + 1))
+      continue
+    fi
+
     stream_id="$(frontmatter_value "$stream_file" "stream_id")"
 
     if is_placeholder_value "$stream_id"; then
@@ -1330,6 +1373,13 @@ cmd_doctor() {
   while IFS= read -r domain_file; do
     [[ -n "$domain_file" ]] || continue
     domain_slug="$(basename "$domain_file" .md)"
+
+    if is_legacy_domain_file "$domain_file"; then
+      warn "Domain '$domain_slug' uses the legacy pre-frontmatter format. Add metadata when you touch it next."
+      warnings=$((warnings + 1))
+      continue
+    fi
+
     domain_id="$(frontmatter_value "$domain_file" "domain_id")"
 
     if is_placeholder_value "$domain_id"; then
@@ -1370,6 +1420,27 @@ cmd_doctor() {
         fi
 
         ok "Found stream file for '$slug'"
+
+        if is_legacy_stream_file "$stream_file"; then
+          local legacy_type legacy_status legacy_agent
+          legacy_type="$(legacy_stream_value "$stream_file" "Type")"
+          legacy_status="$(legacy_stream_value "$stream_file" "Status")"
+          legacy_agent="$(legacy_stream_value "$stream_file" "Agent")"
+
+          [[ -n "$legacy_type" && "$legacy_type" != "$row_type" ]] && {
+            warn "Legacy stream '$slug' type mismatch: ACTIVE.md='$row_type' stream='$legacy_type'"
+            warnings=$((warnings + 1))
+          }
+          [[ -n "$legacy_status" && "$legacy_status" != "$row_status" ]] && {
+            warn "Legacy stream '$slug' status mismatch: ACTIVE.md='$row_status' stream='$legacy_status'"
+            warnings=$((warnings + 1))
+          }
+          [[ -n "$legacy_agent" && "$legacy_agent" != "$row_agent" ]] && {
+            warn "Legacy stream '$slug' agent mismatch: ACTIVE.md='$row_agent' stream='$legacy_agent'"
+            warnings=$((warnings + 1))
+          }
+          continue
+        fi
 
         local stream_keys=(stream_id slug type status agent_owner domain_slugs repo_ids created_at updated_at closure_approved)
         local key
@@ -1480,6 +1551,10 @@ cmd_doctor() {
   fi
 
   if [[ -f "$brief" ]] && ! brief_is_placeholder "$brief"; then
+    if is_legacy_brief_file "$brief"; then
+      warn "work/BRIEF.md uses the legacy multi-stream format. Keep using it for now, but rewrite it when you settle on one active feature brief."
+      warnings=$((warnings + 1))
+    else
     local brief_stream=""
     brief_stream="$(sed -n 's/^\*\*Stream file:\*\* `work\/\([^`]*\)\.md`$/\1/p' "$brief")"
     brief_stream="${brief_stream%%$'\n'*}"
@@ -1505,6 +1580,7 @@ cmd_doctor() {
     if (( brief_domain_count == 0 )); then
       warn "work/BRIEF.md has no concrete domain references"
       errors=$((errors + 1))
+    fi
     fi
   fi
 
