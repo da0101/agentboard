@@ -725,6 +725,185 @@ markdown_section_excerpt() {
   ' "$file"
 }
 
+markdown_section_prose() {
+  local file="$1" header="$2" max_lines="${3:-2}"
+  awk -v header="$header" -v max_lines="$max_lines" '
+    $0 == header { in_section = 1; next }
+    in_section && /^## / { exit }
+    in_section {
+      if ($0 ~ /^[[:space:]]*$/) next
+      if ($0 ~ /^>/) next
+      if ($0 ~ /^_.*_$/) next
+      if ($0 ~ /^\*\*.*\*\*$/) next
+      if ($0 ~ /^[-*] /) next
+      if ($0 ~ /^[0-9]+\. /) next
+      if ($0 ~ /^```/) next
+      print
+      count++
+      if (count >= max_lines) exit
+    }
+  ' "$file"
+  return 0
+}
+
+markdown_section_list_items() {
+  local file="$1" header="$2" max_items="${3:-3}"
+  awk -v header="$header" -v max_items="$max_items" '
+    $0 == header { in_section = 1; next }
+    in_section && /^## / { exit }
+    in_section {
+      line = $0
+      if (line ~ /^- \[[ xX]\] /) sub(/^- \[[ xX]\] /, "", line)
+      else if (line ~ /^- /) sub(/^- /, "", line)
+      else next
+      if (line == "") next
+      print line
+      count++
+      if (count >= max_items) exit
+    }
+  ' "$file"
+  return 0
+}
+
+stream_key_decision_items() {
+  local stream_file="$1" max_items="${2:-2}"
+  awk -v max_items="$max_items" '
+    /^## Key decisions/ { in_section = 1; next }
+    in_section && /^## / { exit }
+    in_section {
+      line = $0
+      if (line ~ /^[[:space:]]*$/) next
+      if (line ~ /^_.*_$/) next
+      sub(/^[0-9]{4}-[0-9]{2}-[0-9]{2} — /, "", line)
+      sub(/^[-*] /, "", line)
+      if (line == "") next
+      print line
+      count++
+      if (count >= max_items) exit
+    }
+  ' "$stream_file"
+  return 0
+}
+
+legacy_brief_stream_slugs() {
+  local brief="$1"
+  awk '
+    /^## Active streams$/ { in_section = 1; next }
+    in_section && /^## / { exit }
+    in_section {
+      if (match($0, /^[0-9]+\. `([^`]*)`/, m)) print m[1]
+    }
+  ' "$brief"
+  return 0
+}
+
+repo_ref_lines_for_ids() {
+  local repos_file="$1" repo_ids="$2"
+  local repo_rows="" repo_id repo_row repo_name repo_path repo_stack repo_ref
+  [[ -f "$repos_file" ]] && repo_rows="$(repo_rows_from_registry "$repos_file")"
+  while IFS= read -r repo_id; do
+    [[ -n "$repo_id" ]] || continue
+    repo_row="$(repo_row_for_id "$repo_rows" "$repo_id")"
+    [[ -n "$repo_row" ]] || continue
+    IFS='|' read -r repo_name repo_path repo_stack repo_ref <<< "$repo_row"
+    [[ -n "$repo_ref" ]] || continue
+    printf '%s\n' "- \`.platform/${repo_ref}\` — repo-wide reference for \`${repo_id}\`; load only if stream work needs repo-specific conventions"
+  done <<< "$repo_ids"
+  return 0
+}
+
+render_brief_from_stream() {
+  local project_name="$1" stream_slug="$2" stream_status="$3" stream_file="$4" repos_file="$5"
+
+  local domain_slugs repo_ids what_building why done_items decision_items next_action current_state
+  domain_slugs="$(inline_array_items "$(frontmatter_value "$stream_file" "domain_slugs")")"
+  repo_ids="$(inline_array_items "$(frontmatter_value "$stream_file" "repo_ids")")"
+
+  what_building="$(markdown_section_prose "$stream_file" "## Scope" 2)"
+  [[ -n "$what_building" ]] || what_building="$(markdown_section_prose "$stream_file" "## Overview" 2)"
+  [[ -n "$what_building" ]] || what_building="Continue the \`$stream_slug\` stream described in \`work/$stream_slug.md\`."
+
+  why="$(markdown_section_prose "$stream_file" "## Why" 1)"
+  [[ -n "$why" ]] || why="Reduce handoff overhead and keep this stream resumable across Claude, Codex, and Gemini."
+
+  done_items="$(markdown_section_list_items "$stream_file" "## Done criteria" 3)"
+  [[ -n "$done_items" ]] || done_items="See \`.platform/work/${stream_slug}.md\` for the concrete acceptance criteria."
+
+  decision_items="$(stream_key_decision_items "$stream_file" 2)"
+  [[ -n "$decision_items" ]] || decision_items="See \`.platform/work/${stream_slug}.md\` for decision history before changing scope."
+
+  next_action="$(stream_next_action "$stream_file")"
+  [[ -n "$next_action" ]] || next_action="Check \`.platform/work/${stream_slug}.md\` and update the next-action section."
+  current_state="Status is ${stream_status:-unknown}. Next action: ${next_action}"
+
+  local relevant_context="" domain_slug repo_ref_lines="" key_files=""
+  while IFS= read -r domain_slug; do
+    [[ -z "$domain_slug" ]] && continue
+    relevant_context="${relevant_context}- \`.platform/domains/${domain_slug}.md\` — relevant domain for this stream"$'\n'
+  done <<< "$domain_slugs"
+  repo_ref_lines="$(repo_ref_lines_for_ids "$repos_file" "$repo_ids")"
+  [[ -n "$repo_ref_lines" ]] && relevant_context="${relevant_context}${repo_ref_lines}"$'\n'
+  [[ -n "$relevant_context" ]] || relevant_context="- \`.platform/domains/<name>.md\` — primary domain for this stream"$'\n'
+
+  key_files="- \`.platform/work/${stream_slug}.md\` — stream scope, done criteria, decisions, next action"$'\n'
+  key_files="${key_files}- \`.platform/work/ACTIVE.md\` — current status board"$'\n'
+  while IFS= read -r domain_slug; do
+    [[ -z "$domain_slug" ]] && continue
+    key_files="${key_files}- \`.platform/domains/${domain_slug}.md\` — cross-layer domain reference"$'\n'
+  done <<< "$domain_slugs"
+
+  cat <<EOF
+# Feature Brief — $project_name
+
+> Read this first — every session, every agent (Claude, Codex, Gemini).
+> 30-second orientation: what we're building, why, and where we stand.
+> Replace entirely when the active feature changes. Keep ≤60 lines.
+
+**Feature:** $stream_slug
+**Status:** $stream_status
+**Stream file:** \`work/$stream_slug.md\`
+
+---
+
+## What we're building
+
+$what_building
+
+## Why
+
+$why
+
+## What done looks like
+
+$(while IFS= read -r item; do [[ -n "$item" ]] && printf -- '- %s\n' "$item"; done <<< "$done_items")
+
+## Architecture decisions locked
+
+$(while IFS= read -r item; do [[ -n "$item" ]] && printf -- '- %s\n' "$item"; done <<< "$decision_items")
+
+## Current state
+
+$current_state
+
+See \`work/ACTIVE.md\` for stream status.
+
+## Relevant context
+
+> Only load the files listed here. Everything else is out of scope for this feature.
+> Prefer \`.platform/domains/<name>.md\` files (cross-layer, focused) over repo-wide files.
+> Repo files (\`backend.md\`, \`admin.md\`, etc.) are conventions — load only if you need to understand patterns.
+
+$relevant_context
+**Do not load:** unrelated streams and domain files outside this feature
+**Never load:** \`work/archive/*\`
+
+## Key files
+
+$key_files
+EOF
+  return 0
+}
+
 write_brief_stub() {
   local brief="$1" project_name="$2" stream_slug="$3" domain_slugs="$4" status="$5"
   local relevant_context=""
@@ -1496,7 +1675,7 @@ EOF
   done < <(domain_files)
 
   if [[ -f "$brief" ]] && is_legacy_brief_file "$brief"; then
-    warn "Legacy multi-stream BRIEF detected — leaving it as-is. Rewrite it manually when you settle on one active feature brief."
+    warn "Legacy multi-stream BRIEF detected — leaving it as-is. Run 'agentboard brief-upgrade <stream-slug> --apply' when you want a modern single-stream brief."
     skipped=$((skipped + 1))
   fi
 
@@ -1509,6 +1688,99 @@ EOF
   printf '  migrated: %s%d%s   skipped: %s%d%s\n' \
     "$C_BOLD" "$migrated" "$C_RESET" \
     "$C_BOLD" "$skipped" "$C_RESET"
+  say
+}
+
+cmd_brief_upgrade() {
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+
+  local apply=0 requested_slug=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --apply)
+        apply=1
+        shift
+        ;;
+      -*)
+        die "Usage: agentboard brief-upgrade [stream-slug] [--apply]"
+        ;;
+      *)
+        [[ -z "$requested_slug" ]] || die "Usage: agentboard brief-upgrade [stream-slug] [--apply]"
+        requested_slug="$1"
+        shift
+        ;;
+    esac
+  done
+
+  local brief="./.platform/work/BRIEF.md"
+  local active="./.platform/work/ACTIVE.md"
+  local repos_file="./.platform/repos.md"
+  local project_name stream_rows rows_count slug type status agent updated generated
+
+  [[ -f "$brief" ]] || die "$brief not found."
+  [[ -f "$active" ]] || die "$active not found."
+
+  if [[ ! -f "$brief" ]] || { ! is_legacy_brief_file "$brief" && ! brief_is_placeholder "$brief"; }; then
+    die "work/BRIEF.md is already in modern format. Edit it directly instead of using brief-upgrade."
+  fi
+
+  project_name="$(basename "$(pwd)")"
+  stream_rows="$(stream_rows_from_active "$active")"
+  rows_count=0
+  [[ -n "$stream_rows" ]] && rows_count="$(printf '%s\n' "$stream_rows" | awk 'NF { c++ } END { print c + 0 }')"
+
+  if [[ -n "$requested_slug" ]]; then
+    local matched_row stream_file
+    matched_row="$(printf '%s\n' "$stream_rows" | awk -F'|' -v slug="$requested_slug" '$1 == slug { print; exit }')"
+    stream_file="./.platform/work/${requested_slug}.md"
+    [[ -f "$stream_file" ]] || die "Stream file .platform/work/${requested_slug}.md not found."
+    if [[ -n "$matched_row" ]]; then
+      IFS='|' read -r slug type status agent updated <<< "$matched_row"
+    else
+      slug="$requested_slug"
+      type="$(frontmatter_value "$stream_file" "type")"
+      status="$(frontmatter_value "$stream_file" "status")"
+      agent="$(frontmatter_value "$stream_file" "agent_owner")"
+      updated="$(frontmatter_value "$stream_file" "updated_at")"
+    fi
+  else
+    if (( rows_count == 1 )); then
+      IFS='|' read -r slug type status agent updated <<< "$stream_rows"
+    else
+      warn "brief-upgrade needs a target stream when more than one stream is active."
+      if is_legacy_brief_file "$brief"; then
+        local legacy_slug
+        printf '%s\n' "  Legacy brief streams:" >&2
+        while IFS= read -r legacy_slug; do
+          [[ -n "$legacy_slug" ]] || continue
+          printf '  - %s\n' "$legacy_slug" >&2
+        done < <(legacy_brief_stream_slugs "$brief")
+      elif [[ -n "$stream_rows" ]]; then
+        printf '%s\n' "  Active streams:" >&2
+        printf '%s\n' "$stream_rows" | awk -F'|' '{ printf "  - %s (%s, %s)\n", $1, $2, $3 }' >&2
+      fi
+      die "Usage: agentboard brief-upgrade <stream-slug> [--apply]"
+    fi
+  fi
+
+  local stream_file="./.platform/work/${slug}.md"
+  [[ -f "$stream_file" ]] || die "$stream_file not found."
+
+  generated="$(render_brief_from_stream "$project_name" "$slug" "${status:-planning}" "$stream_file" "$repos_file")"
+
+  printf '\n%s%sagentboard brief-upgrade%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  if (( apply )); then
+    printf '%sApply mode — work/BRIEF.md will be rewritten for stream %s.%s\n' "$C_DIM" "$slug" "$C_RESET"
+    printf '%s\n' "$generated" > "$brief"
+    ok "Rewrote work/BRIEF.md for stream '$slug'"
+    say
+    return 0
+  fi
+
+  printf '%sPreview mode — no files will be changed. Re-run with --apply to write the upgraded brief.%s\n' "$C_DIM" "$C_RESET"
+  printf '  target stream: %s\n' "$slug"
+  say
+  printf '%s\n' "$generated"
   say
 }
 
@@ -1838,7 +2110,7 @@ cmd_doctor() {
 
   if [[ -f "$brief" ]] && ! brief_is_placeholder "$brief"; then
     if is_legacy_brief_file "$brief"; then
-      warn "work/BRIEF.md uses the legacy multi-stream format. Keep using it for now, but rewrite it when you settle on one active feature brief."
+      warn "work/BRIEF.md uses the legacy multi-stream format. Keep using it for now, or run 'agentboard brief-upgrade <stream-slug> --apply' when you settle on one active feature brief."
       warnings=$((warnings + 1))
     else
     local brief_stream=""
@@ -2651,6 +2923,7 @@ COMMANDS
   sync [--apply|--list]      Sync AGENTS.md + GEMINI.md from CLAUDE.md (default: check)
   bootstrap                  Discover repos and scaffold starter repo references
   migrate [--apply]          Upgrade legacy stream/domain files to metadata v1
+  brief-upgrade [slug] ...   Rewrite legacy BRIEF.md for one target stream
   doctor                     Validate active .platform state and metadata
   new-domain <slug> ...      Create a domain file from the shared template
   new-stream <slug> ...      Create a stream file and register it in work/ACTIVE.md
@@ -2739,6 +3012,7 @@ main() {
     sync)        cmd_sync "$@" ;;
     bootstrap)   cmd_bootstrap "$@" ;;
     migrate)     cmd_migrate "$@" ;;
+    brief-upgrade) cmd_brief_upgrade "$@" ;;
     doctor)      cmd_doctor "$@" ;;
     new-domain)  cmd_new_domain "$@" ;;
     new-stream)  cmd_new_stream "$@" ;;
