@@ -147,6 +147,8 @@ Agentboard ships a persistent work layer under `.platform/work/`:
 - `TEMPLATE.md` — template for a new workstream
 - `archive/` — completed workstreams
 
+Streams and domains are meant to carry lightweight metadata so tooling can validate state without turning `.platform/` into a database.
+
 The workflow expects non-trivial work to be registered before execution:
 
 1. check `work/ACTIVE.md`
@@ -207,6 +209,8 @@ your-project/
     ├── BACKLOG.md
     ├── learnings.md
     ├── agents/
+    ├── domains/
+    │   └── TEMPLATE.md
     ├── work/
     │   ├── BRIEF.md
     │   ├── ACTIVE.md
@@ -225,6 +229,7 @@ After activation, the agent also creates project-specific directories and files 
 
 - `.platform/conventions/*.md`
 - `.platform/domains/*.md`
+- `.platform/domains/TEMPLATE.md`
 - per-repo deep references in hub mode
 
 So the shipped scaffold is the operational shell; activation fills in the project-specific content.
@@ -237,6 +242,7 @@ So the shipped scaffold is the operational shell; activation fills in the projec
 agentboard init
 agentboard update [--dry-run]
 agentboard sync [--apply|--list]
+agentboard doctor
 agentboard claim "<task>"
 agentboard release
 agentboard log "<one line>"
@@ -251,6 +257,7 @@ agentboard help
 - `init` scaffolds the kit into the current directory
 - `update` refreshes shipped process files and skill protocols without touching project-specific docs
 - `sync` keeps `AGENTS.md` and `GEMINI.md` aligned with `CLAUDE.md`
+- `doctor` validates active `.platform/` state, stream metadata, and domain references
 - `claim` and `release` manage `.platform/sessions/ACTIVE.md`
 - `log` appends to `.platform/log.md`
 - `status` prints `.platform/STATUS.md`

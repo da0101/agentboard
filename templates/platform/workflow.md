@@ -35,7 +35,7 @@ Trivial tasks (typo fix, rename, 1-line config change) skip directly to Stage 5.
    - If **yes and it's accurate**: read it, verify it's current, update if stale.
    - If **no, or the existing file only partially covers it**: create `.platform/domains/<name>.md` with the cross-layer touch-point inventory. Create it NOW, before the stream file.
    - **Common trap:** finding a domain file for a nearby feature (e.g. `menu-builder.md`) and treating it as sufficient for a different concern (e.g. subdomain routing). These are separate concerns and require separate domain files.
-3. **Create `work/<stream-slug>.md`** from `work/TEMPLATE.md` — fill in type, scope, done criteria, next action.
+3. **Create `work/<stream-slug>.md`** from `work/TEMPLATE.md` — fill in the frontmatter metadata (`stream_id`, `slug`, `type`, `status`, `agent_owner`, `domain_slugs`, `repo_ids`, `created_at`, `updated_at`) before writing scope, done criteria, and next action.
 4. **Add a row to `work/ACTIVE.md`** — slug / type / in-progress / agent / date.
 5. **Update `work/BRIEF.md`** — set primary stream to this task; add domain file under "Relevant context".
 

@@ -37,6 +37,7 @@ Organize docs by **feature domain**, not by repo. Each domain file is cross-laye
 
 ## What goes in a domain file
 
+- **Frontmatter metadata** — `domain_id`, `slug`, `status`, `repo_ids`, `related_domain_slugs`, `created_at`, `updated_at`
 - **What this domain does** — 2 sentences, user-facing outcome.
 - **Backend** — the Django/Rails/Express/etc. app(s) for this domain: models, endpoints, services, key invariants. Include file paths.
 - **Admin / frontend** — the feature domain inside the admin app: routes, state, any notable components.
@@ -92,9 +93,10 @@ During activation (see `ACTIVATE.md` Step 3), after you scan the project and int
 
 1. Identify every repo that touches it. Usually backend app + admin feature folder + one or more widgets/clients.
 2. Write one file at `.platform/domains/<feature>.md` following the structure in "What goes in a domain file".
-3. Keep it under ~150 lines. If you can't, split it.
-4. Cite file paths. Agents need to grep-and-jump, not read-and-search.
-5. Lock the decisions that matter. Future agents should see "this is locked, don't re-litigate".
+3. Fill in the metadata block at the top so agents and tooling can validate it later.
+4. Keep it under ~150 lines. If you can't, split it.
+5. Cite file paths. Agents need to grep-and-jump, not read-and-search.
+6. Lock the decisions that matter. Future agents should see "this is locked, don't re-litigate".
 
 Repo convention files (`backend.md`, etc.) still get written — but **only for conventions, not for features**. Add a header note at the top of each repo file pointing readers to `.platform/domains/` for feature work.
 

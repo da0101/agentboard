@@ -114,6 +114,57 @@ substitute() {
   done
 }
 
+trim() {
+  local s="$*"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+frontmatter_value() {
+  local file="$1" key="$2"
+  awk -v key="$key" '
+    BEGIN { in_fm = 0; seen = 0 }
+    /^---[[:space:]]*$/ {
+      if (!seen) { seen = 1; in_fm = 1; next }
+      if (in_fm) exit
+    }
+    in_fm && $0 ~ ("^" key ":[[:space:]]*") {
+      sub("^[^:]+:[[:space:]]*", "", $0)
+      print
+      exit
+    }
+  ' "$file"
+}
+
+inline_array_items() {
+  local value
+  value="$(trim "$1")"
+  [[ -z "$value" || "$value" == "[]" ]] && return 0
+  value="${value#\[}"
+  value="${value%\]}"
+
+  local item
+  local -a items
+  IFS=',' read -r -a items <<< "$value"
+  for item in "${items[@]}"; do
+    item="$(trim "$item")"
+    [[ -n "$item" ]] && printf '%s\n' "$item"
+  done
+}
+
+is_placeholder_value() {
+  local value
+  value="$(trim "$1")"
+  [[ -z "$value" ]] && return 0
+  [[ "$value" == "—" ]] && return 0
+  [[ "$value" == "YYYY-MM-DD" ]] && return 0
+  [[ "$value" =~ \<.*\> ]] && return 0
+  [[ "$value" =~ _TODO_ ]] && return 0
+  [[ "$value" =~ ^TBD ]] && return 0
+  return 1
+}
+
 # -----------------------------------------------------------------------------
 # Empty-folder / hub detection
 # -----------------------------------------------------------------------------
@@ -631,6 +682,186 @@ cmd_status() {
   cat "$status"
 }
 
+cmd_doctor() {
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+
+  local errors=0 warnings=0
+  local brief="./.platform/work/BRIEF.md"
+  local active="./.platform/work/ACTIVE.md"
+  local domains_dir="./.platform/domains"
+  local sync_script="./.platform/scripts/sync-context.sh"
+  local root_claude="./CLAUDE.md"
+
+  printf '\n%s%sagentboard doctor%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+
+  if [[ -f "$brief" ]]; then
+    ok "work/BRIEF.md present"
+  else
+    warn "Missing .platform/work/BRIEF.md"
+    errors=$((errors + 1))
+  fi
+
+  if [[ -f "$active" ]]; then
+    ok "work/ACTIVE.md present"
+  else
+    warn "Missing .platform/work/ACTIVE.md"
+    errors=$((errors + 1))
+  fi
+
+  if [[ -d "$domains_dir" ]]; then
+    ok "domains/ directory present"
+  else
+    warn "Missing .platform/domains/"
+    errors=$((errors + 1))
+  fi
+
+  if [[ -f "$root_claude" ]] && grep -q "NOT YET ACTIVATED" "$root_claude"; then
+    ok "Activation stub detected — sync check skipped until activation"
+  elif [[ -x "$sync_script" ]]; then
+    local sync_output=""
+    if sync_output="$("$sync_script" 2>&1)"; then
+      ok "Root entry files in sync"
+    else
+      warn "Entry file drift detected by sync-context.sh"
+      printf '%s\n' "$sync_output" >&2
+      warnings=$((warnings + 1))
+    fi
+  else
+    warn "sync-context.sh missing or not executable"
+    warnings=$((warnings + 1))
+  fi
+
+  if [[ -f "$active" ]]; then
+    local stream_rows=""
+    stream_rows="$(awk -F'|' '
+      function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+      /^## / { exit }
+      {
+        slug = trim($2)
+        type = trim($3)
+        status = trim($4)
+        agent = trim($5)
+        if (slug == "" || slug == "Stream" || slug == "_(none)_" || slug ~ /^-+$/) next
+        printf "%s|%s|%s|%s\n", slug, type, status, agent
+      }
+    ' "$active")"
+
+    if [[ -z "$stream_rows" ]]; then
+      ok "No active streams registered"
+    else
+      local slug row_type row_status row_agent stream_file value
+      while IFS='|' read -r slug row_type row_status row_agent; do
+        [[ -z "$slug" ]] && continue
+        stream_file="./.platform/work/${slug}.md"
+
+        if [[ ! -f "$stream_file" ]]; then
+          warn "Active stream '$slug' is missing file .platform/work/${slug}.md"
+          errors=$((errors + 1))
+          continue
+        fi
+
+        ok "Found stream file for '$slug'"
+
+        local stream_keys=(stream_id slug type status agent_owner domain_slugs repo_ids created_at updated_at closure_approved)
+        local key
+        for key in "${stream_keys[@]}"; do
+          value="$(frontmatter_value "$stream_file" "$key")"
+          case "$key" in
+            domain_slugs|repo_ids)
+              if [[ -z "$(inline_array_items "$value")" ]]; then
+                warn "Stream '$slug' is missing non-empty frontmatter key '$key'"
+                errors=$((errors + 1))
+              fi
+              ;;
+            closure_approved)
+              if [[ "$value" != "true" && "$value" != "false" ]]; then
+                warn "Stream '$slug' has invalid closure_approved value '$value'"
+                errors=$((errors + 1))
+              fi
+              ;;
+            *)
+              if is_placeholder_value "$value"; then
+                warn "Stream '$slug' is missing frontmatter key '$key'"
+                errors=$((errors + 1))
+              fi
+              ;;
+          esac
+        done
+
+        value="$(frontmatter_value "$stream_file" "slug")"
+        if [[ -n "$value" && "$value" != "$slug" ]]; then
+          warn "Stream '$slug' has slug '$value' in frontmatter"
+          errors=$((errors + 1))
+        fi
+
+        value="$(frontmatter_value "$stream_file" "status")"
+        if [[ -n "$value" && "$value" != "$row_status" ]]; then
+          warn "Stream '$slug' status mismatch: ACTIVE.md='$row_status' stream='$value'"
+          errors=$((errors + 1))
+        fi
+
+        value="$(frontmatter_value "$stream_file" "agent_owner")"
+        if [[ -n "$row_agent" && "$row_agent" != "—" && -n "$value" && "$value" != "$row_agent" ]]; then
+          warn "Stream '$slug' agent mismatch: ACTIVE.md='$row_agent' stream='$value'"
+          warnings=$((warnings + 1))
+        fi
+
+        local domain_slug domain_file domain_value
+        while IFS= read -r domain_slug; do
+          [[ -z "$domain_slug" ]] && continue
+          domain_file="./.platform/domains/${domain_slug}.md"
+          if [[ ! -f "$domain_file" ]]; then
+            warn "Stream '$slug' references missing domain file .platform/domains/${domain_slug}.md"
+            errors=$((errors + 1))
+            continue
+          fi
+
+          local domain_keys=(domain_id slug status repo_ids created_at updated_at)
+          for key in "${domain_keys[@]}"; do
+            domain_value="$(frontmatter_value "$domain_file" "$key")"
+            case "$key" in
+              repo_ids)
+                if [[ -z "$(inline_array_items "$domain_value")" ]]; then
+                  warn "Domain '$domain_slug' is missing non-empty frontmatter key '$key'"
+                  errors=$((errors + 1))
+                fi
+                ;;
+              *)
+                if is_placeholder_value "$domain_value"; then
+                  warn "Domain '$domain_slug' is missing frontmatter key '$key'"
+                  errors=$((errors + 1))
+                fi
+                ;;
+            esac
+          done
+
+          domain_value="$(frontmatter_value "$domain_file" "slug")"
+          if [[ -n "$domain_value" && "$domain_value" != "$domain_slug" ]]; then
+            warn "Domain '$domain_slug' has slug '$domain_value' in frontmatter"
+            errors=$((errors + 1))
+          fi
+        done < <(inline_array_items "$(frontmatter_value "$stream_file" "domain_slugs")")
+      done <<< "$stream_rows"
+    fi
+  fi
+
+  say
+  if (( errors > 0 )); then
+    printf '%s%sDoctor found issues%s\n' "$C_BOLD" "$C_RED" "$C_RESET"
+    printf '  errors: %s%d%s   warnings: %s%d%s\n' \
+      "$C_BOLD" "$errors" "$C_RESET" \
+      "$C_BOLD" "$warnings" "$C_RESET"
+    say
+    return 1
+  fi
+
+  printf '%s%sDoctor passed%s\n' "$C_BOLD" "$C_GREEN" "$C_RESET"
+  printf '  errors: %s0%s   warnings: %s%d%s\n' \
+    "$C_BOLD" "$C_RESET" \
+    "$C_BOLD" "$warnings" "$C_RESET"
+  say
+}
+
 cmd_add_repo() {
   local template_dir="./.platform/templates/repo"
   [[ -d "$template_dir" ]] || die "$template_dir not found. add-repo requires a multi-repo project."
@@ -678,7 +909,8 @@ cmd_update() {
     "ONBOARDING.md" \
     "ACTIVATE.md" \
     "ACTIVATE-HUB.md" \
-    "work/TEMPLATE.md"; do
+    "work/TEMPLATE.md" \
+    "domains/TEMPLATE.md"; do
     local src="$TEMPLATES_PLATFORM/$pf"
     local dst="./.platform/$pf"
     [[ -f "$src" ]] || continue  # template doesn't have this file
@@ -752,14 +984,16 @@ cmd_update() {
   # skills — always replace (pure protocol content; project-specific work lives in .platform/)
   local skills_dir_claude="./.claude/skills"
   local skills_dir_agents="./.agents/skills"
-  if [[ -d "$TEMPLATES_SKILLS" ]] && { [[ -d "$skills_dir_claude" ]] || [[ -d "$skills_dir_agents" ]]; }; then
-    local sk_src sk_name sk_dst_c sk_dst_a
+  local skills_dir_codex="./.codex/skills"
+  if [[ -d "$TEMPLATES_SKILLS" ]] && { [[ -d "$skills_dir_claude" ]] || [[ -d "$skills_dir_agents" ]] || [[ -d "$skills_dir_codex" ]]; }; then
+    local sk_src sk_name sk_dst_c sk_dst_a sk_dst_x
     for sk_src in "$TEMPLATES_SKILLS"/*/; do
       sk_name="$(basename "$sk_src")"
       sk_dst_c="$skills_dir_claude/$sk_name"
       sk_dst_a="$skills_dir_agents/$sk_name"
+      sk_dst_x="$skills_dir_codex/$sk_name"
       local skill_updated=0
-      for sk_dst in "$sk_dst_c" "$sk_dst_a"; do
+      for sk_dst in "$sk_dst_c" "$sk_dst_a" "$sk_dst_x"; do
         [[ -d "$sk_dst" ]] || continue
         if (( dry_run )); then
           printf '  %s~%s skills/%s\n' "$C_YELLOW" "$C_RESET" "$sk_name"
@@ -770,8 +1004,16 @@ cmd_update() {
         skill_updated=1
         updated=$((updated + 1))
       done
-      # avoid double-counting when both dirs exist
-      [[ $skill_updated -eq 1 && -d "$sk_dst_c" && -d "$sk_dst_a" ]] && updated=$((updated - 1))
+      # avoid double-counting when more than one skills dir exists
+      if [[ $skill_updated -eq 1 ]]; then
+        local skill_dir_count=0
+        [[ -d "$sk_dst_c" ]] && skill_dir_count=$((skill_dir_count + 1))
+        [[ -d "$sk_dst_a" ]] && skill_dir_count=$((skill_dir_count + 1))
+        [[ -d "$sk_dst_x" ]] && skill_dir_count=$((skill_dir_count + 1))
+        if (( skill_dir_count > 1 )); then
+          updated=$((updated - (skill_dir_count - 1)))
+        fi
+      fi
     done
   fi
 
@@ -825,7 +1067,7 @@ cmd_update() {
   head "New files (add if missing)"
 
   local af
-  for af in "learnings.md" "BACKLOG.md"; do
+  for af in "learnings.md" "BACKLOG.md" "domains/TEMPLATE.md"; do
     local src="$TEMPLATES_PLATFORM/$af"
     local dst="./.platform/$af"
     [[ -f "$src" ]] || continue
@@ -837,6 +1079,7 @@ cmd_update() {
       if (( dry_run )); then
         printf '  %s+%s %s  %s(would add)%s\n' "$C_GREEN" "$C_RESET" "$af" "$C_DIM" "$C_RESET"
       else
+        mkdir -p "$(dirname "$dst")"
         cp "$src" "$dst"
         printf '  %s+%s %s%s%s  %s(new)%s\n' \
           "$C_GREEN" "$C_RESET" "$C_CYAN" "$af" "$C_RESET" "$C_DIM" "$C_RESET"
@@ -887,6 +1130,7 @@ cmd_update() {
     say
     printf '  %sNever touched:%s architecture.md, decisions.md, log.md, STATUS*.md,\n' "$C_DIM" "$C_RESET"
     printf '  %s              repos.md, work/ACTIVE.md, work/BRIEF.md, work/*.md, domains/*.md%s\n' "$C_DIM" "$C_RESET"
+    printf '  %s              %s(except domains/TEMPLATE.md)%s\n' "$C_DIM" "$C_YELLOW" "$C_RESET"
   fi
   say
 }
@@ -911,12 +1155,15 @@ COMMANDS
 
   update [--dry-run]         Update process files to the latest agentboard version.
                              Replaces: workflow.md, ONBOARDING.md, ACTIVATE.md,
-                               conventions/*.md, scripts/sync-context.sh
+                               conventions/*.md, domains/TEMPLATE.md,
+                               scripts/sync-context.sh
                              Adds if missing: learnings.md, BACKLOG.md
                              Never touches: architecture.md, decisions.md, log.md,
                                STATUS*.md, repos.md, work/*, domains/*
+                               except domains/TEMPLATE.md
 
   sync [--apply|--list]      Sync AGENTS.md + GEMINI.md from CLAUDE.md (default: check)
+  doctor                     Validate active .platform state and metadata
   claim "<task>"             Add a row to .platform/sessions/ACTIVE.md
   release                    Remove your rows from .platform/sessions/ACTIVE.md
   log "<one line>"           Append a timestamped line to .platform/log.md
@@ -997,6 +1244,7 @@ main() {
     init)        cmd_init "$@" ;;
     update)      cmd_update "$@" ;;
     sync)        cmd_sync "$@" ;;
+    doctor)      cmd_doctor "$@" ;;
     claim)       cmd_claim "$@" ;;
     release)     cmd_release "$@" ;;
     log)         cmd_log "$@" ;;
