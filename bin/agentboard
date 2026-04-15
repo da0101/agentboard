@@ -5,13 +5,20 @@
 
 set -euo pipefail
 
-SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve the real path of the script, following symlinks
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_PATH="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 AGENTBOARD_ROOT="$(cd "$SCRIPT_PATH/.." && pwd)"
 TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
 TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
 TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
 
-VERSION="1.2.0"
+VERSION="1.2.1"
 
 # -----------------------------------------------------------------------------
 # Colors (honors NO_COLOR, disables if stdout isn't a TTY)
@@ -258,7 +265,7 @@ cmd_init() {
 
   printf '\n%s%sagentboard init%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   printf '%sScaffolds a %s.platform/%s%s context pack + activation prompt.%s\n' \
-    "$C_DIM" "$C_RESET$C_CYAN$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
+    "$C_DIM" "$RESET$C_CYAN$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
 
   local target; target="$(pwd)"
   printf '%s  target:%s %s%s%s\n' "$C_DIM" "$C_RESET" "$C_CYAN" "$target" "$C_RESET"
@@ -631,6 +638,110 @@ cmd_status() {
   cat "$status"
 }
 
+init_usage_db() {
+  local db="$HOME/.agentboard/usage.db"
+  if [[ ! -f "$db" ]]; then
+    mkdir -p "$HOME/.agentboard"
+    sqlite3 "$db" "CREATE TABLE IF NOT EXISTS usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        agent_provider TEXT NOT NULL,
+        model TEXT,
+        stream_slug TEXT,
+        repo TEXT,
+        task_type TEXT,
+        input_tokens INTEGER,
+        output_tokens INTEGER,
+        total_tokens INTEGER,
+        estimated_cost REAL,
+        session_id TEXT
+    );"
+  fi
+}
+
+cmd_usage() {
+  command -v sqlite3 >/dev/null 2>&1 || die "sqlite3 is required for usage monitoring. Please install it."
+  
+  init_usage_db
+  local db="$HOME/.agentboard/usage.db"
+  local sub="${1:-summary}"
+  shift || true
+
+  case "$sub" in
+    log)
+      local provider="" model="" stream="" input=0 output=0 repo="" type="chore"
+      # Auto-detect repo name from current directory if not provided
+      repo="$(basename "$(pwd)")"
+      
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --provider) provider="$2"; shift 2 ;;
+          --model)    model="$2"; shift 2 ;;
+          --stream)   stream="$2"; shift 2 ;;
+          --repo)     repo="$2"; shift 2 ;;
+          --type)     type="$2"; shift 2 ;;
+          --input)    input="$2"; shift 2 ;;
+          --output)   output="$2"; shift 2 ;;
+          *) shift ;;
+        esac
+      done
+      [[ -n "$provider" ]] || die "Usage: agentboard usage log --provider <name> --input <N> --output <N> [--model <M>] [--stream <S>] [--repo <R>] [--type <T>]"
+      local total=$((input + output))
+      sqlite3 "$db" "INSERT INTO usage (agent_provider, model, stream_slug, repo, task_type, input_tokens, output_tokens, total_tokens) VALUES ('$provider', '$model', '$stream', '$repo', '$type', $input, $output, $total);"
+      ok "Logged $total tokens to global usage database (~/.agentboard/usage.db)."
+      ;;
+    summary)
+      head "Global Token Usage Summary (Last 30 Days)"
+      sqlite3 -header -column "$db" "
+        SELECT 
+          agent_provider as Provider,
+          SUM(total_tokens) as Total_Tokens,
+          COUNT(*) as Turns,
+          CAST(SUM(total_tokens) as REAL) / COUNT(*) as Avg_Per_Turn
+        FROM usage 
+        WHERE timestamp > date('now', '-30 days')
+        GROUP BY agent_provider;
+      "
+      say
+      dim "Usage by Repository:"
+      sqlite3 -header -column "$db" "
+        SELECT repo as Repository, SUM(total_tokens) as Total, COUNT(*) as Turns
+        FROM usage 
+        WHERE timestamp > date('now', '-30 days')
+        GROUP BY repo ORDER BY Total DESC;
+      "
+      say
+      dim "Most expensive tasks (Global):"
+      sqlite3 -header -column "$db" "
+        SELECT repo || '/' || stream_slug as Task, SUM(total_tokens) as Total 
+        FROM usage 
+        WHERE timestamp > date('now', '-30 days')
+        GROUP BY repo, stream_slug ORDER BY Total DESC LIMIT 5;
+      "
+      ;;
+    history)
+      sqlite3 -header -column "$db" "SELECT timestamp, repo, agent_provider, model, stream_slug, total_tokens FROM usage ORDER BY timestamp DESC LIMIT 20;"
+      ;;
+    optimize)
+      head "Global Usage Optimization Insights"
+      # Study research vs implementation ratios
+      say "Analyzing task efficiency across all projects..."
+      sqlite3 -header -column "$db" "
+        SELECT 
+          task_type as Type,
+          AVG(total_tokens) as Avg_Tokens,
+          MAX(total_tokens) as Peak_Turn,
+          COUNT(*) as Frequency
+        FROM usage 
+        GROUP BY task_type ORDER BY Avg_Tokens DESC;
+      "
+      say
+      dim "Optimization Hint: If research tokens > 50k, use targeted line reads instead of full file reads."
+      ;;
+    *) die "Unknown usage subcommand: $sub. Try: summary, log, history, optimize." ;;
+  esac
+}
+
 cmd_add_repo() {
   local template_dir="./.platform/templates/repo"
   [[ -d "$template_dir" ]] || die "$template_dir not found. add-repo requires a multi-repo project."
@@ -646,6 +757,32 @@ cmd_add_repo() {
   ok "Copied CLAUDE.md / AGENTS.md / GEMINI.md to $repo_path"
   say "Now fill in the placeholders and add the repo path to .platform/scripts/sync-context.sh REPOS=() array."
   say "Or: tell your LLM 'onboard this new repo into the platform' and let it do the fill pass."
+}
+
+cmd_install() {
+  local target_bin="/usr/local/bin/agentboard"
+  local source_bin; source_bin="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agentboard"
+
+  head "Installing agentboard globally"
+  printf "  Source: $C_CYAN$source_bin$C_RESET\n"
+  printf "  Target: $C_CYAN$target_bin$C_RESET\n\n"
+
+  if [[ -L "$target_bin" || -f "$target_bin" ]]; then
+    warn "$target_bin already exists."
+    if ask_yes_no "Overwrite it?"; then
+      sudo rm -f "$target_bin"
+    else
+      die "Installation aborted."
+    fi
+  fi
+
+  printf "  ${C_DIM}Creating symlink (may require sudo password)...${C_RESET}\n"
+  if sudo ln -s "$source_bin" "$target_bin"; then
+    sudo chmod +x "$source_bin"
+    ok "Successfully installed! You can now run 'agentboard' from any directory."
+  else
+    die "Failed to create symlink. Try running: sudo ln -s \"$source_bin\" \"$target_bin\""
+  fi
 }
 
 cmd_update() {
@@ -678,6 +815,7 @@ cmd_update() {
     "ONBOARDING.md" \
     "ACTIVATE.md" \
     "ACTIVATE-HUB.md" \
+    "agents/commands.md" \
     "work/TEMPLATE.md"; do
     local src="$TEMPLATES_PLATFORM/$pf"
     local dst="./.platform/$pf"
@@ -921,7 +1059,9 @@ COMMANDS
   release                    Remove your rows from .platform/sessions/ACTIVE.md
   log "<one line>"           Append a timestamped line to .platform/log.md
   status                     Print .platform/STATUS.md to stdout
+  usage [subcommand]         Monitor token consumption (summary, history, optimize)
   add-repo <path>            Copy per-repo entry file templates to a new repo
+  install                    Install agentboard globally (creates symlink in /usr/local/bin)
   version                    Print version
   help                       Show this help
 
@@ -939,49 +1079,59 @@ EOF
 # -----------------------------------------------------------------------------
 
 print_banner() {
-  [[ -z "$C_YELLOW" ]] && return 0  # skip if NO_COLOR or non-TTY
+  [[ -z "$C_YELLOW" ]] && return 0
 
-  # Block-pixel art — Gemini-style scanlines
-  # Each pixel = ▀ (upper-half block, foreground=letter color, background=terminal dark)
-  # The dark bottom-half of every ▀ creates continuous horizontal scanlines across the full word.
-  # 5×5 font, left→right gradient, stippled diagonal shadow.
-  local A_PX="01110 10001 11111 10001 10001"
-  local G_PX="01111 10000 10011 10001 01111"
-  local E_PX="11111 10000 11100 10000 11111"
-  local N_PX="10001 11001 10101 10011 10001"
-  local T_PX="11111 00100 00100 00100 00100"
-  local B_PX="11110 10001 11110 10001 11110"
-  local O_PX="01110 10001 10001 10001 01110"
-  local R_PX="11110 10001 11110 10010 10001"
-  local D_PX="11110 10001 10001 10001 11110"
+  # Gemini Gradient
+  local -a _colors=(51 45 39 33 27 57 93 129 165 201)
+  local SHADOW_COLOR=241 # Visible grey
+  
+  local A="01110 10001 11111 10001 10001"
+  local G="01111 10000 10111 10001 01111"
+  local E="11111 10000 11110 10000 11111"
+  local N="10001 11001 10101 10011 10001"
+  local T="11111 00100 00100 00100 00100"
+  local B="11110 10001 11110 10001 11110"
+  local O="01110 10001 10001 10001 01110"
+  local R="11110 10001 11110 10100 10001"
+  local D="11110 10001 10001 10001 11110"
 
-  local -a _letters=("$A_PX" "$G_PX" "$E_PX" "$N_PX" "$T_PX" "$B_PX" "$O_PX" "$A_PX" "$R_PX" "$D_PX")
-  local -a _colors=(116 117 123 147 153 183 177 219 213 218)
-  local SHADOW=238
-
-  local row li col main_px shad_px sc sr _clr
-  local -a _rows
-
+  local -a _letters=("$A" "$G" "$E" "$N" "$T" "$B" "$O" "$A" "$R" "$D")
+  
+  # Ultra-Compact Scanline Mode (6 rows total)
   printf '\n'
-  for (( row=0; row<=5; row++ )); do
+  local r li c main shad clr p_rows
+  for (( r=0; r<6; r++ )); do
     printf '  '
     for (( li=0; li<10; li++ )); do
-      _clr="${_colors[$li]}"
-      read -ra _rows <<< "${_letters[$li]}"
-      for (( col=0; col<6; col++ )); do
-        main_px=0
-        [[ $row -lt 5 && $col -lt 5 ]] && main_px="${_rows[$row]:$col:1}"
-        shad_px=0; sr=$(( row-1 )); sc=$(( col-1 ))
-        [[ $sr -ge 0 && $sr -lt 5 && $sc -ge 0 && $sc -lt 5 ]] && shad_px="${_rows[$sr]:$sc:1}"
-        if   [[ "$main_px" == "1" ]]; then printf '\033[38;5;%dm▀\033[0m' "$_clr"
-        elif [[ "$shad_px" == "1" ]]; then printf '\033[38;5;%dm░\033[0m' "$SHADOW"
-        else printf ' '; fi
+      clr="${_colors[$li]}"
+      read -ra p_rows <<< "${_letters[$li]}"
+      
+      for (( c=0; c<6; c++ )); do
+        main=0; [[ $r -lt 5 && $c -lt 5 ]] && main="${p_rows[$r]:$c:1}"
+        
+        # Shadow check: is there a pixel at (r-1, c-1)?
+        shad=0; 
+        if [[ $r -gt 0 && $r -le 5 && $c -gt 0 && $c -le 5 ]]; then
+          local sr=$((r - 1))
+          local sc=$((c - 1))
+          shad="${p_rows[$sr]:$sc:1}"
+        fi
+        
+        if [[ "$main" == "1" ]]; then
+          # Main scanline (Upper half block)
+          printf "\033[38;5;%dm▀\033[0m" "$clr"
+        elif [[ "$shad" == "1" ]]; then
+          # Shadow (Stippled block for "thinner" soft feel)
+          printf "\033[38;5;%dm░\033[0m" "$SHADOW_COLOR"
+        else
+          printf " "
+        fi
       done
-      printf ' '
+      printf " "
     done
     printf '\n'
   done
-
+  
   printf '\n%s  AI agent context kit — v%s%s\n\n' "$C_DIM" "$VERSION" "$C_RESET"
 }
 
@@ -1001,7 +1151,9 @@ main() {
     release)     cmd_release "$@" ;;
     log)         cmd_log "$@" ;;
     status)      cmd_status "$@" ;;
+    usage)       cmd_usage "$@" ;;
     add-repo)    cmd_add_repo "$@" ;;
+    install)     cmd_install "$@" ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help) cmd_help ;;
     *) die "Unknown command: $cmd. Run 'agentboard help'." ;;
