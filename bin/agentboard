@@ -18,7 +18,7 @@ TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
 TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
 TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
 
-VERSION="1.2.1"
+VERSION="1.2.2"
 
 # -----------------------------------------------------------------------------
 # Colors (honors NO_COLOR, disables if stdout isn't a TTY)
