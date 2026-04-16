@@ -20,7 +20,19 @@ Read in order:
 1. **`work/BRIEF.md`** — narrative brief: what we're building, why, current state, relevant context
 2. **`work/ACTIVE.md`** — stream registry
 
+If there is an active stream you're resuming, **run `agentboard handoff <slug>`** before anything else — it prints the exact load order and the Resume state (what just happened, current focus, next action) left by the previous agent. This is how context is shared between Claude, Codex, and Gemini without re-explaining.
+
 Report to user: 1 stream → "Resuming **\<stream\>** — next: \<action\>. Continue?" / 2+ streams → ask which / 0 → ask what to work on.
+
+### Context handoff — before ending or switching providers (mandatory)
+
+When context is running low, you're ending the session, or you're about to hand off to another CLI (Claude → Codex, Codex → Gemini, etc.), **run**:
+
+```bash
+agentboard checkpoint <stream-slug> --what "<1-2 lines of what just happened>" --next "<one sentence: what to do next>"
+```
+
+This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `agentboard handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
 
 ### New task bootstrap (before any non-trivial task — mandatory)
 

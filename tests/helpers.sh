@@ -29,12 +29,12 @@ assert_not_contains() {
 
 assert_file_contains() {
   local file="$1" needle="$2"
-  grep -Fq "$needle" "$file" || fail "expected $file to contain: $needle"
+  grep -Fq -- "$needle" "$file" || fail "expected $file to contain: $needle"
 }
 
 assert_file_not_contains() {
   local file="$1" needle="$2"
-  if grep -Fq "$needle" "$file"; then
+  if grep -Fq -- "$needle" "$file"; then
     fail "expected $file to not contain: $needle"
   fi
 }

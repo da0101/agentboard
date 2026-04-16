@@ -381,6 +381,14 @@ EOF
   printf '  owner:  %s\n' "${agent:-unknown}"
   printf '  updated:%s %s\n' "${updated:+ }" "${updated:-unknown}"
 
+  local _today _stream_updated
+  _today="$(today)"
+  _stream_updated="$(frontmatter_value "$stream_file" "updated_at")"
+  if [[ -n "$_stream_updated" && "$_stream_updated" != "$_today" ]] && ! is_placeholder_value "$_stream_updated"; then
+    printf '  %s⚠%s  %sStream state last updated %s — run %sagentboard checkpoint %s%s before handoff%s\n' \
+      "$C_YELLOW" "$C_RESET" "$C_YELLOW" "$_stream_updated" "$C_BOLD" "$slug" "$C_RESET$C_YELLOW" "$C_RESET"
+  fi
+
   local _git_branch _base_branch
   _git_branch="$(frontmatter_value "$stream_file" "git_branch")"
   _base_branch="$(frontmatter_value "$stream_file" "base_branch")"
@@ -473,21 +481,55 @@ EOF
     say
   fi
 
-  printf '%sNext action:%s %s\n' "$C_BOLD" "$C_RESET" "$next_action"
-  if [[ -n "$build_excerpt" ]]; then
+  local r_updated r_what r_focus r_next r_blockers
+  r_updated="$(stream_resume_field "$stream_file" "Last updated")"
+  r_what="$(stream_resume_field "$stream_file" "What just happened")"
+  r_focus="$(stream_resume_field "$stream_file" "Current focus")"
+  r_next="$(stream_resume_field "$stream_file" "Next action")"
+  r_blockers="$(stream_resume_field "$stream_file" "Blockers")"
+
+  _is_resume_placeholder() {
+    local v="$1"
+    [[ -z "$v" ]] && return 0
+    [[ "$v" == "—" ]] && return 0
+    [[ "$v" == "_not set_" ]] && return 0
+    [[ "$v" == "— by —" ]] && return 0
+    return 1
+  }
+
+  if ! _is_resume_placeholder "$r_what" || ! _is_resume_placeholder "$r_next"; then
+    printf '%sResume state%s %s(from %s.md § Resume state)%s\n' "$C_BOLD" "$C_RESET" "$C_DIM" "$slug" "$C_RESET"
+    _is_resume_placeholder "$r_updated" || printf '  Last updated:       %s\n' "$r_updated"
+    _is_resume_placeholder "$r_what"    || printf '  What just happened: %s\n' "$r_what"
+    _is_resume_placeholder "$r_focus"   || printf '  Current focus:      %s\n' "$r_focus"
+    _is_resume_placeholder "$r_next"    || printf '  Next action:        %s%s%s\n' "$C_BOLD" "$r_next" "$C_RESET"
+    _is_resume_placeholder "$r_blockers" || printf '  Blockers:           %s\n' "$r_blockers"
     say
-    printf '%sWhat we are building:%s\n' "$C_BOLD" "$C_RESET"
-    printf '%s\n' "$build_excerpt"
-  fi
-  if [[ -n "$current_excerpt" ]]; then
+  else
+    printf '%sNext action:%s %s\n' "$C_BOLD" "$C_RESET" "$next_action"
+    if [[ -n "$build_excerpt" ]]; then
+      say
+      printf '%sWhat we are building:%s\n' "$C_BOLD" "$C_RESET"
+      printf '%s\n' "$build_excerpt"
+    fi
+    if [[ -n "$current_excerpt" ]]; then
+      say
+      printf '%sCurrent state:%s\n' "$C_BOLD" "$C_RESET"
+      printf '%s\n' "$current_excerpt"
+    fi
+    if [[ -n "$do_not_load" && "$do_not_load" != "_TODO_" ]]; then
+      say
+      printf '%sDo not load:%s %s\n' "$C_BOLD" "$C_RESET" "$do_not_load"
+    fi
     say
-    printf '%sCurrent state:%s\n' "$C_BOLD" "$C_RESET"
-    printf '%s\n' "$current_excerpt"
   fi
-  if [[ -n "$do_not_load" && "$do_not_load" != "_TODO_" ]]; then
-    say
-    printf '%sDo not load:%s %s\n' "$C_BOLD" "$C_RESET" "$do_not_load"
-  fi
+
+  printf '%sFor the agent reading this:%s\n' "$C_BOLD" "$C_RESET"
+  printf '  1. Load the files above in that order. Stop once the job is clear.\n'
+  printf '  2. Read the stream file and its "## Resume state" block first — it is the compact "where we are".\n'
+  printf '  3. Confirm you understand Next action, then continue from there.\n'
+  printf '  4. Before ending your session or switching providers, run:\n'
+  printf '     %sagentboard checkpoint %s --what "..." --next "..."%s\n' "$C_BOLD" "$slug" "$C_RESET"
   say
 }
 

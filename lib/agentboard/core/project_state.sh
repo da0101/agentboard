@@ -233,13 +233,42 @@ EOF
 }
 
 stream_next_action() {
-  local stream_file="$1"
+  local stream_file="$1" out
+  out="$(awk '
+    /^## Resume state/ { in_section = 1; next }
+    in_section && /^## / { exit }
+    in_section && /^[[:space:]]*-[[:space:]]+\*\*Next action:\*\*[[:space:]]*/ {
+      sub(/^[[:space:]]*-[[:space:]]+\*\*Next action:\*\*[[:space:]]*/, "", $0)
+      if ($0 ~ /^_.*_$/) exit
+      if ($0 == "—" || $0 == "") exit
+      print
+      exit
+    }
+  ' "$stream_file")"
+  if [[ -n "$out" ]]; then
+    printf '%s\n' "$out"
+    return 0
+  fi
   awk '
     /^## Next action/ { in_section = 1; next }
     in_section && /^## / { exit }
     in_section {
       if ($0 ~ /^[[:space:]]*$/) next
       if ($0 ~ /^_.*_$/) next
+      print
+      exit
+    }
+  ' "$stream_file"
+}
+
+stream_resume_field() {
+  local stream_file="$1" label="$2"
+  awk -v label="$label" '
+    BEGIN { pat = "^[[:space:]]*-[[:space:]]+\\*\\*" label ":\\*\\*[[:space:]]*" }
+    /^## Resume state/ { in_section = 1; next }
+    in_section && /^## / { exit }
+    in_section && $0 ~ pat {
+      sub(pat, "", $0)
       print
       exit
     }

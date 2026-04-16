@@ -47,8 +47,15 @@ agentboard new-stream <slug> \
 # Inspect
 agentboard resolve <stream-slug|domain-slug|repo-id>
 agentboard handoff [stream-slug] [--budget <N|Nk>]
-                                     # load order + branch hint; --budget drops
-                                     # secondary domains when tokens run tight
+                                     # load order + Resume state + branch hint.
+                                     # Warns if state is stale; footer tells the
+                                     # next agent what to do. --budget drops
+                                     # secondary domains when tokens run tight.
+agentboard checkpoint <slug> --what "..." --next "..." [--blocker "..."] [--focus "..."] [--diff]
+                                     # save compact "where we are" before handoff.
+                                     # Overwrites stream's ## Resume state block,
+                                     # prepends Progress log entry, trims to last 10.
+                                     # Run before ending session or switching CLI.
 agentboard progress <slug> [--base <b>] [--note "<text>"] [--dry-run]
                                      # append git diff --stat to stream's Progress log
 agentboard tui [--status <s>] [--owner <n>] [--repo <id>] [--sort <c>] [--watch <s>]
