@@ -1,5 +1,9 @@
 # Agentboard Cheat Sheet
 
+Shared work-state and project-truth across Claude Code, Codex CLI, and Gemini
+CLI. Agentboard shares files, not chat history — each CLI loads the same
+`.platform/` pack on its own.
+
 ## Setup
 
 ```bash
@@ -43,6 +47,8 @@ agentboard new-stream <slug> \
 # Inspect
 agentboard resolve <stream-slug|domain-slug|repo-id>
 agentboard handoff [stream-slug]     # load order + branch hint for next agent
+agentboard progress <slug> [--base <b>] [--note "<text>"] [--dry-run]
+                                     # append git diff --stat to stream's Progress log
 ```
 
 ---
