@@ -46,7 +46,9 @@ agentboard new-stream <slug> \
 
 # Inspect
 agentboard resolve <stream-slug|domain-slug|repo-id>
-agentboard handoff [stream-slug]     # load order + branch hint for next agent
+agentboard handoff [stream-slug] [--budget <N|Nk>]
+                                     # load order + branch hint; --budget drops
+                                     # secondary domains when tokens run tight
 agentboard progress <slug> [--base <b>] [--note "<text>"] [--dry-run]
                                      # append git diff --stat to stream's Progress log
 agentboard tui [--status <s>] [--owner <n>] [--repo <id>] [--sort <c>] [--watch <s>]

@@ -44,6 +44,8 @@ COMMANDS
                              --repo <id>      (repeatable)
   resolve <target>           Resolve a stream, domain, or repo by canonical id
   handoff [stream-slug]      Print a low-token provider handoff packet
+                             --budget <N|Nk>   cap estimated load-order tokens;
+                                               drops secondary domains when tight
   progress <stream-slug>     Append a git-diff summary to the stream's
                              ## Progress log section (uses base_branch from
                              frontmatter). Flags:

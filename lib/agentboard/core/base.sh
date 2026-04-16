@@ -83,6 +83,37 @@ ask_yes_no_default() {
 
 today() { date +%F; }
 
+# parse_token_budget <value>
+# Accepts "4000", "4k", or "4K" and echoes the integer token count.
+# Returns non-zero on malformed input.
+parse_token_budget() {
+  local raw="$1" lower
+  lower="$(printf '%s' "$raw" | tr 'A-Z' 'a-z')"
+  if [[ "$lower" =~ ^([0-9]+)k$ ]]; then
+    printf '%s\n' "$(( ${BASH_REMATCH[1]} * 1000 ))"
+    return 0
+  fi
+  if [[ "$lower" =~ ^([0-9]+)$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
+# estimate_tokens_for_file <file>
+# Rough heuristic: 1 token ≈ 4 bytes of English markdown. Echoes 0 if the
+# file does not exist. Zero runtime deps.
+estimate_tokens_for_file() {
+  local file="$1" bytes
+  if [[ ! -f "$file" ]]; then
+    printf '0\n'
+    return 0
+  fi
+  bytes="$(wc -c < "$file" 2>/dev/null | tr -d ' ')"
+  [[ -z "$bytes" ]] && bytes=0
+  printf '%s\n' "$(( bytes / 4 ))"
+}
+
 require_templates() {
   [[ -d "$TEMPLATES_PLATFORM" ]] || die "templates/platform/ not found at $TEMPLATES_PLATFORM"
 }
