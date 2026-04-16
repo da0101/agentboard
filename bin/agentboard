@@ -5,13 +5,22 @@
 
 set -euo pipefail
 
-SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve symlinks so AGENTBOARD_ROOT points to the real repo, not /usr/local
+_SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$_SOURCE" ]; do
+  _DIR="$(cd -P "$(dirname "$_SOURCE")" && pwd)"
+  _SOURCE="$(readlink "$_SOURCE")"
+  [[ $_SOURCE != /* ]] && _SOURCE="$_DIR/$_SOURCE"
+done
+SCRIPT_PATH="$(cd -P "$(dirname "$_SOURCE")" && pwd)"
+unset _SOURCE _DIR
+
 AGENTBOARD_ROOT="$(cd "$SCRIPT_PATH/.." && pwd)"
 TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
 TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
 TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
 
-VERSION="1.2.0"
+VERSION="1.4.0"
 
 
 source "$AGENTBOARD_ROOT/lib/agentboard/core.sh"
@@ -23,6 +32,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/doctor.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/system_setup.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/update.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/help.sh"
 
 # -----------------------------------------------------------------------------
@@ -102,6 +112,7 @@ main() {
     log)         cmd_log "$@" ;;
     status)      cmd_status "$@" ;;
     add-repo)    cmd_add_repo "$@" ;;
+    usage)       cmd_usage "$@" ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help) cmd_help ;;
     *) die "Unknown command: $cmd. Run 'agentboard help'." ;;

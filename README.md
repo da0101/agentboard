@@ -291,6 +291,12 @@ agentboard release
 agentboard log "<one line>"
 agentboard status
 agentboard add-repo <path>
+agentboard usage log --provider <name> --input <N> --output <N> [--model <M>] [--stream <S>] [--repo <R>] [--type <T>] [--note <text>]
+agentboard usage summary
+agentboard usage history
+agentboard usage stream <stream-slug>
+agentboard usage dashboard [--today|--week|--month]
+agentboard usage learn [--apply]
 agentboard version
 agentboard help
 ```
@@ -313,6 +319,7 @@ agentboard help
 - `log` appends to `.platform/log.md`
 - `status` prints `.platform/STATUS.md`
 - `add-repo` scaffolds entry files into a sibling repo in hub mode and refuses to overwrite existing root entry files
+- `usage log` records a token segment to `~/.agentboard/usage.db`; `usage summary/history/stream/dashboard/learn` aggregate and visualise the data — see `CHEATSHEET.md` for the full reference
 
 ---
 

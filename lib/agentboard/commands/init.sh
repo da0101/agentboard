@@ -287,6 +287,20 @@ NOTICE
     ok "Skills: $C_BOLD$installed installed$C_RESET to both .claude/skills/ and .agents/skills/, $skipped skipped"
   fi
 
+  # Scaffold .codex/ for Codex CLI subagent dispatch
+  # Additive-safe: only created if .codex/ does not already exist.
+  head "Codex subagent config (.codex/)"
+  local codex_templates="$AGENTBOARD_ROOT/templates/codex"
+  local codex_target="$target/.codex"
+  if [[ -d "$codex_target" ]]; then
+    printf '  %s↷%s .codex/ already exists — skipped\n' "$C_YELLOW" "$C_RESET"
+  elif [[ -d "$codex_templates" ]]; then
+    cp -R "$codex_templates/." "$codex_target/"
+    ok "Wrote → ${C_CYAN}.codex/config.toml${C_RESET} + ${C_CYAN}.codex/agents/${C_RESET} (researcher / coder / auditor / mapper)"
+    printf '  %sCustomize agent roles + model IDs after activation.%s\n' "$C_DIM" "$C_RESET"
+  fi
+  say
+
   say
   if (( hub_mode )); then
     printf '%s%s━━━ Platform brains hub initialized ━━━%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"

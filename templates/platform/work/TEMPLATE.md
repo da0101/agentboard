@@ -6,6 +6,8 @@ status: planning
 agent_owner: claude-code
 domain_slugs: [<domain-slug>]
 repo_ids: [repo-primary]
+base_branch: develop
+git_branch: feature/<stream-slug>
 created_at: YYYY-MM-DD
 updated_at: YYYY-MM-DD
 closure_approved: false
