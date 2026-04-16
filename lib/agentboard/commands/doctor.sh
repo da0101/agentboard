@@ -282,7 +282,7 @@ cmd_doctor() {
     brief_stream="${brief_stream%%$'\n'*}"
     if [[ -z "$brief_stream" ]]; then
       warn "work/BRIEF.md is missing a valid Stream file reference"
-      errors=$((errors + 1))
+      warnings=$((warnings + 1))
     elif [[ ! -f "./.platform/work/${brief_stream}.md" ]]; then
       warn "work/BRIEF.md references missing stream file .platform/work/${brief_stream}.md"
       errors=$((errors + 1))
@@ -301,7 +301,7 @@ cmd_doctor() {
 
     if (( brief_domain_count == 0 )); then
       warn "work/BRIEF.md has no concrete domain references"
-      errors=$((errors + 1))
+      warnings=$((warnings + 1))
     fi
     fi
   fi
