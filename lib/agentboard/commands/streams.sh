@@ -57,6 +57,7 @@ cmd_new_stream() {
   local stream_type="feature"
   local agent_owner="codex"
   local -a repo_ids=()
+  local base_branch="" git_branch=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -78,6 +79,16 @@ cmd_new_stream() {
         repo_ids+=("$2")
         shift 2
         ;;
+      --base-branch)
+        [[ -n "${2:-}" ]] || die "new-stream requires a value after --base-branch"
+        base_branch="$2"
+        shift 2
+        ;;
+      --branch)
+        [[ -n "${2:-}" ]] || die "new-stream requires a value after --branch"
+        git_branch="$2"
+        shift 2
+        ;;
       *)
         die "Unknown flag for new-stream: $1"
         ;;
@@ -86,6 +97,28 @@ cmd_new_stream() {
 
   ((${#domain_slugs[@]})) || die "new-stream requires at least one --domain <domain-slug>"
   ((${#repo_ids[@]})) || repo_ids=("repo-primary")
+
+  # ── Branch resolution ────────────────────────────────────────────────────
+  if [[ -z "$base_branch" || -z "$git_branch" ]]; then
+    local _current_branch
+    _current_branch="$(git -C . rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
+
+    if [[ -t 0 ]]; then
+      # Interactive: ask the user
+      printf '\n  %s?%s %sBranch context for stream %s"%s"%s\n' \
+        "$C_CYAN" "$C_RESET" "$C_BOLD" "$C_RESET" "$slug" "$C_RESET" >&2
+      [[ -n "$_current_branch" ]] && \
+        printf '    %sCurrent branch: %s%s\n' "$C_DIM" "$_current_branch" "$C_RESET" >&2
+      [[ -z "$base_branch" ]] && \
+        base_branch="$(ask "Base branch to fork from" "${_current_branch:-develop}")"
+      [[ -z "$git_branch" ]] && \
+        git_branch="$(ask "New git branch name for this stream" "feature/${slug}")"
+    else
+      # Non-interactive: use current branch as base, feature/<slug> as branch
+      [[ -z "$base_branch" ]] && base_branch="${_current_branch:-develop}"
+      [[ -z "$git_branch" ]] && git_branch="feature/${slug}"
+    fi
+  fi
 
   local stream_template="./.platform/work/TEMPLATE.md"
   local stream_target="./.platform/work/${slug}.md"
@@ -127,6 +160,8 @@ cmd_new_stream() {
     "YYYY-MM-DD" "$(today)"
   replace_frontmatter_line "$stream_target" "domain_slugs" "$domain_slugs_literal"
   replace_frontmatter_line "$stream_target" "repo_ids" "$repo_ids_literal"
+  replace_frontmatter_line "$stream_target" "base_branch" "$base_branch"
+  replace_frontmatter_line "$stream_target" "git_branch" "$git_branch"
 
   local row="| $slug | $stream_type | planning | $agent_owner | $(today) |"
   if grep -qF "| _(none)_ | — | — | — | — |" "$active"; then
@@ -321,6 +356,17 @@ cmd_handoff() {
   printf '  status: %s\n' "${status:-unknown}"
   printf '  owner:  %s\n' "${agent:-unknown}"
   printf '  updated:%s %s\n' "${updated:+ }" "${updated:-unknown}"
+
+  local _git_branch _base_branch
+  _git_branch="$(frontmatter_value "$stream_file" "git_branch")"
+  _base_branch="$(frontmatter_value "$stream_file" "base_branch")"
+  if [[ -n "$_git_branch" ]] && ! is_placeholder_value "$_git_branch"; then
+    printf '  branch: %s%s%s' "$C_BOLD" "$_git_branch" "$C_RESET"
+    [[ -n "$_base_branch" ]] && ! is_placeholder_value "$_base_branch" && \
+      printf '  %s(forked from %s)%s' "$C_DIM" "$_base_branch" "$C_RESET"
+    printf '\n'
+    printf '  %s⚡ git checkout %s%s\n' "$C_DIM" "$_git_branch" "$C_RESET"
+  fi
   say
 
   printf '%sLoad in this order:%s\n' "$C_BOLD" "$C_RESET"

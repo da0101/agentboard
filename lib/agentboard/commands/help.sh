@@ -33,6 +33,12 @@ COMMANDS
   doctor                     Validate active .platform state and metadata
   new-domain <slug> ...      Create a domain file from the shared template
   new-stream <slug> ...      Create a stream file and register it in work/ACTIVE.md
+                             --domain <slug>  (repeatable, required)
+                             --base-branch <b> branch to fork from (prompts if omitted)
+                             --branch <name>  git branch name for this stream
+                             --type <t>       stream type (default: feature)
+                             --agent <a>      agent owner (default: codex)
+                             --repo <id>      (repeatable)
   resolve <target>           Resolve a stream, domain, or repo by canonical id
   handoff [stream-slug]      Print a low-token provider handoff packet
   claim "<task>"             Add a row to .platform/sessions/ACTIVE.md
@@ -52,6 +58,8 @@ COMMANDS
                              optimize      — most expensive streams/types/providers
                              learn         — detect inefficiencies and generate rules
                              learn --apply — write rules to .platform/learnings.md
+                             dashboard     — visual bar-chart dashboard
+                               [--today|--week|--month]
                              One entry = one context segment. Log at every
                              context clear, provider switch, or stream closure.
   version                    Print version

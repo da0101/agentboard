@@ -44,5 +44,71 @@ test_new_stream_rejects_unknown_domain() {
   assert_contains "$output" "./.platform/domains/missing-domain.md does not exist. Create the domain first."
 }
 
+test_new_stream_branch_flags_written_to_frontmatter() {
+  local dir output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  make_git_repo "$dir" main
+  init_project_fixture "$dir"
+  commit_all "$dir" "init"
+
+  (
+    cd "$dir"
+    "$TEST_ROOT/bin/agentboard" new-domain api >/dev/null
+    "$TEST_ROOT/bin/agentboard" new-stream api-v2 \
+      --domain api \
+      --base-branch develop \
+      --branch feature/api-v2 >/dev/null
+  )
+
+  assert_file_contains "$dir/.platform/work/api-v2.md" "base_branch: develop"
+  assert_file_contains "$dir/.platform/work/api-v2.md" "git_branch: feature/api-v2"
+}
+
+test_new_stream_branch_defaults_when_flags_omitted() {
+  local dir output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  make_git_repo "$dir" main
+  init_project_fixture "$dir"
+  commit_all "$dir" "init"
+
+  (
+    cd "$dir"
+    "$TEST_ROOT/bin/agentboard" new-domain api >/dev/null
+    # No --base-branch / --branch: non-interactive fallback uses current branch
+    "$TEST_ROOT/bin/agentboard" new-stream api-v3 --domain api >/dev/null
+  )
+
+  assert_file_contains "$dir/.platform/work/api-v3.md" "base_branch:"
+  assert_file_contains "$dir/.platform/work/api-v3.md" "git_branch:"
+}
+
+test_handoff_shows_branch_info() {
+  local dir output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  make_git_repo "$dir" main
+  init_project_fixture "$dir"
+  commit_all "$dir" "init"
+
+  (
+    cd "$dir"
+    "$TEST_ROOT/bin/agentboard" new-domain api >/dev/null
+    "$TEST_ROOT/bin/agentboard" new-stream api-v2 \
+      --domain api \
+      --base-branch develop \
+      --branch feature/api-v2 >/dev/null
+  )
+
+  run_cli_capture output "$dir" handoff api-v2
+  assert_contains "$output" "feature/api-v2"
+  assert_contains "$output" "develop"
+  assert_contains "$output" "git checkout"
+}
+
 test_new_domain_new_stream_resolve_and_handoff
 test_new_stream_rejects_unknown_domain
+test_new_stream_branch_flags_written_to_frontmatter
+test_new_stream_branch_defaults_when_flags_omitted
+test_handoff_shows_branch_info
