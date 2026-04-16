@@ -295,7 +295,31 @@ cmd_resolve() {
 cmd_handoff() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
 
-  local requested_slug="${1:-}"
+  local requested_slug="" budget_arg="" budget=0
+  if [[ -n "${1:-}" && "${1:0:2}" != "--" ]]; then
+    requested_slug="$1"
+    shift
+  fi
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --budget)
+        [[ -n "${2:-}" ]] || die "handoff requires a value after --budget"
+        budget_arg="$2"
+        budget="$(parse_token_budget "$2")" || die "Invalid --budget '$2' (use e.g. 4000 or 4k)"
+        shift 2 ;;
+      -h|--help)
+        cat <<'EOF'
+Usage: agentboard handoff [<stream-slug>] [--budget <N|Nk>]
+
+Prints the load order for the next agent's context pack.
+--budget trims secondary domains when the estimated token total exceeds the
+limit. Estimation uses bytes/4 as a rough heuristic (zero dependencies).
+EOF
+        return 0 ;;
+      *) die "Unknown flag for handoff: $1" ;;
+    esac
+  done
+
   local active="./.platform/work/ACTIVE.md"
   local brief="./.platform/work/BRIEF.md"
   local repos_file="./.platform/repos.md"
@@ -369,18 +393,53 @@ cmd_handoff() {
   fi
   say
 
-  printf '%sLoad in this order:%s\n' "$C_BOLD" "$C_RESET"
-  printf '  1. .platform/work/BRIEF.md\n'
-  printf '  2. .platform/work/%s.md\n' "$slug"
+  local brief_tokens stream_tokens running_tokens
+  brief_tokens="$(estimate_tokens_for_file "$brief")"
+  stream_tokens="$(estimate_tokens_for_file "$stream_file")"
+  running_tokens=$(( brief_tokens + stream_tokens ))
 
-  local domain_slug
-  local domain_index=3
+  local -a included_domains=() skipped_domains=()
+  local -a domain_token_cache=()
+  local domain_slug domain_file domain_tokens first_domain=1
   while IFS= read -r domain_slug; do
     [[ -z "$domain_slug" ]] && continue
-    printf '  %d. .platform/domains/%s.md\n' "$domain_index" "$domain_slug"
-    domain_index=$((domain_index + 1))
+    domain_file="./.platform/domains/${domain_slug}.md"
+    domain_tokens="$(estimate_tokens_for_file "$domain_file")"
+    if (( budget > 0 )) && (( first_domain == 0 )) && (( running_tokens + domain_tokens > budget )); then
+      skipped_domains+=("${domain_slug}|${domain_tokens}")
+    else
+      included_domains+=("${domain_slug}|${domain_tokens}")
+      running_tokens=$(( running_tokens + domain_tokens ))
+      first_domain=0
+    fi
   done < <(inline_array_items "$(frontmatter_value "$stream_file" "domain_slugs")")
+
+  if (( budget > 0 )); then
+    printf '%sLoad in this order%s %s(budget %s tokens, using ~%d)%s\n' \
+      "$C_BOLD" "$C_RESET" "$C_DIM" "$budget_arg" "$running_tokens" "$C_RESET"
+  else
+    printf '%sLoad in this order:%s\n' "$C_BOLD" "$C_RESET"
+  fi
+  printf '  1. .platform/work/BRIEF.md%s\n' "$( (( budget > 0 )) && printf '  (~%d)' "$brief_tokens" )"
+  printf '  2. .platform/work/%s.md%s\n' "$slug" "$( (( budget > 0 )) && printf '  (~%d)' "$stream_tokens" )"
+  local entry idx=3 e_slug e_tokens
+  for entry in "${included_domains[@]}"; do
+    e_slug="${entry%%|*}"; e_tokens="${entry#*|}"
+    printf '  %d. .platform/domains/%s.md%s\n' "$idx" "$e_slug" \
+      "$( (( budget > 0 )) && printf '  (~%d)' "$e_tokens" )"
+    idx=$((idx + 1))
+  done
   say
+
+  if (( ${#skipped_domains[@]} > 0 )); then
+    printf '%sSkipped (budget tight):%s\n' "$C_BOLD" "$C_RESET"
+    for entry in "${skipped_domains[@]}"; do
+      e_slug="${entry%%|*}"; e_tokens="${entry#*|}"
+      printf '  - .platform/domains/%s.md  %s(~%d tokens)%s\n' \
+        "$e_slug" "$C_DIM" "$e_tokens" "$C_RESET"
+    done
+    say
+  fi
 
   local repo_scope=""
   repo_scope="$(inline_array_items "$(frontmatter_value "$stream_file" "repo_ids")")"
