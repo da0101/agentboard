@@ -74,6 +74,41 @@ In hub mode:
 
 ---
 
+## CI and merge protection
+
+Agentboard now ships a GitHub Actions merge-gate workflow in `.github/workflows/ci.yml`.
+
+It runs on:
+
+- pull requests targeting `develop`
+- pull requests targeting `main`
+- direct pushes to `develop`
+- direct pushes to `main`
+
+The workflow runs:
+
+- `unit-tests` → `bash tests/unit.sh`
+- `integration-tests` → `bash tests/integration.sh`
+- `ci-gate` → final required gate that depends on both jobs
+
+Important: **GitHub Actions alone does not block merges.**
+To actually prevent merges when tests fail, you must configure GitHub branch protection or rulesets for both `develop` and `main` and mark these checks as required:
+
+- `unit-tests`
+- `integration-tests`
+- `ci-gate`
+
+Recommended rules for both branches:
+
+- require a pull request before merging
+- require status checks to pass before merging
+- require branches to be up to date before merging
+- include administrators if you want the rule to apply to everyone
+
+If you later add a deploy workflow, make it depend on the same green checks or only allow deploys from protected branches.
+
+---
+
 ## What `agentboard init` does
 
 `init` is intentionally small and generic. It does **not** make stack-specific decisions.
@@ -147,6 +182,8 @@ Agentboard ships a persistent work layer under `.platform/work/`:
 - `TEMPLATE.md` — template for a new workstream
 - `archive/` — completed workstreams
 
+Streams and domains are meant to carry lightweight metadata so tooling can validate state without turning `.platform/` into a database.
+
 The workflow expects non-trivial work to be registered before execution:
 
 1. check `work/ACTIVE.md`
@@ -207,6 +244,8 @@ your-project/
     ├── BACKLOG.md
     ├── learnings.md
     ├── agents/
+    ├── domains/
+    │   └── TEMPLATE.md
     ├── work/
     │   ├── BRIEF.md
     │   ├── ACTIVE.md
@@ -225,6 +264,7 @@ After activation, the agent also creates project-specific directories and files 
 
 - `.platform/conventions/*.md`
 - `.platform/domains/*.md`
+- `.platform/domains/TEMPLATE.md`
 - per-repo deep references in hub mode
 
 So the shipped scaffold is the operational shell; activation fills in the project-specific content.
@@ -234,9 +274,18 @@ So the shipped scaffold is the operational shell; activation fills in the projec
 ## Commands
 
 ```bash
+agentboard install
 agentboard init
 agentboard update [--dry-run]
 agentboard sync [--apply|--list]
+agentboard bootstrap [--apply-domains]
+agentboard migrate [--apply]
+agentboard brief-upgrade [stream-slug] [--apply]
+agentboard doctor
+agentboard new-domain <slug> [repo-id ...] [--repo <repo-id>]
+agentboard new-stream <slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]
+agentboard resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>
+agentboard handoff [stream-slug]
 agentboard claim "<task>"
 agentboard release
 agentboard log "<one line>"
@@ -248,19 +297,30 @@ agentboard help
 
 ### Command notes
 
+- `install` creates a symlink for `agentboard` in your user bin directory and prints the PATH snippet to add if needed
 - `init` scaffolds the kit into the current directory
 - `update` refreshes shipped process files and skill protocols without touching project-specific docs
 - `sync` keeps `AGENTS.md` and `GEMINI.md` aligned with `CLAUDE.md`
+- `bootstrap` discovers repo layout, fills `repos.md`, scaffolds missing deep-reference files, infers broad repo roles plus optional stack hints, ingests local project artifacts into repo refs, suggests starter domains from repo structure, suggests stream commands from git branch state and dirty worktree semantics, and syncs hub repo paths into `sync-context.sh`; use `--apply-domains` to create the inferred domain stubs
+- `migrate` upgrades legacy pre-frontmatter stream/domain files to metadata v1 when Agentboard can infer the missing fields safely
+- `brief-upgrade` rewrites a legacy multi-stream `work/BRIEF.md` into the newer single-stream format for one chosen stream
+- `doctor` validates active `.platform/` state, stream/domain metadata, domain references, and repo IDs against the repo registry
+- `new-domain` bootstraps a domain file with metadata and can assign multiple repo IDs up front
+- `new-stream` bootstraps a stream file, registers it in `work/ACTIVE.md`, and seeds `work/BRIEF.md` when the brief is still a placeholder; repeat `--domain` and `--repo` when the stream spans multiple areas or repos
+- `resolve` turns a canonical stream/domain/repo reference into the exact file or repo record to load
+- `handoff` prints the minimum file load order, repo scope, and current-state summary another LLM needs to resume a stream without a full re-brief
 - `claim` and `release` manage `.platform/sessions/ACTIVE.md`
 - `log` appends to `.platform/log.md`
 - `status` prints `.platform/STATUS.md`
-- `add-repo` scaffolds entry files into a sibling repo in hub mode
+- `add-repo` scaffolds entry files into a sibling repo in hub mode and refuses to overwrite existing root entry files
 
 ---
 
 ## Updating existing installs
 
 As Agentboard evolves, `agentboard update` lets a project pull in newer process files without clobbering project truth.
+
+For older projects that still use the legacy framework shape, use the dedicated migration flow in [MIGRATION_GUIDE.md](/Users/danilulmashev/Documents/GitHub/agentboard/MIGRATION_GUIDE.md).
 
 It updates things like:
 
@@ -281,6 +341,22 @@ It does **not** overwrite project-authored operational state such as:
 - `log.md`
 - `work/*`
 - `domains/*`
+
+### Migrating older projects
+
+If a project already has an older `.platform/` layout, the current upgrade path is:
+
+```bash
+agentboard update
+agentboard migrate
+agentboard migrate --apply
+agentboard brief-upgrade <stream-slug> --apply
+agentboard doctor
+```
+
+Use `brief-upgrade <stream-slug>` without `--apply` first if you want to preview the rewritten BRIEF before writing it.
+
+The full step-by-step guide lives in [MIGRATION_GUIDE.md](/Users/danilulmashev/Documents/GitHub/agentboard/MIGRATION_GUIDE.md).
 
 ---
 
@@ -321,10 +397,17 @@ The point of the kit is to scaffold the **structure** and let activation generat
 
 ```bash
 git clone https://github.com/[you]/agentboard ~/code/agentboard
-ln -sf ~/code/agentboard/bin/agentboard /usr/local/bin/agentboard
+~/code/agentboard/bin/agentboard install
 ```
 
-Or put `bin/agentboard` anywhere on your `$PATH`.
+By default, `agentboard install` symlinks into your user bin directory such as `~/.local/bin/agentboard` and tells you what to add to your shell config if that directory is not already on your `PATH`.
+
+You can also preview or override the target:
+
+```bash
+~/code/agentboard/bin/agentboard install --dry-run
+~/code/agentboard/bin/agentboard install --dir ~/bin
+```
 
 ---
 

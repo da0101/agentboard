@@ -1,10 +1,19 @@
+---
+stream_id: stream-<stream-slug>
+slug: <stream-slug>
+type: feature
+status: planning
+agent_owner: claude-code
+domain_slugs: [<domain-slug>]
+repo_ids: [repo-primary]
+created_at: YYYY-MM-DD
+updated_at: YYYY-MM-DD
+closure_approved: false
+---
+
 # <stream-slug>
 
-**Type:** epic | feature | bug | improvement  ← pick one
-**Status:** planning
-**Started:** _TODO_
-**Agent:** claude-code | codex | gemini  ← who owns it currently
-**closure_approved:** false — owner must set to `true` before this stream can be archived
+_Metadata rules: `stream_id` must be `stream-<slug>`, `slug` must match the filename, `status` must match `work/ACTIVE.md`, and `updated_at` should change whenever ownership or state changes._
 
 ## Scope
 - _TODO: 3–5 bullets describing what's in scope_

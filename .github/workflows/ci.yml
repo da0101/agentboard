@@ -1,0 +1,80 @@
+name: ci
+
+# Merge gate for agentboard.
+#
+# This workflow runs on:
+# - PRs targeting develop or main (to block bad merges before merge)
+# - direct pushes to develop or main (to validate the merge commit itself)
+#
+# To actually block merges, configure GitHub branch protection / rulesets to
+# require these status checks on develop and main:
+#   - unit-tests
+#   - integration-tests
+#   - ci-gate
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/unit.sh
+
+  integration-tests:
+    name: integration-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/integration.sh
+
+  ci-gate:
+    name: ci-gate
+    runs-on: ubuntu-latest
+    needs:
+      - unit-tests
+      - integration-tests
+    steps:
+      - name: Confirm merge gate is green
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "unit-tests and integration-tests passed."

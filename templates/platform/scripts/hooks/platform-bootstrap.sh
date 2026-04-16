@@ -4,6 +4,7 @@
 # Reads .platform/work/ACTIVE.md and stream files to surface:
 #   - Active streams and their status
 #   - Whether closure_approved is set
+#   - Whether done criteria still have unchecked items
 #   - Whether audit reports are present or pending
 #   - The next action for each stream
 #
@@ -29,6 +30,7 @@ if [ -z "$STREAMS" ]; then
   echo ""
   echo "Hard rules active:"
   echo "  ⛔ closure_approved: true required before closing any stream (enforced by hook)"
+  echo "  ⛔ All Done criteria must be checked before closing any stream"
   echo "  ⛔ Only the human/owner declares a stream complete"
   echo "  ⛔ Audit reports must be anchored to stream file (not just chat)"
   echo "======================"
@@ -55,7 +57,16 @@ while IFS= read -r row; do
   if [ -f "$STREAM_FILE" ]; then
     # Check closure_approved
     if grep -qiE 'closure_approved[*: ]+true' "$STREAM_FILE" 2>/dev/null; then
-      echo "    closure: ✅ approved — present evidence to user and wait for sign-off to archive"
+      if awk '
+        /^## Done criteria/ { in_section=1; next }
+        in_section && /^## / { exit }
+        in_section && /- \[ \]/ { found=1 }
+        END { exit found ? 0 : 1 }
+      ' "$STREAM_FILE" 2>/dev/null; then
+        echo "    closure: ⛔ checklist incomplete — finish every Done criteria item before archive"
+      else
+        echo "    closure: ✅ approved — present evidence to user and wait for sign-off to archive"
+      fi
     else
       echo "    closure: ⛔ not approved — stream stays open until human explicitly approves"
     fi
@@ -83,6 +94,7 @@ done <<< "$STREAMS"
 
 echo "Hard rules active:"
 echo "  ⛔ closure_approved: true required before closing any stream (enforced by hook)"
+echo "  ⛔ All Done criteria must be checked before closing any stream"
 echo "  ⛔ Only the human/owner declares a stream complete"
 echo "  ⛔ Audit reports must be anchored to stream file (not just chat)"
 echo "======================"

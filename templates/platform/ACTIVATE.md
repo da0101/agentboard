@@ -51,7 +51,7 @@ Based on scan + interview, generate these files. Write them one at a time, then 
 
 **`.platform/repos.md`** — list the repo(s). For single-repo projects, one row. For multi-repo, one row per repo with stack + deep-reference-file name.
 
-**`.platform/domains/`** — create one file per major feature domain you discover in the scan. Each domain file is cross-layer: it covers the backend app, admin/frontend feature section, and any widgets/clients that touch this domain. Keep each under 150 lines. This is how agents load focused context per feature — instead of loading all of `backend.md` for every task, they load only the domain file relevant to what they're building. See `.platform/agents/context-organization.md` for the full pattern.
+**`.platform/domains/`** — create one file per major feature domain you discover in the scan. Each domain file is cross-layer: it covers the backend app, admin/frontend feature section, and any widgets/clients that touch this domain. Start from `.platform/domains/TEMPLATE.md`, fill in its metadata block, and keep each file under 150 lines. This is how agents load focused context per feature — instead of loading all of `backend.md` for every task, they load only the domain file relevant to what they're building. See `.platform/agents/context-organization.md` for the full pattern.
 
 **`.platform/conventions/`** — write a **separate** file for each stack you detected AND for each cross-cutting area that applies:
 
