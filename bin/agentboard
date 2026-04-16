@@ -20,7 +20,7 @@ TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
 TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
 TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
 
-VERSION="1.3.0"
+VERSION="1.4.0"
 
 
 source "$AGENTBOARD_ROOT/lib/agentboard/core.sh"
