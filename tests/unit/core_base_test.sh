@@ -73,12 +73,21 @@ test_path_and_placeholder_helpers() {
 }
 
 test_shell_helpers() {
-  local old_path="$PATH"
+  local old_path="$PATH" old_shell="${SHELL:-}"
   export PATH="/tmp/custom/bin:$old_path"
+  export SHELL="/bin/zsh"
 
   assert_eq "$(detect_shell_name)" "zsh"
+  export SHELL="/bin/bash"
+  assert_eq "$(detect_shell_name)" "bash"
   assert_eq "$(shell_path_snippet "fish" "/tmp/custom/bin")" 'fish_add_path "/tmp/custom/bin"'
   path_contains_dir "/tmp/custom/bin"
+
+  if [[ -n "$old_shell" ]]; then
+    export SHELL="$old_shell"
+  else
+    unset SHELL
+  fi
 }
 
 test_frontmatter_helpers
