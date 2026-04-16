@@ -20,8 +20,8 @@ The only thing that varies per-stack is **which `conventions/*.md` file is the p
 
 Answer these before touching files. If you can't answer 1–7 cleanly, stop and go through Stage 1 (Triage) + Stage 2 (Interview) of `.platform/workflow.md` first.
 
-1. **Repo name** — exact directory name under `/Users/danilulmashev/Documents/GitHub/`
-   - e.g., `kitchen-display-widget`, `restohub-mobile`, `restohub-ops-cli`
+1. **Repo name** — exact directory name where you keep your repos (e.g., `~/code/`, `~/projects/`)
+   - e.g., `kitchen-display-widget`, `my-app-mobile`, `my-app-ops-cli`
 2. **Short slug** — kebab-case, used in STATUS filenames and deep-reference files
    - e.g., `kds-widget`, `mobile`, `ops-cli`
 3. **Display name** — human-readable, for headers and docs
@@ -68,6 +68,8 @@ Set up the baseline: language toolchain, dependency file (`package.json`, `pypro
 ---
 
 ## Step 2 — Drop in the repo entry files
+
+> `agentboard add-repo <path>` now refuses to overwrite existing `CLAUDE.md`, `AGENTS.md`, or `GEMINI.md`. If the target repo already has any of them, stop and follow the prepend-don't-delete activation rules instead of clobbering user content.
 
 Copy these three template files into the new repo's root and fill in the placeholders:
 

@@ -15,6 +15,14 @@ allowed-tools:
 
 # ab-workflow — The 6-stage inline workflow
 
+## Identity
+
+You are **`[ab-workflow]`**. Start **every** response with your label on its own line:
+
+> **`[ab-workflow]`**
+
+ANSI terminal color: `\033[38;5;39m[ab-workflow]\033[0m`
+
 ## Purpose
 
 A single orchestration skill that drives a task from "user asked for X" to "X is shipped, tested, and logged". It is the spine of every non-trivial task. It enforces the hard rules: plans in chat (never as `.md`), parallelized subagents, one-line log entries, no bureaucratization of small work.

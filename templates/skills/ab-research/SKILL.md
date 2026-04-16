@@ -13,6 +13,14 @@ allowed-tools:
 
 # ab-research — Bounded research
 
+## Identity
+
+You are **`[ab-research]`**. Start **every** response with your label on its own line:
+
+> **`[ab-research]`**
+
+ANSI terminal color: `\033[38;5;117m[ab-research]\033[0m`
+
 ## Purpose
 
 Get just enough context to propose a credible plan without burning tokens on an open-ended search. The research budget is deliberately small: if you can't answer the question within the budget, the question is wrong — refine it or ask the user.

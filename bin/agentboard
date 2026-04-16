@@ -11,767 +11,69 @@ TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
 TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
 TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
 
-VERSION="0.1.0"
+VERSION="1.2.0"
+
+
+source "$AGENTBOARD_ROOT/lib/agentboard/core.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/init.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/bootstrap.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/migration.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/session.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/doctor.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/system_setup.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/update.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/help.sh"
 
 # -----------------------------------------------------------------------------
-# Colors (honors NO_COLOR, disables if stdout isn't a TTY)
+# Banner
 # -----------------------------------------------------------------------------
 
-if [[ -n "${NO_COLOR:-}" ]] || ! [[ -t 1 ]]; then
-  C_RESET=''; C_BOLD=''; C_DIM=''
-  C_RED=''; C_GREEN=''; C_YELLOW=''; C_BLUE=''; C_MAGENTA=''; C_CYAN=''
-else
-  C_RESET=$'\033[0m'
-  C_BOLD=$'\033[1m'
-  C_DIM=$'\033[2m'
-  C_RED=$'\033[31m'
-  C_GREEN=$'\033[32m'
-  C_YELLOW=$'\033[33m'
-  C_BLUE=$'\033[34m'
-  C_MAGENTA=$'\033[35m'
-  C_CYAN=$'\033[36m'
-fi
+print_banner() {
+  [[ -z "$C_YELLOW" ]] && return 0  # skip if NO_COLOR or non-TTY
 
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
+  # Block-pixel art — Gemini-style scanlines
+  # Each pixel = ▀ (upper-half block, foreground=letter color, background=terminal dark)
+  # The dark bottom-half of every ▀ creates continuous horizontal scanlines across the full word.
+  # 5×5 font, left→right gradient, stippled diagonal shadow.
+  local A_PX="01110 10001 11111 10001 10001"
+  local G_PX="01111 10000 10011 10001 01111"
+  local E_PX="11111 10000 11100 10000 11111"
+  local N_PX="10001 11001 10101 10011 10001"
+  local T_PX="11111 00100 00100 00100 00100"
+  local B_PX="11110 10001 11110 10001 11110"
+  local O_PX="01110 10001 10001 10001 01110"
+  local R_PX="11110 10001 11110 10010 10001"
+  local D_PX="11110 10001 10001 10001 11110"
 
-say()  { printf '%s\n' "$*"; }
-bold() { printf '%s%s%s\n' "$C_BOLD" "$*" "$C_RESET"; }
-dim()  { printf '%s%s%s\n' "$C_DIM" "$*" "$C_RESET"; }
-head() { printf '\n%s%s▸ %s%s\n' "$C_BOLD" "$C_CYAN" "$*" "$C_RESET"; }
-ok()   { printf '  %s●%s %s\n' "$C_GREEN" "$C_RESET" "$*"; }
-warn() { printf '  %s⚠%s  %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
-die()  { printf '  %s✖%s  %s\n' "$C_RED" "$C_RESET" "$*" >&2; exit 1; }
+  local -a _letters=("$A_PX" "$G_PX" "$E_PX" "$N_PX" "$T_PX" "$B_PX" "$O_PX" "$A_PX" "$R_PX" "$D_PX")
+  local -a _colors=(116 117 123 147 153 183 177 219 213 218)
+  local SHADOW=238
 
-# ask <prompt> [default] [hint]
-# Prints hint (if given) on its own dim line, then the prompt with the default
-# shown in [brackets]. Returns the user input (or default) on stdout.
-ask() {
-  local prompt="$1" default="${2:-}" hint="${3:-}" reply
-  if [[ -n "$hint" ]]; then
-    printf '\n  %s%s%s\n' "$C_DIM" "$hint" "$C_RESET" >&2
-  fi
-  if [[ -n "$default" ]]; then
-    printf '  %s?%s %s%s%s %s[%s]%s: ' \
-      "$C_CYAN" "$C_RESET" "$C_BOLD" "$prompt" "$C_RESET" "$C_DIM" "$default" "$C_RESET" >&2
-    read -r reply
-    echo "${reply:-$default}"
-  else
-    printf '  %s?%s %s%s%s: ' \
-      "$C_CYAN" "$C_RESET" "$C_BOLD" "$prompt" "$C_RESET" >&2
-    read -r reply
-    echo "$reply"
-  fi
-}
+  local row li col main_px shad_px sc sr _clr
+  local -a _rows
 
-ask_yes_no() {
-  local prompt="$1" reply
-  printf '  %s?%s %s%s%s %s[y/N]%s: ' \
-    "$C_CYAN" "$C_RESET" "$C_BOLD" "$prompt" "$C_RESET" "$C_DIM" "$C_RESET" >&2
-  read -r reply
-  [[ "$reply" =~ ^[Yy]$ ]]
-}
-
-# ask_yes_no_default <prompt> <default: Y|N> [hint]
-# Same styling as ask_yes_no but with a configurable default. An empty reply
-# returns the default. Supports a dim-line hint printed above the prompt.
-ask_yes_no_default() {
-  local prompt="$1" default="${2:-N}" hint="${3:-}" reply bracket
-  if [[ "$default" =~ ^[Yy]$ ]]; then
-    bracket="[Y/n]"
-  else
-    bracket="[y/N]"
-  fi
-  if [[ -n "$hint" ]]; then
-    printf '\n  %s%s%s\n' "$C_DIM" "$hint" "$C_RESET" >&2
-  fi
-  printf '  %s?%s %s%s%s %s%s%s: ' \
-    "$C_CYAN" "$C_RESET" "$C_BOLD" "$prompt" "$C_RESET" "$C_DIM" "$bracket" "$C_RESET" >&2
-  read -r reply
-  if [[ -z "$reply" ]]; then
-    [[ "$default" =~ ^[Yy]$ ]]
-  else
-    [[ "$reply" =~ ^[Yy]$ ]]
-  fi
-}
-
-today() { date +%F; }
-
-require_templates() {
-  [[ -d "$TEMPLATES_PLATFORM" ]] || die "templates/platform/ not found at $TEMPLATES_PLATFORM"
-}
-
-substitute() {
-  # substitute <file> KEY1 value1 KEY2 value2 ...
-  local file="$1"; shift
-  local key value value_esc
-  while [[ $# -gt 0 ]]; do
-    key="$1"; value="$2"; shift 2
-    value_esc="${value//|/\\|}"
-    sed -i.bak "s|{{${key}}}|${value_esc}|g" "$file"
-    rm -f "${file}.bak"
-  done
-}
-
-# -----------------------------------------------------------------------------
-# Empty-folder / hub detection
-# -----------------------------------------------------------------------------
-
-# detect_folder_kind <target>
-# Prints one of: "project" | "empty" | "hub-candidate"
-#
-#   project         — folder contains code files, manifest files, or source
-#                     subdirectories belonging to this folder itself (not
-#                     siblings).
-#   empty           — folder is empty for agentboard purposes (only README,
-#                     LICENSE, .git/, .gitignore, .DS_Store, .claude/,
-#                     .platform/ and similar).
-#   hub-candidate   — folder contains ONLY subdirectories, each of which looks
-#                     like its own repo (has .git/ or its own manifest).
-detect_folder_kind() {
-  local target="$1"
-
-  # Files that are OK in an "empty" folder and do not disqualify it.
-  local ignore_files_regex='^(\.DS_Store|\.gitignore|\.gitkeep|LICENSE|LICENSE\..*|README\.md|README\.txt|README\.rst|README)$'
-  local ignore_dirs_regex='^(\.git|\.claude|\.platform|\.vscode|\.idea|\.github)$'
-
-  # Extensions that count as "code files".
-  local code_ext_regex='\.(py|js|mjs|cjs|ts|tsx|jsx|go|rs|java|kt|kts|swift|dart|rb|php|cs|cpp|cc|cxx|c|h|hpp|m|mm|scala|clj|cljs|ex|exs|lua|pl|sh|zsh|bash)$'
-
-  # Manifest files that make a folder a project.
-  local manifest_regex='^(package\.json|pyproject\.toml|requirements\.txt|Cargo\.toml|go\.mod|pom\.xml|build\.gradle|build\.gradle\.kts|Podfile|CMakeLists\.txt|Makefile|pubspec\.yaml|composer\.json|Gemfile|.*\.xcodeproj|.*\.csproj|.*\.sln)$'
-
-  # Source subdirectories that make a folder a project (NOT a hub).
-  local source_dir_regex='^(src|lib|app|backend|frontend|server|client|widget|pkg|cmd|internal|tests|test|spec|public|views|controllers|models|components|pages|api)$'
-
-  local has_code=0
-  local has_manifest=0
-  local has_source_dir=0
-  local sibling_repo_count=0
-  local plain_subdir_count=0
-  local entry name base
-
-  shopt -s nullglob dotglob
-
-  for entry in "$target"/*; do
-    name="$(basename "$entry")"
-
-    if [[ -d "$entry" ]]; then
-      # Ignore noise dirs up front
-      if [[ "$name" =~ $ignore_dirs_regex ]]; then
-        continue
-      fi
-
-      # Is this subdirectory its own repo? (.git/ OR its own manifest)
-      local is_sibling_repo=0
-      if [[ -d "$entry/.git" ]]; then
-        is_sibling_repo=1
-      else
-        # Check for manifest inside the subdir
-        local inner
-        for inner in "$entry"/*; do
-          base="$(basename "$inner")"
-          if [[ -f "$inner" ]] && [[ "$base" =~ $manifest_regex ]]; then
-            is_sibling_repo=1
-            break
-          fi
-        done
-      fi
-
-      if (( is_sibling_repo )); then
-        sibling_repo_count=$((sibling_repo_count + 1))
-        plain_subdir_count=$((plain_subdir_count + 1))
-        continue
-      fi
-
-      # Not a sibling repo — is it a source dir of THIS folder?
-      if [[ "$name" =~ $source_dir_regex ]]; then
-        has_source_dir=1
-      fi
-
-      plain_subdir_count=$((plain_subdir_count + 1))
-
-    elif [[ -f "$entry" ]]; then
-      if [[ "$name" =~ $ignore_files_regex ]]; then
-        continue
-      fi
-      if [[ "$name" =~ $manifest_regex ]]; then
-        has_manifest=1
-        continue
-      fi
-      if [[ "$name" =~ $code_ext_regex ]]; then
-        has_code=1
-        continue
-      fi
-    fi
-  done
-
-  shopt -u nullglob dotglob
-
-  # If we found code or a manifest or a real source subdir belonging to this
-  # folder, it's a project.
-  if (( has_code )) || (( has_manifest )) || (( has_source_dir )); then
-    echo "project"
-    return
-  fi
-
-  # If every non-ignored subdir is itself a repo AND there are at least 1 of
-  # them, treat it as a strong hub candidate.
-  if (( sibling_repo_count >= 1 )) && (( sibling_repo_count == plain_subdir_count )); then
-    echo "hub-candidate"
-    return
-  fi
-
-  echo "empty"
-}
-
-# -----------------------------------------------------------------------------
-# Commands
-# -----------------------------------------------------------------------------
-
-# skill_description <path-to-SKILL.md>
-# Extracts the 'description' field from a skill's YAML frontmatter, trims it
-# to a short first-sentence summary suitable for one-line display.
-skill_description() {
-  local file="$1"
-  [[ -f "$file" ]] || { echo ""; return; }
-  local desc
-  desc="$(awk '/^description:/ {
-    sub(/^description: *"?/, "");
-    sub(/"$/, "");
-    print; exit
-  }' "$file" 2>/dev/null)"
-  # First sentence only
-  desc="${desc%%. *}"
-  # Trim trailing period
-  desc="${desc%.}"
-  # Truncate if still too long
-  if (( ${#desc} > 64 )); then
-    desc="${desc:0:61}..."
-  fi
-  echo "$desc"
-}
-
-cmd_init() {
-  require_templates
-
-  printf '\n%s%sagentboard init%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
-  printf '%sScaffolds a %s.platform/%s%s context pack + activation prompt.%s\n' \
-    "$C_DIM" "$C_RESET$C_CYAN$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
-
-  local target; target="$(pwd)"
-  printf '%s  target:%s %s%s%s\n' "$C_DIM" "$C_RESET" "$C_CYAN" "$target" "$C_RESET"
-
-  if [[ -d "$target/.platform" ]]; then
-    say
-    warn "$target/.platform already exists."
-    ask_yes_no "Overwrite it? (contents will be deleted)" || die "aborted."
-    rm -rf "$target/.platform"
-  fi
-
-  # -------------------------------------------------------------------------
-  # Empty-folder / hub detection
-  #
-  # If the folder looks empty for agentboard purposes (no code, no manifests,
-  # no source dirs), ask the user whether this is a "platform brains hub"
-  # coordinating sibling repos rather than a single project. If the folder
-  # contains only sibling repos (each with its own .git/ or manifest), treat
-  # that as a strong hub signal and default the prompt to YES.
-  # -------------------------------------------------------------------------
-  local hub_mode=0
-  local folder_kind
-  folder_kind="$(detect_folder_kind "$target")"
-
-  if [[ "$folder_kind" == "hub-candidate" ]]; then
-    head "Platform brains hub detected"
-    printf '  %sThis folder contains only subdirectories that look like their own repos%s\n' "$C_DIM" "$C_RESET"
-    printf '  %s(each has a %s.git/%s%s or its own manifest). That usually means this is a%s\n' "$C_DIM" "$C_BOLD" "$C_RESET$C_DIM" "$C_DIM" "$C_RESET"
-    printf '  %sparent folder holding %s.platform/%s%s for several sibling repos, not a single project.%s\n' "$C_DIM" "$C_BOLD" "$C_RESET$C_DIM" "$C_DIM" "$C_RESET"
-    say
-    if ask_yes_no_default \
-      'Is this a platform brains hub coordinating sibling repos?' \
-      'Y' \
-      'Answering YES configures .platform/repos.md for multi-repo mode and skips the single-project CLAUDE.md stub. Answering NO falls back to the normal project flow.'; then
-      hub_mode=1
-    fi
-  elif [[ "$folder_kind" == "empty" ]]; then
-    head "Empty folder detected"
-    printf '  %sThis folder looks empty (no code files, no manifests, no source subdirectories).%s\n' "$C_DIM" "$C_RESET"
-    say
-    if ask_yes_no_default \
-      'Is this going to be a platform brains hub coordinating sibling repos?' \
-      'N' \
-      'A hub is a parent folder that holds .platform/ for several sibling repos (e.g. backend + frontend + widget), rather than a single codebase. Answer NO if you plan to write code directly in this folder.'; then
-      hub_mode=1
-    fi
-  fi
-
-  head "Project info"
-  if (( hub_mode )); then
-    printf '  %sI will ask 2 quick questions. Press %sEnter%s%s to accept the default in [brackets].%s\n' \
-      "$C_DIM" "$C_BOLD" "$C_RESET$C_DIM" "$C_DIM" "$C_RESET"
-  else
-    printf '  %sI will ask 2 quick questions. Press %sEnter%s%s to accept the default in [brackets].%s\n' \
-      "$C_DIM" "$C_BOLD" "$C_RESET$C_DIM" "$C_DIM" "$C_RESET"
-  fi
-
-  local project_name project_desc
-  project_name="$(ask \
-    'Project name' \
-    "$(basename "$target")" \
-    'Used in the platform pack headers and log entries. The folder name is usually fine.')"
-
-  if (( hub_mode )); then
-    project_desc="$(ask \
-      'Short description (1 sentence)' \
-      'Platform brains hub — coordinates context for sibling repos' \
-      'A brief sentence describing what this hub coordinates — e.g. "Backend + admin + widget for SaaS X", "Mobile app + API + analytics pipeline". The LLM will refine this during activation, so rough is fine. Press Enter to skip.')"
-  else
-    project_desc="$(ask \
-      'Short description (1 sentence)' \
-      'TBD — will be filled during activation' \
-      'A brief sentence describing the project — e.g. "iOS app for meal planning", "Rust CLI for log parsing", "marketing landing page for SaaS X". The LLM will refine this during activation, so rough is fine. Press Enter to skip.')"
-  fi
-
-  head "Scaffolding .platform/"
-  mkdir -p "$target/.platform"
-  cp -R "$TEMPLATES_PLATFORM/." "$target/.platform/"
-  ok "Copied platform skeleton → $C_CYAN$target/.platform/$C_RESET"
-
-  # Hub vs. project: swap in the hub-mode repos.md and ACTIVATE-HUB.md and
-  # remove the single-project variants the hub doesn't use. In project mode,
-  # strip out the hub-only files so they don't confuse the LLM during
-  # activation.
-  if (( hub_mode )); then
-    if [[ -f "$target/.platform/repos.hub.md" ]]; then
-      mv "$target/.platform/repos.hub.md" "$target/.platform/repos.md"
-    fi
-    # Single-project ACTIVATE.md is not used in hub mode — the hub uses
-    # ACTIVATE-HUB.md which scans sibling repo paths instead of this folder.
-    rm -f "$target/.platform/ACTIVATE.md"
-  else
-    rm -f "$target/.platform/repos.hub.md"
-    rm -f "$target/.platform/ACTIVATE-HUB.md"
-  fi
-
-  # Substitute placeholders in the skeletal files
-  for f in \
-    "$target/.platform/ACTIVATE.md" \
-    "$target/.platform/ACTIVATE-HUB.md" \
-    "$target/.platform/STATUS.md" \
-    "$target/.platform/log.md" \
-    "$target/.platform/decisions.md" \
-    "$target/.platform/architecture.md" \
-    "$target/.platform/repos.md" \
-    "$target/.platform/work/ACTIVE.md" \
-    "$target/.platform/work/BRIEF.md"; do
-    [[ -f "$f" ]] || continue
-    substitute "$f" \
-      PROJECT_NAME "$project_name" \
-      DESCRIPTION  "$project_desc" \
-      TODAY        "$(today)"
-  done
-  ok "Substituted project name + description into skeleton files"
-  if (( hub_mode )); then
-    ok "Installed → $C_CYAN$target/.platform/ACTIVATE-HUB.md$C_RESET (the hub-mode activation protocol)"
-  else
-    ok "Installed → $C_CYAN$target/.platform/ACTIVATE.md$C_RESET (the activation protocol)"
-  fi
-
-  # Make sync script executable
-  if [[ -f "$target/.platform/scripts/sync-context.sh" ]]; then
-    chmod +x "$target/.platform/scripts/sync-context.sh"
-  fi
-
-  # Root CLAUDE.md — only written if there's no existing one. Existing files
-  # are NEVER touched by init; the LLM handles them during activation (Step 4
-  # of .platform/ACTIVATE.md) by prepending its section and preserving the
-  # original content underneath.
-  head "Root entry files (CLAUDE.md / AGENTS.md / GEMINI.md)"
-  printf '  %sagentboard %snever%s%s touches existing root entry files during init.%s\n' \
-    "$C_DIM" "$C_BOLD" "$C_RESET$C_DIM" "$C_DIM" "$C_RESET"
-  printf '  %sIf you already have one, the LLM will prepend its section during activation,%s\n' \
-    "$C_DIM" "$C_RESET"
-  printf '  %spreserving every line of your original content. No deletions, no backups.%s\n' \
-    "$C_DIM" "$C_RESET"
-  say
-
-  local existing_any=0
-  local f_name existing_list=""
-  for f_name in CLAUDE.md AGENTS.md GEMINI.md; do
-    if [[ -f "$target/$f_name" ]]; then
-      existing_any=1
-      existing_list="${existing_list:+$existing_list, }$f_name"
-    fi
-  done
-
-  if [[ -f "$target/CLAUDE.md" ]]; then
-    # Prepend a minimal activation notice so the AI reading CLAUDE.md knows
-    # agentboard is installed and what to do. Purely additive — original content
-    # is preserved in full below the notice. Skip if notice already present
-    # (idempotent re-runs).
-    if grep -q "<!-- agentboard installed" "$target/CLAUDE.md" 2>/dev/null; then
-      printf '  %s↷%s Activation notice already present in %s%s/CLAUDE.md%s — skipping\n' \
-        "$C_YELLOW" "$C_RESET" "$C_CYAN" "$target" "$C_RESET"
-    else
-      local ab_notice
-      ab_notice="$(cat <<NOTICE
-<!-- agentboard installed $(today) -->
-> **agentboard is installed** in \`.platform/\`. When the user says "activate this project" (or "fill in the platform pack", "run agentboard activation"), read \`.platform/ACTIVATE.md\` and follow its 6-step protocol. It covers scanning the project, interviewing the user, filling \`.platform/\`, and prepending a steady-state section to this file (without deleting any existing content).
-
----
-
-NOTICE
-)"
-      local original_content
-      original_content="$(cat "$target/CLAUDE.md")"
-      printf '%s%s' "$ab_notice" "$original_content" > "$target/CLAUDE.md"
-      printf '  %s↷%s Prepended activation notice → %s%s/CLAUDE.md%s (original content preserved below)\n' \
-        "$C_YELLOW" "$C_RESET" "$C_CYAN" "$target" "$C_RESET"
-    fi
-  else
-    # Hub mode uses a specialized "platform brains hub" stub pointing at
-    # ACTIVATE-HUB.md. Single-project mode uses the normal stub pointing at
-    # ACTIVATE.md.
-    local root_template=""
-    local root_activate_ref=""
-    if (( hub_mode )); then
-      if [[ -f "$TEMPLATES_ROOT/CLAUDE.md.hub.template" ]]; then
-        root_template="$TEMPLATES_ROOT/CLAUDE.md.hub.template"
-        root_activate_ref=".platform/ACTIVATE-HUB.md"
-      fi
-    else
-      if [[ -f "$TEMPLATES_ROOT/CLAUDE.md.template" ]]; then
-        root_template="$TEMPLATES_ROOT/CLAUDE.md.template"
-        root_activate_ref=".platform/ACTIVATE.md"
-      fi
-    fi
-    if [[ -n "$root_template" ]]; then
-      cp "$root_template" "$target/CLAUDE.md"
-      substitute "$target/CLAUDE.md" \
-        PROJECT_NAME "$project_name" \
-        DESCRIPTION  "$project_desc" \
-        TODAY        "$(today)"
-      if (( hub_mode )); then
-        ok "Wrote → $C_CYAN$target/CLAUDE.md$C_RESET (hub stub pointing at $root_activate_ref)"
-      else
-        ok "Wrote → $C_CYAN$target/CLAUDE.md$C_RESET (short stub pointing at $root_activate_ref)"
-      fi
-    fi
-  fi
-
-  for f_name in AGENTS.md GEMINI.md; do
-    if [[ -f "$target/$f_name" ]]; then
-      printf '  %s↷%s Kept existing %s%s/%s%s (will be merged during activation)\n' \
-        "$C_YELLOW" "$C_RESET" "$C_CYAN" "$target" "$f_name" "$C_RESET"
-    fi
-  done
-
-  # Install skills additively — never overwrite existing skills
-  head "Installing skills (.claude/skills/)"
-  printf '  %sAdditive install — any pre-existing skill with the same name is left untouched.%s\n' "$C_DIM" "$C_RESET"
-  say
-  if [[ -d "$TEMPLATES_SKILLS" ]]; then
-    local skills_target="$target/.claude/skills"
-    mkdir -p "$skills_target"
-    local installed=0 skipped=0 skill_name skill_desc
-    for skill_dir in "$TEMPLATES_SKILLS"/*/; do
-      skill_name="$(basename "$skill_dir")"
-      skill_desc="$(skill_description "$skill_dir/SKILL.md")"
-      if [[ -e "$skills_target/$skill_name" ]]; then
-        skipped=$((skipped + 1))
-        printf '    %s↷%s %s%-16s%s %s%s%s\n' \
-          "$C_YELLOW" "$C_RESET" "$C_BOLD" "$skill_name" "$C_RESET" \
-          "$C_DIM" "(exists — kept)" "$C_RESET"
-      else
-        cp -R "$skill_dir" "$skills_target/$skill_name"
-        installed=$((installed + 1))
-        printf '    %s+%s %s%-16s%s %s%s%s\n' \
-          "$C_GREEN" "$C_RESET" "$C_BOLD" "$skill_name" "$C_RESET" \
-          "$C_DIM" "$skill_desc" "$C_RESET"
-      fi
+  printf '\n'
+  for (( row=0; row<=5; row++ )); do
+    printf '  '
+    for (( li=0; li<10; li++ )); do
+      _clr="${_colors[$li]}"
+      read -ra _rows <<< "${_letters[$li]}"
+      for (( col=0; col<6; col++ )); do
+        main_px=0
+        [[ $row -lt 5 && $col -lt 5 ]] && main_px="${_rows[$row]:$col:1}"
+        shad_px=0; sr=$(( row-1 )); sc=$(( col-1 ))
+        [[ $sr -ge 0 && $sr -lt 5 && $sc -ge 0 && $sc -lt 5 ]] && shad_px="${_rows[$sr]:$sc:1}"
+        if   [[ "$main_px" == "1" ]]; then printf '\033[38;5;%dm▀\033[0m' "$_clr"
+        elif [[ "$shad_px" == "1" ]]; then printf '\033[38;5;%dm░\033[0m' "$SHADOW"
+        else printf ' '; fi
+      done
+      printf ' '
     done
-    say
-    ok "Skills: $C_BOLD$installed installed$C_RESET, $skipped skipped (existing never overridden)"
-  fi
-
-  say
-  if (( hub_mode )); then
-    printf '%s%s━━━ Platform brains hub initialized ━━━%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
-    printf '  1. Edit %s.platform/repos.md%s and list each sibling repo %s(path, stack, deep-reference file)%s.\n' \
-      "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
-    printf '     %sOr run %sagentboard add-repo <path>%s%s from this hub for each sibling to scaffold its entry files.%s\n' \
-      "$C_DIM" "$C_BOLD" "$C_RESET$C_DIM" "$C_DIM" "$C_RESET"
-    printf '  2. Open this hub in your AI CLI %s(Claude Code / Codex CLI / Gemini CLI)%s\n' "$C_DIM" "$C_RESET"
-    printf '  3. Say: %s%s"activate this project"%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
-    printf '  4. The LLM will read %s.platform/ACTIVATE-HUB.md%s, %sscan each sibling repo%s,\n' \
-      "$C_CYAN" "$C_RESET" "$C_BOLD" "$C_RESET"
-    printf '     %sask 5–8 targeted questions%s, and fill in %s.platform/%s based on what it finds.\n' \
-      "$C_BOLD" "$C_RESET" "$C_CYAN" "$C_RESET"
-    if [[ $existing_any -eq 1 ]]; then
-      printf '  5. Your existing %s%s%s will be %spreserved%s — the LLM prepends its section to the top.\n' \
-        "$C_CYAN" "$existing_list" "$C_RESET" "$C_BOLD" "$C_RESET"
-    fi
-    say
-    dim "  This is a hub, not a code repo. The LLM will scan sibling repo paths, not this folder."
-    say
-  else
-    printf '%s%s━━━ Next step: activate ━━━%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
-    printf '  1. Open this project in your AI CLI %s(Claude Code / Codex CLI / Gemini CLI)%s\n' "$C_DIM" "$C_RESET"
-    printf '  2. Say: %s%s"activate this project"%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
-    printf '  3. The LLM will read %s.platform/ACTIVATE.md%s, %sscan%s your codebase,\n' "$C_CYAN" "$C_RESET" "$C_BOLD" "$C_RESET"
-    printf '     %sask 5–8 targeted questions%s, and fill in %s.platform/%s based on what it finds.\n' "$C_BOLD" "$C_RESET" "$C_CYAN" "$C_RESET"
-    if [[ $existing_any -eq 1 ]]; then
-      printf '  4. Your existing %s%s%s will be %spreserved%s — the LLM prepends its section to the top.\n' \
-        "$C_CYAN" "$existing_list" "$C_RESET" "$C_BOLD" "$C_RESET"
-    else
-      printf '  4. When activation finishes, %sCLAUDE.md%s becomes a lean steady-state entry point,\n' "$C_CYAN" "$C_RESET"
-      printf '     and %sAGENTS.md%s + %sGEMINI.md%s get generated by sync-context.sh.\n' "$C_CYAN" "$C_RESET" "$C_CYAN" "$C_RESET"
-    fi
-    say
-    dim "  No stack picking. No assumptions. No deletions. The LLM decides based on your actual code."
-    say
-  fi
-}
-
-cmd_sync() {
-  local script="./.platform/scripts/sync-context.sh"
-  [[ -x "$script" ]] || die "$script not found or not executable. Run 'agentboard init' first."
-  "$script" "$@"
-}
-
-cmd_claim() {
-  local active="./.platform/sessions/ACTIVE.md"
-  [[ -f "$active" ]] || die "$active not found. This project may be single-repo (no ACTIVE.md needed)."
-  local task="${1:-}"
-  [[ -n "$task" ]] || die "Usage: agentboard claim \"<task summary>\""
-  local agent="${AGENTBOARD_AGENT:-$USER@$(hostname -s)}"
-  local ts; ts="$(date '+%Y-%m-%d %H:%M')"
-  local repo; repo="$(basename "$(pwd)")"
-  local row="| $ts | $agent | $repo | — | $task | ~30min | active |"
-  printf '%s\n' "$row" >> "$active"
-  ok "Claimed: $task"
-}
-
-cmd_release() {
-  local active="./.platform/sessions/ACTIVE.md"
-  [[ -f "$active" ]] || die "$active not found."
-  local agent="${AGENTBOARD_AGENT:-$USER@$(hostname -s)}"
-  local tmp; tmp="$(mktemp)"
-  grep -v "| $agent |" "$active" > "$tmp" || true
-  mv "$tmp" "$active"
-  ok "Released all claims for $agent"
-}
-
-cmd_log() {
-  local log="./.platform/log.md"
-  [[ -f "$log" ]] || die "$log not found. Run 'agentboard init' first."
-  local line="${1:-}"
-  [[ -n "$line" ]] || die "Usage: agentboard log \"<one line summary>\""
-  local today_str; today_str="$(today)"
-  local tmp; tmp="$(mktemp)"
-  awk -v new="${today_str} — ${line}" '
-    /^---$/ && !inserted { print; print ""; print new; inserted=1; next }
-    { print }
-  ' "$log" > "$tmp"
-  mv "$tmp" "$log"
-  ok "Logged: $line"
-}
-
-cmd_status() {
-  local status="./.platform/STATUS.md"
-  [[ -f "$status" ]] || die "$status not found. Run 'agentboard init' first."
-  cat "$status"
-}
-
-cmd_add_repo() {
-  local template_dir="./.platform/templates/repo"
-  [[ -d "$template_dir" ]] || die "$template_dir not found. add-repo requires a multi-repo project."
-  local repo_path="${1:-}"
-  [[ -n "$repo_path" ]] || die "Usage: agentboard add-repo <path-to-repo>"
-  [[ -d "$repo_path" ]] || die "$repo_path does not exist"
-
-  say "See .platform/templates/repo/ADDING-A-REPO.md for the full runbook."
-  say "Copying entry file templates to $repo_path..."
-  cp "$template_dir/CLAUDE.md.template" "$repo_path/CLAUDE.md"
-  cp "$template_dir/AGENTS.md.template" "$repo_path/AGENTS.md"
-  cp "$template_dir/GEMINI.md.template" "$repo_path/GEMINI.md"
-  ok "Copied CLAUDE.md / AGENTS.md / GEMINI.md to $repo_path"
-  say "Now fill in the placeholders and add the repo path to .platform/scripts/sync-context.sh REPOS=() array."
-  say "Or: tell your LLM 'onboard this new repo into the platform' and let it do the fill pass."
-}
-
-cmd_update() {
-  local dry_run=0
-  for arg in "$@"; do
-    [[ "$arg" == "--dry-run" ]] && dry_run=1
+    printf '\n'
   done
 
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
-  require_templates
-
-  printf '\n%s%sagentboard update%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
-  if (( dry_run )); then
-    printf '%s  Dry-run mode — no files will be changed.%s\n' "$C_DIM" "$C_RESET"
-  fi
-  say
-
-  local updated=0 added=0 skipped=0
-
-  # -------------------------------------------------------------------------
-  # PROCESS FILES — always replace with latest template version.
-  # These contain only workflow/process instructions — zero project-specific
-  # data. Safe to overwrite on every update.
-  # -------------------------------------------------------------------------
-  head "Process files (replace with latest)"
-
-  local pf
-  for pf in \
-    "workflow.md" \
-    "ONBOARDING.md" \
-    "ACTIVATE.md" \
-    "ACTIVATE-HUB.md" \
-    "work/TEMPLATE.md"; do
-    local src="$TEMPLATES_PLATFORM/$pf"
-    local dst="./.platform/$pf"
-    [[ -f "$src" ]] || continue  # template doesn't have this file
-    [[ -f "$dst" ]] || continue  # project doesn't have this file (e.g. hub-only)
-    if (( dry_run )); then
-      printf '  %s~%s %s\n' "$C_YELLOW" "$C_RESET" "$pf"
-    else
-      mkdir -p "$(dirname "$dst")"
-      cp "$src" "$dst"
-      printf '  %s↻%s %s%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$pf" "$C_RESET"
-    fi
-    updated=$((updated + 1))
-  done
-
-  # conventions/*.md
-  if [[ -d "$TEMPLATES_PLATFORM/conventions" ]]; then
-    local csrc
-    for csrc in "$TEMPLATES_PLATFORM/conventions"/*.md; do
-      local cfname; cfname="$(basename "$csrc")"
-      local cdst="./.platform/conventions/$cfname"
-      [[ -f "$cdst" ]] || continue  # project doesn't have this convention file
-      if (( dry_run )); then
-        printf '  %s~%s conventions/%s\n' "$C_YELLOW" "$C_RESET" "$cfname"
-      else
-        cp "$csrc" "$cdst"
-        printf '  %s↻%s %sconventions/%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$cfname" "$C_RESET"
-      fi
-      updated=$((updated + 1))
-    done
-  fi
-
-  # scripts/sync-context.sh
-  local sc_src="$TEMPLATES_PLATFORM/scripts/sync-context.sh"
-  local sc_dst="./.platform/scripts/sync-context.sh"
-  if [[ -f "$sc_src" ]] && [[ -f "$sc_dst" ]]; then
-    if (( dry_run )); then
-      printf '  %s~%s scripts/sync-context.sh\n' "$C_YELLOW" "$C_RESET"
-    else
-      cp "$sc_src" "$sc_dst"
-      chmod +x "$sc_dst"
-      printf '  %s↻%s %sscripts/sync-context.sh%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET"
-    fi
-    updated=$((updated + 1))
-  fi
-
-  # -------------------------------------------------------------------------
-  # ADD-IF-MISSING FILES — copy from template only if the project doesn't
-  # have them yet. These may accumulate project-specific entries over time
-  # (L-001, L-002, backlog items), so existing files are never overwritten.
-  # -------------------------------------------------------------------------
-  head "New files (add if missing)"
-
-  local af
-  for af in "learnings.md" "BACKLOG.md"; do
-    local src="$TEMPLATES_PLATFORM/$af"
-    local dst="./.platform/$af"
-    [[ -f "$src" ]] || continue
-    if [[ -f "$dst" ]]; then
-      printf '  %s↷%s %s%s%s  %s(exists — kept as-is)%s\n' \
-        "$C_YELLOW" "$C_RESET" "$C_CYAN" "$af" "$C_RESET" "$C_DIM" "$C_RESET"
-      skipped=$((skipped + 1))
-    else
-      if (( dry_run )); then
-        printf '  %s+%s %s  %s(would add)%s\n' "$C_GREEN" "$C_RESET" "$af" "$C_DIM" "$C_RESET"
-      else
-        cp "$src" "$dst"
-        printf '  %s+%s %s%s%s  %s(new)%s\n' \
-          "$C_GREEN" "$C_RESET" "$C_CYAN" "$af" "$C_RESET" "$C_DIM" "$C_RESET"
-      fi
-      added=$((added + 1))
-    fi
-  done
-
-  # -------------------------------------------------------------------------
-  # Summary
-  # -------------------------------------------------------------------------
-  say
-  if (( dry_run )); then
-    printf '%s%s━━━ Dry-run complete ━━━%s\n' "$C_BOLD" "$C_YELLOW" "$C_RESET"
-    printf '  Would update %s%d%s, add %s%d%s, keep %s%d%s\n' \
-      "$C_BOLD" "$updated" "$C_RESET" \
-      "$C_BOLD" "$added"   "$C_RESET" \
-      "$C_BOLD" "$skipped" "$C_RESET"
-    say
-    printf '  %sRun without --dry-run to apply.%s\n' "$C_DIM" "$C_RESET"
-  else
-    printf '%s%s━━━ Update complete ━━━%s\n' "$C_BOLD" "$C_GREEN" "$C_RESET"
-    printf '  %s↻%s updated: %s%d%s   %s+%s added: %s%d%s   %s↷%s kept: %s%d%s\n' \
-      "$C_GREEN" "$C_RESET" "$C_BOLD" "$updated" "$C_RESET" \
-      "$C_GREEN" "$C_RESET" "$C_BOLD" "$added"   "$C_RESET" \
-      "$C_YELLOW" "$C_RESET" "$C_BOLD" "$skipped" "$C_RESET"
-    say
-    printf '  %sNever touched:%s architecture.md, decisions.md, log.md, STATUS*.md,\n' "$C_DIM" "$C_RESET"
-    printf '  %s              repos.md, work/ACTIVE.md, work/BRIEF.md, work/*.md, domains/*.md%s\n' "$C_DIM" "$C_RESET"
-  fi
-  say
-}
-
-cmd_version() { say "agentboard $VERSION"; }
-
-cmd_help() {
-  cat <<'EOF'
-agentboard — AI agent context kit
-
-Bootstraps a .platform/ context pack into any project so that Claude Code,
-Codex CLI, and Gemini CLI are instantly productive.
-
-USAGE
-  agentboard <command> [args]
-
-COMMANDS
-  init                       Scaffold a .platform/ pack in the current directory.
-                             After init, open the project in an AI CLI and say
-                             "activate this project" — the LLM scans your code
-                             and fills in the context pack based on what it finds.
-
-  update [--dry-run]         Update process files to the latest agentboard version.
-                             Replaces: workflow.md, ONBOARDING.md, ACTIVATE.md,
-                               conventions/*.md, scripts/sync-context.sh
-                             Adds if missing: learnings.md, BACKLOG.md
-                             Never touches: architecture.md, decisions.md, log.md,
-                               STATUS*.md, repos.md, work/*, domains/*
-
-  sync [--apply|--list]      Sync AGENTS.md + GEMINI.md from CLAUDE.md (default: check)
-  claim "<task>"             Add a row to .platform/sessions/ACTIVE.md
-  release                    Remove your rows from .platform/sessions/ACTIVE.md
-  log "<one line>"           Append a timestamped line to .platform/log.md
-  status                     Print .platform/STATUS.md to stdout
-  add-repo <path>            Copy per-repo entry file templates to a new repo
-  version                    Print version
-  help                       Show this help
-
-ENV
-  AGENTBOARD_AGENT           Agent name used in claim/release (default: $USER@$HOSTNAME)
-
-PHILOSOPHY
-  No stack pre-picking. No assumptions. The LLM decides what conventions to
-  write based on your actual codebase during activation.
-EOF
+  printf '\n%s  AI agent context kit — v%s%s\n\n' "$C_DIM" "$VERSION" "$C_RESET"
 }
 
 # -----------------------------------------------------------------------------
@@ -780,11 +82,21 @@ EOF
 
 main() {
   local cmd="${1:-help}"
+  print_banner
   shift || true
   case "$cmd" in
+    install)     cmd_install "$@" ;;
     init)        cmd_init "$@" ;;
     update)      cmd_update "$@" ;;
     sync)        cmd_sync "$@" ;;
+    bootstrap)   cmd_bootstrap "$@" ;;
+    migrate)     cmd_migrate "$@" ;;
+    brief-upgrade) cmd_brief_upgrade "$@" ;;
+    doctor)      cmd_doctor "$@" ;;
+    new-domain)  cmd_new_domain "$@" ;;
+    new-stream)  cmd_new_stream "$@" ;;
+    resolve)     cmd_resolve "$@" ;;
+    handoff)     cmd_handoff "$@" ;;
     claim)       cmd_claim "$@" ;;
     release)     cmd_release "$@" ;;
     log)         cmd_log "$@" ;;
@@ -796,4 +108,6 @@ main() {
   esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

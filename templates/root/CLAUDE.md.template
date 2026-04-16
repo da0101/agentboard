@@ -42,7 +42,7 @@ When the user gives a task not already tracked in `ACTIVE.md`, **stop and comple
 
 > **Non-negotiable.** Skipping this means context is lost when the session ends. Applies to Claude Code, Codex CLI, and Gemini CLI equally. Trivial single-file fixes are the only exception.
 
-See `.platform/conventions/work-tracking.md` for the full protocol.
+See `.platform/agents/work-tracking.md` for the full protocol.
 
 ## Reference pack
 
@@ -54,23 +54,47 @@ See `.platform/conventions/work-tracking.md` for the full protocol.
 - `.platform/learnings.md` — bug post-mortems + hard-won patterns (L-NNN); **grep here first before diagnosing non-obvious bugs** — never auto-load, append in Stage 6 when root cause was non-obvious
 - `.platform/scripts/sync-context.sh` — keeps root entry files in sync (use carefully — see `ACTIVATE.md` Step 5)
 
+## Mandatory Protocol — Stream Audit / Analysis
+
+Whenever the user asks to audit, analyze, or check the state of a stream or its implementation (e.g. "audit the stream", "analyze what we've done on X", "check the state of \<feature\>", or references a `work/*.md` file explicitly), you MUST:
+
+1. **Read `.platform/workflow.md` first** — before touching any agent results or synthesizing anything.
+2. **Follow the Stream / Feature Analysis Protocol exactly** as written there — no shortcuts, no partial synthesis before all agents finish, no skipping the standardized template or the stream-file anchor step.
+
+This applies even when resuming after context compaction. A compressed context summary is NOT a substitute for reading the protocol spec.
+
+## Stream Closure — Human Approval Required
+
+**Only the human/owner declares a stream complete.** You never self-declare completion. You may say "I believe this is done — here is the evidence" and propose closure, but the final decision belongs to the developer. No exceptions.
+
+**Before running Steps 7–9 of the Stream Closure Protocol** (archiving the stream file, removing from ACTIVE.md, appending to log.md), you MUST:
+1. Present evidence of completion to the user.
+2. Wait for explicit human sign-off.
+3. Verify the stream file has `closure_approved: true` before archiving.
+
+**Enforcement:** Claude Code enforces this mechanically via `platform-closure-gate.js` (PreToolUse hook — blocks any edit to `ACTIVE.md` that removes a stream row without `closure_approved: true` in the stream file). Codex CLI and Gemini CLI have no hook system — this rule must be followed through instruction discipline alone. The absence of a mechanical gate does not make it optional.
+
+Full protocol: `.platform/workflow.md` → "Stream Closure Protocol".
+
 ## Subagent Model Assignment (Claude Code only)
 
-Before every `Task` tool dispatch, print a manifest line in chat:
+Before every `Task` tool dispatch, print a manifest block in chat:
 
-```
-Dispatching N agent(s): <Name> [<model>] — <purpose>; ...
-```
+> **⚡ Dispatching N agent(s)**
+>
+> | Agent | Model | Task |
+> |---|---|---|
+> | **Name** | 🔵 `sonnet` | purpose |
 
-Pass `model` explicitly on every `Task` call — never omit it (omitting inherits Opus and wastes tokens).
+Model emoji: 🔵 `sonnet` · 🟣 `opus` · 🟡 `haiku`. Pass `model` explicitly on every `Task` call — never omit it (omitting inherits Opus and wastes tokens).
 
 | Work type | Model |
 |---|---|
-| Research, audit, exploration, doc writing, code review, test writing, security audit | **`sonnet`** |
-| Code implementation, hard architectural decisions, executors handling deviations | **`opus`** |
-| Mechanical / trivial narrow operations | **`haiku`** |
+| Research, audit, exploration, doc writing, code review, test writing, security audit | 🔵 **`sonnet`** |
+| Code implementation, hard architectural decisions, executors handling deviations | 🟣 **`opus`** |
+| Mechanical / trivial narrow operations | 🟡 **`haiku`** |
 
-Name agents with a persona — e.g., "Max the Mapper [sonnet]", "Kai the Coder [opus]". Full rule: `.platform/conventions/subagent-dispatch.md`.
+Name agents with a persona — e.g., "Max the Mapper", "Kai the Coder". Full rule: `.platform/agents/subagent-dispatch.md`.
 
 ## Skills available to you
 
