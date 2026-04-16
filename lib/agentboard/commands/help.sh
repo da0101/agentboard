@@ -42,9 +42,13 @@ COMMANDS
   add-repo <path>            Copy per-repo entry file templates to a new repo
                              Refuses to overwrite existing entry files.
   usage [subcommand]         Track token consumption across all projects (SQLite).
-                             Subcommands: summary (default) | log | history | optimize
+                             Subcommands: summary (default) | log | stream <slug>
+                                          | history | optimize
                              Log: --provider <name> --input <N> --output <N>
-                               [--model <M>] [--stream <S>] [--repo <R>] [--type <T>]
+                               [--model <M>] [--stream <S>] [--repo <R>]
+                               [--type <T>] [--note <text>]
+                             One log entry = one context segment. Log at every
+                             context clear, provider switch, or stream closure.
   version                    Print version
   help                       Show this help
 
