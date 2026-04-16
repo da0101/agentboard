@@ -39,7 +39,21 @@ test_activation_rules_list_includes_marker_invariant() {
     || fail "ACTIVATE-HUB.md activation rules do not encode the marker invariant"
 }
 
+test_step6_mandates_doctor_gate() {
+  [[ -f "$ACTIVATE_SINGLE" ]] || fail "$ACTIVATE_SINGLE missing"
+  [[ -f "$ACTIVATE_HUB" ]] || fail "$ACTIVATE_HUB missing"
+  grep -q "agentboard doctor" "$ACTIVATE_SINGLE" \
+    || fail "ACTIVATE.md Step 6 does not mandate running agentboard doctor"
+  grep -q "errors > 0" "$ACTIVATE_SINGLE" \
+    || fail "ACTIVATE.md Step 6 does not gate on doctor errors"
+  grep -q "agentboard doctor" "$ACTIVATE_HUB" \
+    || fail "ACTIVATE-HUB.md Step 6 does not mandate running agentboard doctor"
+  grep -q "errors > 0" "$ACTIVATE_HUB" \
+    || fail "ACTIVATE-HUB.md Step 6 does not gate on doctor errors"
+}
+
 test_single_activation_documents_marker_contract
 test_single_activation_step5_references_marker_contract
 test_hub_activation_documents_marker_contract
 test_activation_rules_list_includes_marker_invariant
+test_step6_mandates_doctor_gate

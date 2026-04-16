@@ -49,6 +49,8 @@ agentboard resolve <stream-slug|domain-slug|repo-id>
 agentboard handoff [stream-slug]     # load order + branch hint for next agent
 agentboard progress <slug> [--base <b>] [--note "<text>"] [--dry-run]
                                      # append git diff --stat to stream's Progress log
+agentboard tui [--status <s>] [--owner <n>] [--repo <id>] [--sort <c>] [--watch <s>]
+                                     # read-only dashboard of work/ACTIVE.md + branches
 ```
 
 ---
