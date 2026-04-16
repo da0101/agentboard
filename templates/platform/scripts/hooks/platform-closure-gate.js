@@ -11,6 +11,18 @@
 const fs = require('fs');
 const path = require('path');
 
+function extractSection(content, heading) {
+  const lines = content.split(/\r?\n/);
+  const start = lines.findIndex(line => line.trim() === heading);
+  if (start === -1) return '';
+  const collected = [];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^##\s+/.test(lines[i])) break;
+    collected.push(lines[i]);
+  }
+  return collected.join('\n');
+}
+
 let input = '';
 const stdinTimeout = setTimeout(() => process.exit(0), 3000);
 process.stdin.setEncoding('utf8');
@@ -66,6 +78,8 @@ process.stdin.on('end', () => {
       const approved =
         /\*\*closure_approved:\*\*\s*true/i.test(content) ||
         /^closure_approved:\s*true/im.test(content);
+      const doneCriteria = extractSection(content, '## Done criteria');
+      const hasUncheckedDoneCriteria = /-\s*\[\s\]/.test(doneCriteria);
 
       if (!approved) {
         const output = {
@@ -79,6 +93,23 @@ process.stdin.on('end', () => {
             `  3. Set closure_approved: true in work/${slug}.md\n` +
             `  4. Then re-attempt this ACTIVE.md change\n\n` +
             `Rule: only the human/owner declares a stream complete. No exceptions.`,
+        };
+        process.stdout.write(JSON.stringify(output));
+        process.exit(2);
+      }
+
+      if (hasUncheckedDoneCriteria) {
+        const output = {
+          decision: 'block',
+          reason:
+            `⛔ STREAM CLOSURE BLOCKED — "${slug}"\n\n` +
+            `Unchecked done criteria remain in .platform/work/${slug}.md\n\n` +
+            `To close this stream:\n` +
+            `  1. Finish every item in ## Done criteria\n` +
+            `  2. Complete manual QA / verification\n` +
+            `  3. Get explicit human sign-off\n` +
+            `  4. Then re-attempt this ACTIVE.md change\n\n` +
+            `Rule: streams do not close while checklist items are still open.`,
         };
         process.stdout.write(JSON.stringify(output));
         process.exit(2);
