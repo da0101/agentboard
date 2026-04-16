@@ -167,14 +167,23 @@ Replace the content between the markers in place, same rule as Step 4 Case C. Ev
 
 **If the user has multi-repo**, also tell them to edit `./.platform/scripts/sync-context.sh` `REPOS=()` array. The sync script is safe to run later for **newly-generated** (agentboard-written) entry files in sibling repos, but never for files the user authored.
 
-## Step 6 — Confirm
+## Step 6 — Run `agentboard doctor`, then confirm
 
-Show the user a summary:
+Before declaring activation done, run:
+
+```bash
+agentboard doctor
+```
+
+`doctor` re-checks the frontmatter on every stream and domain file you wrote, validates the cross-references in `work/ACTIVE.md` and `work/BRIEF.md`, and (in hub mode) verifies every row of `repos.md` resolves to a real path. **If `doctor` reports `errors > 0`, fix them before showing the summary** — silent missing keys are exactly what this gate exists to prevent.
+
+Once `doctor` passes (warnings are fine — explain them in the summary), show the user a summary:
 - What you filled in (`.platform/*.md` files)
 - What you intentionally left as placeholders for them to complete (e.g., "release blocklist has 3 empty rows — tell me what blocks launch")
 - Which root files you touched and how (`CLAUDE.md` written / merged / skipped; same for `AGENTS.md`, `GEMINI.md`)
 - That `work/BRIEF.md` is in place — filled if a current feature was mentioned, skeleton if not
 - That `work/ACTIVE.md` is in place and empty — ready to track the first workstream
+- The `agentboard doctor` summary line (errors / warnings)
 - What you'd recommend as the next task
 
 Then ask: "Does this look right, or should I revise any section?"

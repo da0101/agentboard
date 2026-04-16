@@ -32,6 +32,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/session.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/doctor.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/progress.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/tui.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/system_setup.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/update.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage.sh"
@@ -110,6 +111,7 @@ main() {
     resolve)     cmd_resolve "$@" ;;
     handoff)     cmd_handoff "$@" ;;
     progress)    cmd_progress "$@" ;;
+    tui)         cmd_tui "$@" ;;
     claim)       cmd_claim "$@" ;;
     release)     cmd_release "$@" ;;
     log)         cmd_log "$@" ;;

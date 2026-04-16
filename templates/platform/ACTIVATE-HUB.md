@@ -151,12 +151,21 @@ Use `agentboard add-repo <path-to-sibling>` to scaffold those stubs from `.platf
 
 If a sibling repo already has an existing `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`, **prepend, don't delete** — same rule as Step 4, including the marker contract. Wrap the user's original content under a preservation heading beneath the `<!-- agentboard:root-entry:end v=1 -->` marker.
 
-## Step 6 — Confirm
+## Step 6 — Run `agentboard doctor`, then confirm
 
-Show the user a summary:
+Before declaring activation done, run:
+
+```bash
+agentboard doctor
+```
+
+In hub mode, `doctor` re-checks the frontmatter on every stream and domain file, validates `work/ACTIVE.md` cross-references, and verifies every row of `.platform/repos.md` resolves to a real sibling path with a deep-reference file. **If `doctor` reports `errors > 0`, fix them before showing the summary** — silent missing keys or unresolved repo paths are exactly what this gate exists to prevent.
+
+Once `doctor` passes (warnings are fine — explain them in the summary), show the user a summary:
 - What you filled in (`.platform/*.md` files and per-repo deep reference files)
 - What you intentionally left as placeholders for them to complete
 - Which root files you touched and how (`CLAUDE.md` written / merged / skipped at the hub; same for each sibling repo's entry files)
+- The `agentboard doctor` summary line (errors / warnings)
 - What you'd recommend as the next task
 
 Then ask: "Does this look right, or should I revise any section?"

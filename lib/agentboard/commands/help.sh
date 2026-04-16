@@ -50,6 +50,13 @@ COMMANDS
                              --base <branch>   override recorded base branch
                              --note "<text>"   one-line note to attach
                              --dry-run         print block instead of writing
+  tui                        Read-only dashboard rendering work/ACTIVE.md
+                             plus per-stream branch info. Flags:
+                             --status <s>      filter by status
+                             --owner <name>    filter by agent owner
+                             --repo <id>       filter by stream repo_id
+                             --sort <col>      slug|type|status|owner|updated|branch
+                             --watch <secs>    redraw every N seconds
   claim "<task>"             Add a row to .platform/sessions/ACTIVE.md
   release                    Remove your rows from .platform/sessions/ACTIVE.md
   log "<one line>"           Append a timestamped line to .platform/log.md
