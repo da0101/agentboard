@@ -76,24 +76,40 @@ Based on scan + interview, generate these files. Write them one at a time, then 
 
 Check whether `CLAUDE.md` already exists at the project root.
 
+**Idempotency contract (read this before writing anything).** Agentboard-generated content lives between two HTML-comment markers so a future re-activation can replace the section in place instead of stacking duplicates or corrupting the user's original text:
+
+```
+<!-- agentboard:root-entry:begin v=1 -->
+... the entire Agentboard steady-state section goes here ...
+<!-- agentboard:root-entry:end v=1 -->
+```
+
+Every file you write in this step and Step 5 (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) must start with `<!-- agentboard:root-entry:begin v=1 -->` and the Agentboard section must end with `<!-- agentboard:root-entry:end v=1 -->` before any preserved user content. The markers are the contract — do not rename, reformat, or remove them.
+
 ### Case A — No existing `CLAUDE.md` (or it's the agentboard activation stub)
 
-The agentboard stub is safe to fully replace — it's clearly marked with `# {{PROJECT_NAME}} — NOT YET ACTIVATED` at the top and a note at the bottom saying it'll be replaced after activation. Write a fresh steady-state file using the structure below.
+The agentboard stub is safe to fully replace — it's clearly marked with `# {{PROJECT_NAME}} — NOT YET ACTIVATED` at the top and a note at the bottom saying it'll be replaced after activation. Write a fresh steady-state file using the structure below, wrapped in the begin/end markers. Nothing should come after the end marker.
 
-### Case B — The user has an existing `CLAUDE.md` that is NOT the agentboard stub
+### Case B — The user has an existing `CLAUDE.md` with NO Agentboard markers
 
-**Prepend, don't delete.** The rule: add your agentboard section to the **top** of the file, leave every line of the user's original content intact below it.
+**Prepend, don't delete.** The rule: add your agentboard section (wrapped in markers) to the **top** of the file, leave every line of the user's original content intact below the end marker.
 
 Concretely:
 1. Read the user's existing `CLAUDE.md` in full.
 2. Build your agentboard section using the structure in "Steady-state structure" below.
-3. Write the new file as: `<your agentboard section>` + `\n\n---\n\n## Existing CLAUDE.md content (preserved by agentboard activation on {{TODAY}})\n\n` + `<original content>`.
+3. Write the new file as: `<!-- agentboard:root-entry:begin v=1 -->\n<your agentboard section>\n<!-- agentboard:root-entry:end v=1 -->\n\n---\n\n## Existing CLAUDE.md content (preserved by agentboard activation on {{TODAY}})\n\n` + `<original content>`.
 4. Show the user a 5-line summary of what you prepended before writing.
 5. If any of the existing content clearly contradicts your new section (e.g., their file says "always use framework X" but the scan found framework Y), flag it in chat and ask how to reconcile — **do not edit their words**.
 
-No backup file needed — the original content is still there, just pushed below your new section.
+### Case C — Re-activation: the file already contains Agentboard markers
 
-### Steady-state structure to prepend (target ~80 lines)
+Replace the content **between** `<!-- agentboard:root-entry:begin v=1 -->` and `<!-- agentboard:root-entry:end v=1 -->` with the freshly generated section. Everything after the end marker (including the preserved user content from an earlier activation, or their own edits below the end marker) must be left exactly as-is, byte for byte.
+
+Do **not** append a second `## Existing CLAUDE.md content` header — that block was already added on the first activation. Do **not** delete the end marker, or the invariant breaks for the next re-activation.
+
+No backup file needed — the markers make the operation reversible via `git diff`.
+
+### Steady-state structure to write between the markers (target ~80 lines)
 
 ```markdown
 # {{PROJECT_NAME}}
@@ -121,9 +137,11 @@ No backup file needed — the original content is still there, just pushed below
 
 Do **not** bloat it. Agents re-read this on every session — keep the prepended section lean.
 
-## Step 5 — Sync to `AGENTS.md` and `GEMINI.md` **(same prepend-don't-delete rule)**
+## Step 5 — Sync to `AGENTS.md` and `GEMINI.md` **(same marker + prepend rule)**
 
 Check whether `AGENTS.md` and/or `GEMINI.md` already exist at the project root.
+
+The same idempotency contract from Step 4 applies: every Agentboard section you write in either file must be wrapped in `<!-- agentboard:root-entry:begin v=1 -->` / `<!-- agentboard:root-entry:end v=1 -->` markers.
 
 ### Case A — They don't exist
 
@@ -132,16 +150,20 @@ Run:
 ./.platform/scripts/sync-context.sh --apply
 ```
 
-This generates them from the new `CLAUDE.md` so Codex CLI and Gemini CLI get the same entry point.
+This generates them from the new `CLAUDE.md` so Codex CLI and Gemini CLI get the same entry point. The markers are carried over from `CLAUDE.md`.
 
-### Case B — One or both exist
+### Case B — One or both exist, with NO Agentboard markers
 
 **Do not run `sync-context.sh --apply` blindly — it will overwrite them.** Instead, for each existing file:
 
 1. Read the user's existing file in full.
-2. Take the agentboard section you prepended to `CLAUDE.md` in Step 4.
-3. Prepend that same section to the user's existing `AGENTS.md` / `GEMINI.md`, followed by `\n\n---\n\n## Existing AGENTS.md content (preserved by agentboard activation on {{TODAY}})\n\n` and the original content.
+2. Take the agentboard section you wrote between the markers in `CLAUDE.md` in Step 4.
+3. Prepend that same section — with the begin/end markers — to the user's existing file, followed by `\n\n---\n\n## Existing AGENTS.md content (preserved by agentboard activation on {{TODAY}})\n\n` and the original content.
 4. Manually write the result — do **not** use `sync-context.sh --apply` because it clobbers rather than prepends.
+
+### Case C — Re-activation: an entry file already contains Agentboard markers
+
+Replace the content between the markers in place, same rule as Step 4 Case C. Everything after the end marker stays byte-for-byte identical.
 
 **If the user has multi-repo**, also tell them to edit `./.platform/scripts/sync-context.sh` `REPOS=()` array. The sync script is safe to run later for **newly-generated** (agentboard-written) entry files in sibling repos, but never for files the user authored.
 
@@ -167,8 +189,9 @@ Then ask: "Does this look right, or should I revise any section?"
 3. **Don't ship placeholder content in `.platform/` files.** If the user hasn't answered a question, write `_TODO: <specific thing to fill in>_` so it's greppable.
 4. **Stack-specific conventions are per-project, not generic.** Don't copy-paste a generic `conventions/react.md` — write the rules that apply to THIS codebase.
 5. **Never silently overwrite user files at the project root.** `CLAUDE.md`, `AGENTS.md`, `GEMINI.md` require explicit user permission (Step 4 and Step 5). `.platform/*` is safe to write fully since `agentboard init` created the skeleton.
-6. **No `.md` artifacts for plans.** The activation plan lives in chat, not in `.planning/`.
-7. **Every step commits (if git is initialized).** Atomic commits: "Activate project: scan + interview", "Activate project: fill architecture + decisions", "Activate project: write conventions/{stack}.md", "Activate project: install steady-state CLAUDE.md". This lets the user see exactly what you changed.
+6. **Agentboard sections in root entry files MUST be wrapped in markers.** Every `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` section you generate sits between `<!-- agentboard:root-entry:begin v=1 -->` and `<!-- agentboard:root-entry:end v=1 -->`. Re-activation replaces content between those markers in place — it does NOT prepend a second copy. If you see the markers already in the file, you are in Case C (re-activation), not Case B (fresh merge).
+7. **No `.md` artifacts for plans.** The activation plan lives in chat, not in `.planning/`.
+8. **Every step commits (if git is initialized).** Atomic commits: "Activate project: scan + interview", "Activate project: fill architecture + decisions", "Activate project: write conventions/{stack}.md", "Activate project: install steady-state CLAUDE.md". This lets the user see exactly what you changed.
 
 ---
 

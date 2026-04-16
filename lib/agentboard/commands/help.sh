@@ -2,10 +2,13 @@ cmd_version() { say "agentboard $VERSION"; }
 
 cmd_help() {
   cat <<'EOF'
-agentboard — AI agent context kit
+agentboard — shared work-state for multi-provider AI workflows
 
-Bootstraps a .platform/ context pack into any project so that Claude Code,
-Codex CLI, and Gemini CLI are instantly productive.
+Scaffolds a .platform/ pack plus provider-neutral entry files (CLAUDE.md,
+AGENTS.md, GEMINI.md) so Claude Code, Codex CLI, and Gemini CLI each load
+the same project truth and can resume the same workstreams across sessions.
+Agentboard does NOT move chat history between providers — it shares files,
+not conversations.
 
 USAGE
   agentboard <command> [args]
@@ -41,6 +44,12 @@ COMMANDS
                              --repo <id>      (repeatable)
   resolve <target>           Resolve a stream, domain, or repo by canonical id
   handoff [stream-slug]      Print a low-token provider handoff packet
+  progress <stream-slug>     Append a git-diff summary to the stream's
+                             ## Progress log section (uses base_branch from
+                             frontmatter). Flags:
+                             --base <branch>   override recorded base branch
+                             --note "<text>"   one-line note to attach
+                             --dry-run         print block instead of writing
   claim "<task>"             Add a row to .platform/sessions/ACTIVE.md
   release                    Remove your rows from .platform/sessions/ACTIVE.md
   log "<one line>"           Append a timestamped line to .platform/log.md

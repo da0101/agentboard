@@ -82,20 +82,34 @@ Based on scan + interview, generate these files. Hub-scope means: cross-repo arc
 
 Check whether `CLAUDE.md` already exists at the hub root.
 
+**Idempotency contract (read before writing).** The Agentboard-generated hub section is wrapped in HTML-comment markers so re-activation can replace it in place without stacking duplicates:
+
+```
+<!-- agentboard:root-entry:begin v=1 -->
+... the entire Agentboard steady-state hub section goes here ...
+<!-- agentboard:root-entry:end v=1 -->
+```
+
+Every file you write in this step and Step 5 must start with `<!-- agentboard:root-entry:begin v=1 -->` and the Agentboard hub section must end with `<!-- agentboard:root-entry:end v=1 -->` before any preserved user content.
+
 ### Case A — No existing `CLAUDE.md` (or it's the agentboard hub stub)
 
-The agentboard hub stub is safe to fully replace — it's clearly marked with `# {{PROJECT_NAME}} — PLATFORM BRAINS HUB (NOT YET ACTIVATED)` at the top and a note at the bottom saying it'll be replaced after activation. Write a fresh steady-state hub file using the structure below.
+The agentboard hub stub is safe to fully replace — it's clearly marked with `# {{PROJECT_NAME}} — PLATFORM BRAINS HUB (NOT YET ACTIVATED)` at the top and a note at the bottom saying it'll be replaced after activation. Write a fresh steady-state hub file using the structure below, wrapped in the begin/end markers. Nothing should come after the end marker.
 
-### Case B — The user has an existing `CLAUDE.md` that is NOT the agentboard stub
+### Case B — The user has an existing `CLAUDE.md` with NO Agentboard markers
 
-**Prepend, don't delete.** Same rule as single-repo mode:
+**Prepend, don't delete.** Same rule as single-repo mode, with markers:
 1. Read the user's existing `CLAUDE.md` in full.
 2. Build your agentboard hub section using the structure in "Steady-state hub structure" below.
-3. Write the new file as: `<your agentboard hub section>` + `\n\n---\n\n## Existing CLAUDE.md content (preserved by agentboard activation on {{TODAY}})\n\n` + `<original content>`.
+3. Write the new file as: `<!-- agentboard:root-entry:begin v=1 -->\n<your agentboard hub section>\n<!-- agentboard:root-entry:end v=1 -->\n\n---\n\n## Existing CLAUDE.md content (preserved by agentboard activation on {{TODAY}})\n\n` + `<original content>`.
 4. Show the user a 5-line summary of what you prepended before writing.
 5. Never edit the user's original words.
 
-### Steady-state hub structure to prepend (target ~90 lines)
+### Case C — Re-activation: the file already contains Agentboard markers
+
+Replace the content between `<!-- agentboard:root-entry:begin v=1 -->` and `<!-- agentboard:root-entry:end v=1 -->` with the freshly generated hub section. Everything after the end marker (the preserved user content from a prior activation, or the user's own edits) stays byte-for-byte identical. Do not append a second `## Existing CLAUDE.md content` header.
+
+### Steady-state hub structure to write between the markers (target ~90 lines)
 
 ```markdown
 # {{PROJECT_NAME}} — Platform Brains Hub
@@ -135,7 +149,7 @@ For each sibling repo listed in `.platform/repos.md`, the per-repo `CLAUDE.md` /
 
 Use `agentboard add-repo <path-to-sibling>` to scaffold those stubs from `.platform/templates/repo/`. Then fill placeholders with the repo's slug and deep reference filename.
 
-If a sibling repo already has an existing `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`, **prepend, don't delete** — same rule as Step 4. Wrap the user's original content under a preservation heading.
+If a sibling repo already has an existing `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`, **prepend, don't delete** — same rule as Step 4, including the marker contract. Wrap the user's original content under a preservation heading beneath the `<!-- agentboard:root-entry:end v=1 -->` marker.
 
 ## Step 6 — Confirm
 
@@ -157,7 +171,8 @@ Then ask: "Does this look right, or should I revise any section?"
 3. **Ask when you're unsure.** If `.platform/repos.md` is not filled in, stop and ask for the sibling paths before trying to scan anything.
 4. **Per-repo details go in `.platform/<slug>.md`, not in cross-cutting files.** Keep cross-cutting files about the platform as a whole.
 5. **Never silently overwrite user files.** Every root entry file (here or in any sibling) requires the prepend-don't-delete rule.
-6. **No `.md` artifacts for plans.** The activation plan lives in chat, not in `.planning/`.
+6. **Agentboard sections in root entry files MUST be wrapped in markers.** `<!-- agentboard:root-entry:begin v=1 -->` / `<!-- agentboard:root-entry:end v=1 -->` at the hub root and in every sibling entry file. Re-activation replaces content between those markers in place — it does NOT prepend a second copy.
+7. **No `.md` artifacts for plans.** The activation plan lives in chat, not in `.planning/`.
 
 ---
 
