@@ -1,7 +1,7 @@
 # Global Usage Tracking Protocol
 
 > **Audience:** Claude Code, Codex CLI, Gemini CLI.
-> **Goal:** Accumulate token data across every context clear and provider switch so the user can make smart cost optimizations over time.
+> **Goal:** Accumulate token data across every context clear and provider switch so the project can detect inefficiencies and write concrete behavioural rules back into itself.
 
 ---
 
@@ -136,3 +136,33 @@ Before beginning any task estimated at Medium scope or larger:
    - Load only the domain files listed in `work/BRIEF.md § Relevant context`.
    - Prefer `grep`/`glob` over reading whole directories.
 3. Report the efficiency comparison at stream closure: "This stream used X tokens. Global average for `<type>` tasks: Y tokens."
+
+---
+
+## The learning loop — how the project optimises itself
+
+After enough data accumulates (5+ segments), patterns are detected automatically:
+
+| Pattern | What it means | What gets written to learnings.md |
+|---|---|---|
+| **MODEL_OVERKILL** | Opus used for tasks averaging <20k tokens | "Use Sonnet for `<task_type>` tasks" |
+| **RESEARCH_BLOAT** | Research tasks averaging >60k tokens in a repo | "Enforce scoped context loading in `<repo>`" |
+| **DEBUG_DRAIN** | Debug tasks averaging >80k tokens in a repo | "Use hypothesis-first debugging in `<repo>`" |
+| **HOT_REPO** | One repo consuming >60% of all tokens | "Audit session start loading in `<repo>`" |
+| **CONTEXT_THRASH** | A stream needing >4 context clears | "Break similar tasks into smaller streams" |
+
+### How to trigger the learning loop
+
+```bash
+# Preview findings (no changes)
+agentboard usage learn
+
+# Write findings to .platform/learnings.md (run from inside the project)
+agentboard usage learn --apply
+```
+
+### Your responsibility as an AI agent
+
+1. **At session start** — scan `.platform/learnings.md` for any `[token-optimization]` entries. Apply them immediately to your behaviour for this session.
+2. **After 10+ streams** — suggest to the user: "Run `agentboard usage learn --apply` to write token optimizations to this project."
+3. **Honour the rules** — if learnings.md says "use Sonnet for research tasks", do not default to Opus regardless of the model you were invoked with. State the override: "Using Sonnet per token-optimization learning."
