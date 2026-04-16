@@ -31,11 +31,17 @@ _Metadata rules: `stream_id` must be `stream-<slug>`, `slug` must match the file
 ## Key decisions
 _Append-only. Format: `YYYY-MM-DD — <decision> — <rationale>`_
 
-## Progress log
-_Append-only. Format: `YYYY-MM-DD — <what happened>`_
+## Resume state
+_Overwritten by `agentboard checkpoint` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
-## Next action
-_The single most important next step. Keep this current._
+- **Last updated:** — by —
+- **What just happened:** _not set_
+- **Current focus:** _not set_
+- **Next action:** _not set_
+- **Blockers:** none
+
+## Progress log
+_Append-only. `agentboard checkpoint` prepends a dated line and auto-trims to the last 10 entries. Format: `YYYY-MM-DD HH:MM — <what happened>`._
 
 ## Open questions
 _Things blocked on user input. Remove when resolved._

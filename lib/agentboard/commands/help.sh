@@ -43,9 +43,22 @@ COMMANDS
                              --agent <a>      agent owner (default: codex)
                              --repo <id>      (repeatable)
   resolve <target>           Resolve a stream, domain, or repo by canonical id
-  handoff [stream-slug]      Print a low-token provider handoff packet
+  handoff [stream-slug]      Print a low-token provider handoff packet.
+                             Shows Resume state (from stream file), warns if
+                             stale, appends a "for the agent reading this"
+                             footer. Flags:
                              --budget <N|Nk>   cap estimated load-order tokens;
                                                drops secondary domains when tight
+  checkpoint <stream-slug>   Save compact "where we are" state before handoff.
+                             Overwrites the stream's ## Resume state block,
+                             prepends a Progress log entry, trims to last 10.
+                             Run this before ending a session or switching CLIs.
+                             --what "<text>"   required: what just happened
+                             --next "<text>"   required: the single next action
+                             --blocker "<t>"   current blocker (default: none)
+                             --focus "<t>"     file:line or topic in focus
+                             --diff            also append git diff --stat
+                             --dry-run         print changes without writing
   progress <stream-slug>     Append a git-diff summary to the stream's
                              ## Progress log section (uses base_branch from
                              frontmatter). Flags:
