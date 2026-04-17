@@ -90,18 +90,76 @@ test_dry_run_on_clean_layout_is_clean() {
   assert_contains "$output" "already current"
 }
 
-test_handles_both_old_and_new_present() {
+test_keeps_both_when_memory_has_real_user_content() {
+  # When memory/X.md contains user-written content (not a shipped placeholder),
+  # don't clobber it. Leave the root file alone and warn.
   local dir output
   dir="$(mktemp -d)"
   setup_legacy_fixture "$dir"
   mkdir -p "$dir/.platform/memory"
-  printf 'new content\n' > "$dir/.platform/memory/decisions.md"
+  printf 'real user content, not a placeholder\n' > "$dir/.platform/memory/decisions.md"
   run_cli_capture output "$dir" migrate-layout --apply
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "both present"
-  # Old file kept in place to avoid data loss
+  assert_contains "$output" "both have content"
   [[ -f "$dir/.platform/decisions.md" ]] || fail "old decisions.md deleted despite conflict"
-  assert_file_contains "$dir/.platform/memory/decisions.md" "new content"
+  assert_file_contains "$dir/.platform/memory/decisions.md" "real user content"
+}
+
+test_overwrites_unchanged_placeholder_in_memory() {
+  # When memory/X.md is byte-identical to the shipped template (e.g. an empty
+  # placeholder from `agentboard update`), migrate-layout should overwrite it
+  # with the real content at root instead of keeping both.
+  local dir output
+  dir="$(mktemp -d)"
+  setup_legacy_fixture "$dir"
+  mkdir -p "$dir/.platform/memory"
+  # Copy the shipped placeholder verbatim into memory/ to simulate `update`.
+  cp "$TEST_ROOT/templates/platform/memory/learnings.md" "$dir/.platform/memory/learnings.md"
+  run_cli_capture output "$dir" migrate-layout --apply
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "overwrote untouched placeholder"
+  [[ ! -f "$dir/.platform/learnings.md" ]] || fail "root learnings.md still present after overwrite"
+  assert_file_contains "$dir/.platform/memory/learnings.md" "old learnings content"
+}
+
+test_rewrites_stale_refs_in_user_content() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_legacy_fixture "$dir"
+  # Seed a conventions file with the old path
+  mkdir -p "$dir/.platform/conventions"
+  printf 'See .platform/log.md and .platform/decisions.md for details.\n' \
+    > "$dir/.platform/conventions/pm.md"
+  # Seed an active stream with old path
+  mkdir -p "$dir/.platform/work"
+  printf '%s\n' '- [ ] .platform/log.md appended' > "$dir/.platform/work/login.md"
+  # Seed an archived stream — MUST NOT be rewritten
+  mkdir -p "$dir/.platform/work/archive"
+  printf '%s\n' '- [x] .platform/log.md appended' > "$dir/.platform/work/archive/old-stream.md"
+
+  run_cli_capture output "$dir" migrate-layout --apply
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "Stale path references in user content"
+  assert_file_contains "$dir/.platform/conventions/pm.md" ".platform/memory/log.md"
+  assert_file_contains "$dir/.platform/conventions/pm.md" ".platform/memory/decisions.md"
+  assert_file_contains "$dir/.platform/work/login.md" ".platform/memory/log.md"
+  # Archive left untouched (historical)
+  assert_file_not_contains "$dir/.platform/work/archive/old-stream.md" ".platform/memory/log.md"
+  assert_file_contains "$dir/.platform/work/archive/old-stream.md" ".platform/log.md"
+}
+
+test_stale_ref_sweep_is_idempotent() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_legacy_fixture "$dir"
+  mkdir -p "$dir/.platform/conventions"
+  printf 'Already migrated: see .platform/memory/log.md\n' \
+    > "$dir/.platform/conventions/ok.md"
+  run_cli_capture output "$dir" migrate-layout --apply
+  assert_status "$RUN_STATUS" 0
+  # Should not double-rewrite into .platform/memory/memory/log.md
+  assert_file_not_contains "$dir/.platform/conventions/ok.md" "memory/memory"
+  assert_file_contains "$dir/.platform/conventions/ok.md" ".platform/memory/log.md"
 }
 
 test_help() {
@@ -121,7 +179,10 @@ for t in \
   test_apply_keeps_non_empty_sessions \
   test_idempotent_apply_is_noop \
   test_dry_run_on_clean_layout_is_clean \
-  test_handles_both_old_and_new_present \
+  test_keeps_both_when_memory_has_real_user_content \
+  test_overwrites_unchanged_placeholder_in_memory \
+  test_rewrites_stale_refs_in_user_content \
+  test_stale_ref_sweep_is_idempotent \
   test_help; do
   printf 'RUN: %s\n' "$t" >&2
   "$t"
