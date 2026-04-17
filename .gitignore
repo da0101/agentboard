@@ -6,3 +6,11 @@ dist/
 .env
 .env.*
 .claude/projects/
+
+# Dogfooding — agentboard runs against its own repo to generate real usage
+# data. The .platform/ pack tracks our live work (streams, checkpoints,
+# memory) but is local-only; only the kit itself is versioned.
+.platform/
+.codex/
+.claude/settings.json
+.claude/settings.json.agentboard-backup-*

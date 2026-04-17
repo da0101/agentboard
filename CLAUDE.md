@@ -1,3 +1,8 @@
+<!-- agentboard installed + activated 2026-04-17 -->
+> **agentboard is activated** on this repo. We dogfood agentboard on itself — `.platform/` tracks our live streams, checkpoints, and accumulated memory. Run `agentboard brief` at session start. The `.platform/` dir is gitignored; only the kit itself is committed.
+
+---
+
 # Agentboard — the tool itself
 
 **What this is:** A starter kit that scaffolds a `.platform/` AI-agent context pack into any project, then hands off to an LLM to fill the pack from the actual codebase. No stack pre-picking. No static convention templates. The LLM decides.
@@ -98,7 +103,7 @@ Follow the 6-stage workflow in `templates/platform/workflow.md`:
 5. Execute
 6. Verify + log
 
-Plans live in chat, not `.md` files. Every successful task appends one line to a mental log (this repo doesn't have its own `.platform/log.md` — it's the kit, not a project).
+Plans live in chat, not `.md` files. Every successful task appends one line to `.platform/memory/log.md` (this repo dogfoods agentboard — `.platform/` is gitignored but populated locally, so we eat our own dogfood and get real usage data).
 
 ## Reference implementation
 
