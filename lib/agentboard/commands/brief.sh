@@ -79,7 +79,7 @@ _brief_gotchas() {
     return 0
   fi
 
-  local -a red yellow green
+  local -a red=() yellow=() green=()
   local line
   while IFS= read -r line; do
     [[ "$line" =~ ^[[:space:]]*$ ]] && continue
