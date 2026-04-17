@@ -114,7 +114,7 @@ agentboard usage dashboard --week    # last 7 days
 agentboard usage dashboard --month   # last 30 days
 agentboard usage optimize            # most expensive task types and streams
 agentboard usage learn               # detect patterns (MODEL_OVERKILL, RESEARCH_BLOAT …)
-agentboard usage learn --apply       # write findings to .platform/learnings.md
+agentboard usage learn --apply       # write findings to .platform/memory/learnings.md
 ```
 
 ### Direct SQLite queries

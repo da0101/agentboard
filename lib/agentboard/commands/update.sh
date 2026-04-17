@@ -199,7 +199,7 @@ cmd_update() {
   head "New files (add if missing)"
 
   local af
-  for af in "learnings.md" "BACKLOG.md" "gotchas.md" "playbook.md" "open-questions.md" "domains/TEMPLATE.md"; do
+  for af in "memory/learnings.md" "memory/BACKLOG.md" "memory/gotchas.md" "memory/playbook.md" "memory/open-questions.md" "domains/TEMPLATE.md"; do
     local src="$TEMPLATES_PLATFORM/$af"
     local dst="./.platform/$af"
     [[ -f "$src" ]] || continue

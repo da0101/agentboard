@@ -32,6 +32,10 @@ COMMANDS
   sync [--apply|--list]      Sync AGENTS.md + GEMINI.md from CLAUDE.md (default: check)
   bootstrap [--apply-domains] Discover repos, infer starter domains, and suggest streams
   migrate [--apply]          Upgrade legacy stream/domain files to metadata v1
+  migrate-layout [--apply]   Upgrade .platform/ layout — move decisions/learnings/
+                             log/gotchas/playbook/open-questions/BACKLOG into
+                             .platform/memory/. Cleans up empty sessions/.
+                             Default is --dry-run; pass --apply to perform.
   brief-upgrade [slug] ...   Rewrite legacy BRIEF.md for one target stream
   doctor                     Validate active .platform state and metadata
   new-domain <slug> ...      Create a domain file from the shared template
@@ -100,7 +104,7 @@ COMMANDS
                              history       — last 20 segments
                              optimize      — most expensive streams/types/providers
                              learn         — detect inefficiencies and generate rules
-                             learn --apply — write rules to .platform/learnings.md
+                             learn --apply — write rules to .platform/memory/learnings.md
                              dashboard     — visual bar-chart dashboard
                                [--today|--week|--month]
                              One entry = one context segment. Log at every

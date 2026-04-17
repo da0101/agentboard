@@ -26,7 +26,7 @@ _init_usage_db() {
   fi
 }
 
-# Emit a learning entry as a markdown bullet for .platform/learnings.md
+# Emit a learning entry as a markdown bullet for .platform/memory/learnings.md
 _learning_entry() {
   local date today
   today="$(date +%Y-%m-%d)"
@@ -230,7 +230,7 @@ cmd_usage() {
       ;;
 
     learn)
-      local apply=0 learnings_file="./.platform/learnings.md"
+      local apply=0 learnings_file="./.platform/memory/learnings.md"
       [[ "${1:-}" == "--apply" ]] && apply=1
 
       printf '\n%s%sUsage Learning Analysis%s\n\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
@@ -308,7 +308,7 @@ cmd_usage() {
 
       if (( apply )); then
         if [[ ! -f "$learnings_file" ]]; then
-          warn "No .platform/learnings.md found in current directory. Run from inside a project."
+          warn "No .platform/memory/learnings.md found in current directory. Run from inside a project."
           return 1
         fi
         say
@@ -327,7 +327,7 @@ cmd_usage() {
         ok "learnings.md updated. The LLM will apply these rules at the next session start."
       else
         say
-        printf '%sRun with --apply to write these findings to .platform/learnings.md%s\n' \
+        printf '%sRun with --apply to write these findings to .platform/memory/learnings.md%s\n' \
           "$C_DIM" "$C_RESET"
         printf '%sThe LLM reads learnings.md at session start and adjusts its behaviour.%s\n' \
           "$C_DIM" "$C_RESET"

@@ -105,8 +105,8 @@ cmd_init() {
     "$target/.platform/ACTIVATE.md" \
     "$target/.platform/ACTIVATE-HUB.md" \
     "$target/.platform/STATUS.md" \
-    "$target/.platform/log.md" \
-    "$target/.platform/decisions.md" \
+    "$target/.platform/memory/log.md" \
+    "$target/.platform/memory/decisions.md" \
     "$target/.platform/architecture.md" \
     "$target/.platform/repos.md" \
     "$target/.platform/work/ACTIVE.md" \

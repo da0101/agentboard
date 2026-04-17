@@ -24,12 +24,12 @@ test_update_replaces_process_files_but_keeps_learnings() {
   init_project_fixture "$dir"
 
   printf 'legacy workflow marker\n' >> "$dir/.platform/workflow.md"
-  printf 'custom learning\n' > "$dir/.platform/learnings.md"
+  printf 'custom learning\n' > "$dir/.platform/memory/learnings.md"
 
   run_cli_capture output "$dir" update
   assert_contains "$output" "Update complete"
   assert_file_not_contains "$dir/.platform/workflow.md" "legacy workflow marker"
-  assert_file_contains "$dir/.platform/learnings.md" "custom learning"
+  assert_file_contains "$dir/.platform/memory/learnings.md" "custom learning"
 }
 
 test_update_dry_run_leaves_files_unchanged

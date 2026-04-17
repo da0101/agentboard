@@ -28,6 +28,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/core.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/init.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/bootstrap.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/migration.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/migrate_layout.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/session.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/doctor.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
@@ -107,6 +108,7 @@ main() {
     sync)        cmd_sync "$@" ;;
     bootstrap)   cmd_bootstrap "$@" ;;
     migrate)     cmd_migrate "$@" ;;
+    migrate-layout) cmd_migrate_layout "$@" ;;
     brief-upgrade) cmd_brief_upgrade "$@" ;;
     doctor)      cmd_doctor "$@" ;;
     new-domain)  cmd_new_domain "$@" ;;

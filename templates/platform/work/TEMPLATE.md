@@ -25,7 +25,7 @@ _Metadata rules: `stream_id` must be `stream-<slug>`, `slug` must match the file
 - [ ] _TODO: measurable acceptance criterion_
 - [ ] _TODO: tests pass (specify which suite)_
 - [ ] _TODO: manual verification step_
-- [ ] `.platform/log.md` appended
+- [ ] `.platform/memory/log.md` appended
 - [ ] `decisions.md` updated if any architectural choices were made
 
 ## Key decisions

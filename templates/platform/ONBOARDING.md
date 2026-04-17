@@ -28,7 +28,7 @@ Key rules:
 - No `.md` artifacts unless reusable. Plans live in chat.
 - Trivial tasks skip straight to execution.
 - Parallelize subagents when they have distinct jobs.
-- Every success appends one line to `.platform/log.md`.
+- Every success appends one line to `.platform/memory/log.md`.
 
 ## Step 3 — Read the conventions for your area (as needed)
 
