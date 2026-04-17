@@ -72,6 +72,15 @@ COMMANDS
                              streams, recent gotchas, open questions,
                              usage pattern. Read this at session start.
                              --all             show all gotchas/questions
+  watch                      Background poller that auto-checkpoints when
+                             ≥1 tracked file has changed since last poll.
+                             Use during long Codex/Gemini sessions so state
+                             stays current without manual checkpoints.
+                             --interval N      poll every N min (default 10)
+                             --threshold N     min changed files (default 1)
+                             --stream <slug>   target stream (default: auto)
+                             --once            single poll, then exit
+                             --stop            stop the running watcher
   progress <stream-slug>     Append a git-diff summary to the stream's
                              ## Progress log section (uses base_branch from
                              frontmatter). Flags:
