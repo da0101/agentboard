@@ -28,18 +28,32 @@ cmd_watch() {
     return 0
   fi
 
-  if [[ -z "$stream" ]]; then
-    stream="$(_watch_auto_detect_stream)" \
-      || die "Could not auto-detect an active stream. Pass --stream <slug> explicitly."
+  local -a streams=()
+  if [[ -n "$stream" ]]; then
+    streams=("$stream")
+  else
+    local _slug
+    while IFS= read -r _slug; do
+      [[ -n "$_slug" ]] && streams+=("$_slug")
+    done < <(_watch_active_slugs)
+    if (( ${#streams[@]} == 0 )); then
+      printf '  \033[31m✖\033[0m  Could not auto-detect an active stream. Run '\''agentboard migrate --apply'\''\n     if streams lack frontmatter, or pass --stream <slug> explicitly.\n' >&2
+      return 1
+    fi
   fi
-  [[ "$stream" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Stream slug must be kebab-case."
 
-  local stream_file="./.platform/work/${stream}.md"
-  [[ -f "$stream_file" ]] || die "$stream_file not found. Create the stream first (agentboard new-stream)."
-  has_frontmatter "$stream_file" || die "$stream_file has no v1 frontmatter. Run 'agentboard migrate --apply' first."
+  local s sf
+  for s in "${streams[@]}"; do
+    [[ "$s" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Stream slug must be kebab-case: $s"
+    sf="./.platform/work/${s}.md"
+    [[ -f "$sf" ]] || die "$sf not found. Create the stream first (agentboard new-stream)."
+    has_frontmatter "$sf" || die "$sf has no v1 frontmatter. Run 'agentboard migrate --apply' first."
+  done
 
   if (( once )); then
-    _watch_poll_and_checkpoint "$stream" "$stream_file" "$threshold" "$quiet"
+    for s in "${streams[@]}"; do
+      _watch_poll_and_checkpoint "$s" "./.platform/work/${s}.md" "$threshold" "$quiet" || true
+    done
     return 0
   fi
 
@@ -52,7 +66,13 @@ cmd_watch() {
     rm -f "$pid_file"
   fi
 
-  say "${C_BOLD}Watching${C_RESET} stream=${C_CYAN}${stream}${C_RESET} interval=${interval}min threshold=${threshold}"
+  local streams_label
+  streams_label="$(printf '%s, ' "${streams[@]}" | sed 's/, $//')"
+  if (( ${#streams[@]} == 1 )); then
+    say "${C_BOLD}Watching${C_RESET} stream=${C_CYAN}${streams[0]}${C_RESET} interval=${interval}min threshold=${threshold}"
+  else
+    say "${C_BOLD}Watching${C_RESET} ${#streams[@]} streams: ${C_CYAN}${streams_label}${C_RESET} interval=${interval}min threshold=${threshold}"
+  fi
   say "${C_DIM}Auto-checkpoints will fire when ≥ ${threshold} tracked file(s) changed since last poll.${C_RESET}"
   say "${C_DIM}Stop with:  agentboard watch --stop   (or Ctrl+C in this terminal)${C_RESET}"
 
@@ -61,7 +81,9 @@ cmd_watch() {
 
   while true; do
     sleep "$((interval * 60))"
-    _watch_poll_and_checkpoint "$stream" "$stream_file" "$threshold" "$quiet" || true
+    for s in "${streams[@]}"; do
+      _watch_poll_and_checkpoint "$s" "./.platform/work/${s}.md" "$threshold" "$quiet" || true
+    done
   done
 }
 
@@ -70,24 +92,25 @@ _watch_print_help() {
 Usage: agentboard watch [--interval MIN] [--threshold N] [--stream SLUG] [--once] [--stop]
 
 Periodically polls `git status`. When ≥ threshold tracked files have changed
-since the last poll, writes a mechanical checkpoint to the active stream so
+since the last poll, writes a mechanical checkpoint to each active stream so
 state stays current across long Codex/Gemini sessions without manual input.
 
 Defaults:
   --interval 10       Poll every 10 minutes.
   --threshold 1       Any change triggers a checkpoint.
-  --stream <slug>     Auto-detected from work/ACTIVE.md if exactly one
-                      stream is active; otherwise required.
+  --stream <slug>     Watch a specific stream. If omitted, all active streams
+                      are watched simultaneously.
 
 Flags:
-  --once              Run a single poll + checkpoint, then exit.
+  --once              Run a single poll + checkpoint for all active streams, then exit.
   --stop              Stop the running watcher (uses PID file).
   --quiet             No stdout lines on successful checkpoint.
 
 Typical usage:
-  agentboard watch &              # background daemon for the day
+  agentboard watch &              # background daemon watching all active streams
   agentboard watch --once          # manual sync right before switching CLIs
   agentboard watch --stop          # end of day
+  agentboard watch --stream foo    # watch only the 'foo' stream
 
 Content written on each auto-checkpoint:
   --what   "(auto-watch) N file(s) modified since HH:MM: <list>"
@@ -102,23 +125,14 @@ Skip rules:
 EOF
 }
 
-_watch_auto_detect_stream() {
-  local -a active=()
+_watch_active_slugs() {
   local file status slug
   while IFS= read -r file; do
     status="$(frontmatter_value "$file" "status")"
     case "$status" in done|archived|closed) continue ;; esac
     slug="$(frontmatter_value "$file" "slug")"
-    [[ -n "$slug" ]] && active+=("$slug")
+    [[ -n "$slug" ]] && printf '%s\n' "$slug"
   done < <(stream_files)
-
-  if (( ${#active[@]} == 0 )); then
-    return 1
-  fi
-  if (( ${#active[@]} > 1 )); then
-    return 1
-  fi
-  printf '%s\n' "${active[0]}"
 }
 
 _watch_stop() {

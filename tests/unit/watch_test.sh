@@ -134,6 +134,35 @@ test_watch_auto_detects_single_active_stream() {
   assert_file_contains "$stream_file" "(auto-watch)"
 }
 
+test_watch_once_all_active_streams() {
+  local dir output stream1 stream2
+  dir="$(mktemp -d)"
+  setup_watch_fixture "$dir"
+  stream1="$dir/.platform/work/login.md"
+  # Create a second active stream
+  (
+    cd "$dir"
+    "$TEST_ROOT/bin/agentboard" new-stream payments \
+      --domain auth --base-branch main --branch feat/payments >/dev/null
+    git add -A
+    git commit -m "new stream payments" >/dev/null 2>&1
+  )
+  stream2="$dir/.platform/work/payments.md"
+  _age_stream_file "$stream1"
+  _age_stream_file "$stream2"
+
+  (
+    cd "$dir"
+    printf 'change\n' >> package.json
+  )
+
+  # No --stream flag — should auto-pick both active streams and checkpoint both
+  run_cli_capture output "$dir" watch --once
+  assert_status "$RUN_STATUS" 0
+  assert_file_contains "$stream1" "(auto-watch)"
+  assert_file_contains "$stream2" "(auto-watch)"
+}
+
 test_watch_fails_when_no_active_stream() {
   local dir output
   dir="$(mktemp -d)"
@@ -156,6 +185,7 @@ for t in \
   test_watch_rejects_unknown_flag \
   test_watch_stop_with_no_running_watcher \
   test_watch_auto_detects_single_active_stream \
+  test_watch_once_all_active_streams \
   test_watch_fails_when_no_active_stream; do
   printf 'RUN: %s\n' "$t" >&2
   "$t"
