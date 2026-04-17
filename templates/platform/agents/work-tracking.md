@@ -97,7 +97,7 @@ When all done criteria are met:
 4. On confirmation:
    - Move `work/<slug>.md` → `work/archive/<slug>.md`
    - Remove row from `ACTIVE.md`
-   - Append one line to `.platform/log.md`
+   - Append one line to `.platform/memory/log.md`
    - Update `memory/` if anything learned should persist cross-session
 
 Hard blocker:

@@ -27,12 +27,14 @@ test_init_scaffolds_memory_files() {
   local dir
   dir="$(mktemp -d)"
   setup_brief_fixture "$dir"
-  [[ -f "$dir/.platform/gotchas.md" ]] || fail "gotchas.md not scaffolded by init"
-  [[ -f "$dir/.platform/playbook.md" ]] || fail "playbook.md not scaffolded by init"
-  [[ -f "$dir/.platform/open-questions.md" ]] || fail "open-questions.md not scaffolded by init"
-  assert_file_contains "$dir/.platform/gotchas.md" "agentboard:gotchas:begin"
-  assert_file_contains "$dir/.platform/playbook.md" "agentboard:playbook:begin"
-  assert_file_contains "$dir/.platform/open-questions.md" "agentboard:open-questions:active:begin"
+  [[ -f "$dir/.platform/memory/gotchas.md" ]] || fail "memory/gotchas.md not scaffolded by init"
+  [[ -f "$dir/.platform/memory/playbook.md" ]] || fail "memory/playbook.md not scaffolded by init"
+  [[ -f "$dir/.platform/memory/open-questions.md" ]] || fail "memory/open-questions.md not scaffolded by init"
+  [[ -f "$dir/.platform/memory/decisions.md" ]] || fail "memory/decisions.md not scaffolded by init"
+  [[ -f "$dir/.platform/memory/log.md" ]] || fail "memory/log.md not scaffolded by init"
+  assert_file_contains "$dir/.platform/memory/gotchas.md" "agentboard:gotchas:begin"
+  assert_file_contains "$dir/.platform/memory/playbook.md" "agentboard:playbook:begin"
+  assert_file_contains "$dir/.platform/memory/open-questions.md" "agentboard:open-questions:active:begin"
 }
 
 test_brief_shows_active_stream() {
@@ -53,7 +55,7 @@ test_brief_shows_gotchas_when_present() {
   dir="$(mktemp -d)"
   setup_brief_fixture "$dir"
   # Insert a 🔴 gotcha between markers
-  python3 - "$dir/.platform/gotchas.md" <<'PY'
+  python3 - "$dir/.platform/memory/gotchas.md" <<'PY'
 import sys, pathlib
 p = pathlib.Path(sys.argv[1])
 content = p.read_text()

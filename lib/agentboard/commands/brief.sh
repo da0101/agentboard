@@ -70,7 +70,7 @@ _brief_active_streams() {
 }
 
 _brief_gotchas() {
-  local show_all="$1" file="./.platform/gotchas.md" limit=5
+  local show_all="$1" file="./.platform/memory/gotchas.md" limit=5
   (( show_all )) && limit=99999
 
   printf '%s⚠️  Gotchas%s\n' "$C_BOLD" "$C_RESET"
@@ -120,7 +120,7 @@ _brief_gotchas() {
 }
 
 _brief_open_questions() {
-  local show_all="$1" file="./.platform/open-questions.md" limit=3
+  local show_all="$1" file="./.platform/memory/open-questions.md" limit=3
   (( show_all )) && limit=99999
 
   printf '%s❓ Open questions%s\n' "$C_BOLD" "$C_RESET"

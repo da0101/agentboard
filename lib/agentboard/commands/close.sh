@@ -44,7 +44,7 @@ cmd_close() {
   if (( dry_run )); then
     printf '%sWould archive%s %s → %s\n' "$C_BOLD" "$C_RESET" "$stream_file" "$archive_path"
     printf '%sWould update frontmatter:%s status=done, closure_approved=true\n' "$C_BOLD" "$C_RESET"
-    printf '%sWould append closure row to .platform/log.md%s\n' "$C_BOLD" "$C_RESET"
+    printf '%sWould append closure row to .platform/memory/log.md%s\n' "$C_BOLD" "$C_RESET"
     return 0
   fi
 
@@ -83,7 +83,7 @@ Step 1 — harvest (no flag):
 Step 2 — finalize (--confirm):
   Moves the stream file to .platform/work/archive/<slug>.md
   Sets status=done, closure_approved=true
-  Appends a closure row to .platform/log.md
+  Appends a closure row to .platform/memory/log.md
   Removes the stream from work/ACTIVE.md
 
 Flags:
@@ -110,29 +110,29 @@ Before --confirm, distill this stream's contribution into project memory.
 For each category, append if applicable; skip if nothing to add.
 
 ${C_BOLD}1. GOTCHAS${C_RESET}  — any landmines discovered? (things that'll trip the next agent)
-   File:   .platform/gotchas.md
+   File:   .platform/memory/gotchas.md
    Where:  between markers 'agentboard:gotchas:begin' and 'agentboard:gotchas:end'
    Format: 🔴 [domain/file] — one-line gotcha (date or incident ref)
            🔴 never-forget · 🟡 usually-matters · 🟢 minor
 
 ${C_BOLD}2. PLAYBOOK${C_RESET} — any shortcut, command, or ritual worth recording?
-   File:   .platform/playbook.md
+   File:   .platform/memory/playbook.md
    Where:  between markers 'agentboard:playbook:begin' and 'agentboard:playbook:end'
    Format: - **[area]** — practice (why/when)
 
 ${C_BOLD}3. OPEN QUESTIONS${C_RESET} — anything still unresolved?
-   File:   .platform/open-questions.md
+   File:   .platform/memory/open-questions.md
    Add to: 'Active' section (between 'active:begin' / 'active:end' markers)
    Format: - $(today) — [domain] question (context)
    Also:   if this stream RESOLVED a prior Active question, move it to
            'Resolved' with: → answer (stream: ${slug})
 
 ${C_BOLD}4. DECISIONS${C_RESET} — locked-in architectural / product / tooling decisions?
-   File:   .platform/decisions.md
+   File:   .platform/memory/decisions.md
    Add row to the 'Locked decisions' table.
 
 ${C_BOLD}5. LEARNINGS${C_RESET} — non-obvious bug root-cause or hard-won pattern?
-   File:   .platform/learnings.md
+   File:   .platform/memory/learnings.md
    Add a new L-NNN block using the format at the top of that file.
 
 When the harvest is done, run:
@@ -147,7 +147,7 @@ EOF
 
 _close_append_log() {
   local slug="$1" archive_path="$2" today_str="$3" agent="$4"
-  local log="./.platform/log.md"
+  local log="./.platform/memory/log.md"
   [[ -f "$log" ]] || return 0
   local line="${today_str} — closed stream ${slug} → ${archive_path} (by ${agent})"
   local tmp; tmp="$(mktemp)"

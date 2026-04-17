@@ -85,7 +85,7 @@ Write the code. Max ~300 lines per file. For specialist work, delegate to the ap
 
 **After execution completes:** present a change summary inline — files modified/created, expected behavior change, what Stage 6 needs to verify.
 
-**Backlog rule:** When you encounter a real limitation, tech debt item, or missing feature that is out of scope — do NOT fix it, do NOT open a new work stream. Append one row to `.platform/BACKLOG.md` (priority / area / description / found-during / date) and continue.
+**Backlog rule:** When you encounter a real limitation, tech debt item, or missing feature that is out of scope — do NOT fix it, do NOT open a new work stream. Append one row to `.platform/memory/BACKLOG.md` (priority / area / description / found-during / date) and continue.
 
 **Exit:** code is written, NOT yet committed, ready for Stage 6 verification.
 
@@ -139,12 +139,12 @@ Then verify in parallel:
 
 Then **learn in three layers:**
 
-**Layer 1 — Log (always):** append one line to `.platform/log.md`:
+**Layer 1 — Log (always):** append one line to `.platform/memory/log.md`:
 ```
 YYYY-MM-DD — <task> — <outcome> — <takeaway>
 ```
 
-**Layer 2 — Learnings (if bug was non-obvious):** if the root cause required >10 min to diagnose OR depended on internal behavior that isn't self-evident from the code, append an entry to `.platform/learnings.md` using the L-NNN format:
+**Layer 2 — Learnings (if bug was non-obvious):** if the root cause required >10 min to diagnose OR depended on internal behavior that isn't self-evident from the code, append an entry to `.platform/memory/learnings.md` using the L-NNN format:
 ```
 ## L-NNN — <short title>
 Date: YYYY-MM-DD | Repo: <repo>
@@ -156,7 +156,7 @@ Class: <category — for grep>
 
 **Layer 3 — Memory (if architectural):** if the insight is a stable cross-session invariant (a new pattern, a recurring gotcha, an API contract), update `memory/MEMORY.md` or a topic file under `memory/`.
 
-**Bug investigation rule:** before diagnosing any non-obvious bug, grep `.platform/learnings.md` for the symptom keyword first. Don't re-diagnose a known class of problem.
+**Bug investigation rule:** before diagnosing any non-obvious bug, grep `.platform/memory/learnings.md` for the symptom keyword first. Don't re-diagnose a known class of problem.
 
 **Exit:** task is done, recorded, and learned from.
 
@@ -374,7 +374,7 @@ Repeat until the scorecard is all 🟢:
 2. **Max ~300 lines per file.** Extract components before hitting the limit.
 3. **Trivial tasks skip to Stage 5.** Don't bureaucratize small work.
 4. **Parallelize subagents.** Never run independent subagents sequentially.
-5. **Every success logs one line.** `.platform/log.md` is append-only, newest-on-top.
+5. **Every success logs one line.** `.platform/memory/log.md` is append-only, newest-on-top.
 6. **Read before you edit.** Always read the file before modifying it, even if you "know" the content.
 7. **Ask before destructive actions.** Deletes, force-pushes, rollbacks, schema drops — always confirm.
 8. **Never commit before Stage 6 + human approval.** Execute produces code. Stage 6 + the human produces the commit. No exceptions — not even for "trivial" changes.

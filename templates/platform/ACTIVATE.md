@@ -47,7 +47,7 @@ Based on scan + interview, generate these files. Write them one at a time, then 
 
 **`.platform/architecture.md`** — fill in the real components, tech stack, data flow, auth model, external services, deploy topology, invariants. Use the scan + interview answers. Keep it under one screen per section.
 
-**`.platform/decisions.md`** — seed 3–5 initial locked decisions based on what the scan reveals. Examples: "Chose framework X because the codebase was already using it", "Auth handled by provider Y (found in .env.example)", "Data store is Z (found in config)". Each row needs a _why_.
+**`.platform/memory/decisions.md`** — seed 3–5 initial locked decisions based on what the scan reveals. Examples: "Chose framework X because the codebase was already using it", "Auth handled by provider Y (found in .env.example)", "Data store is Z (found in config)". Each row needs a _why_.
 
 **`.platform/repos.md`** — list the repo(s). For single-repo projects, one row. For multi-repo, one row per repo with stack + deep-reference-file name.
 
@@ -70,7 +70,7 @@ Based on scan + interview, generate these files. Write them one at a time, then 
 
 **`.platform/work/BRIEF.md`** — if the user mentioned a current active feature in answer to question 8, fill this in now: what they're building, why, what done looks like, architecture decisions locked, current state, and key files. If no active feature yet, leave the placeholder text in place — it will be filled when the first workstream starts.
 
-**`.platform/log.md`** — append one line: `{{TODAY}} — agentboard activation — .platform/ pack filled from scan + interview — <one-sentence summary of what you learned>`
+**`.platform/memory/log.md`** — append one line: `{{TODAY}} — agentboard activation — .platform/ pack filled from scan + interview — <one-sentence summary of what you learned>`
 
 ## Step 4 — Install or update the root `CLAUDE.md` **(never delete existing content)**
 
@@ -242,9 +242,9 @@ These files ship as **skeletal templates** that you fill in during activation:
 
 - `.platform/STATUS.md`
 - `.platform/architecture.md`
-- `.platform/decisions.md`
+- `.platform/memory/decisions.md`
 - `.platform/repos.md`
-- `.platform/log.md`
+- `.platform/memory/log.md`
 
 These are **empty on purpose** — you create them from scratch during activation:
 

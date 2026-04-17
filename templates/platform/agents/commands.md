@@ -55,7 +55,7 @@ When I say **"audit stream"**, you MUST:
 When I say **"archive stream"**, you MUST:
 1. **Verify** that `closure_approved: true` is present in the stream file.
 2. **Update** `.platform/STATUS.md` and any relevant deep-reference files.
-3. **Log** the outcome in `.platform/log.md`.
+3. **Log** the outcome in `.platform/memory/log.md`.
 4. **Move** the file to `.platform/work/archive/`.
 
 ### `status check`

@@ -56,7 +56,7 @@ test_close_confirm_appends_log_entry() {
   setup_close_fixture "$dir"
   run_cli_capture output "$dir" close login --confirm
   assert_status "$RUN_STATUS" 0
-  assert_file_contains "$dir/.platform/log.md" "closed stream login"
+  assert_file_contains "$dir/.platform/memory/log.md" "closed stream login"
 }
 
 test_close_confirm_removes_from_active_registry() {

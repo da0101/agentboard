@@ -32,5 +32,5 @@
 3. User confirms: "yes this is done"
 4. Agent moves `work/<slug>.md` → `work/archive/<slug>.md`
 5. Agent removes row from this file
-6. Agent appends one line to `.platform/log.md`
+6. Agent appends one line to `.platform/memory/log.md`
 7. Agent updates `memory/` if anything learned should persist

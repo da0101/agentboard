@@ -156,7 +156,7 @@ The agent writes project-specific files from what it actually finds, including:
 
 - `.platform/STATUS.md`
 - `.platform/architecture.md`
-- `.platform/decisions.md`
+- `.platform/memory/decisions.md`
 - `.platform/repos.md`
 - `.platform/domains/*.md`
 - `.platform/conventions/*.md`

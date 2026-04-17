@@ -56,7 +56,7 @@ Based on scan + interview, generate these files. Hub-scope means: cross-repo arc
 
 **`.platform/architecture.md`** — fill in the real components across all repos, how they connect, data flow, auth model, external services, deploy topology, cross-repo invariants.
 
-**`.platform/decisions.md`** — seed 3–5 initial locked decisions that apply to the platform as a whole. Examples: "Backend is source of truth — frontends are pure clients", "Auth is Firebase bearer tokens across all repos", "API response shape is {meta, result, entities}".
+**`.platform/memory/decisions.md`** — seed 3–5 initial locked decisions that apply to the platform as a whole. Examples: "Backend is source of truth — frontends are pure clients", "Auth is Firebase bearer tokens across all repos", "API response shape is {meta, result, entities}".
 
 **`.platform/repos.md`** — you already filled real rows in Step 0. Now add the per-repo **deep reference file** column so each row points at a file like `.platform/<slug>.md`.
 
@@ -76,7 +76,7 @@ Based on scan + interview, generate these files. Hub-scope means: cross-repo arc
 - Use the detected stack name: `django.md`, `react.md`, `nextjs.md`, etc.
 - Content: the idiomatic rules + gotchas + pinned dependency notes + file-size/structure rules + preferred patterns + things to avoid, **as you would enforce them in code review on the actual code in the sibling repos**.
 
-**`.platform/log.md`** — append one line: `{{TODAY}} — agentboard activation (hub mode) — .platform/ pack filled from sibling-repo scan + interview — <one-sentence summary of what you learned>`
+**`.platform/memory/log.md`** — append one line: `{{TODAY}} — agentboard activation (hub mode) — .platform/ pack filled from sibling-repo scan + interview — <one-sentence summary of what you learned>`
 
 ## Step 4 — Install or update the root `CLAUDE.md` **(never delete existing content)**
 
@@ -218,9 +218,9 @@ These files ship as **skeletal templates** that you fill in during activation:
 
 - `.platform/STATUS.md`
 - `.platform/architecture.md`
-- `.platform/decisions.md`
+- `.platform/memory/decisions.md`
 - `.platform/repos.md` (hub-mode variant, pre-filled with hub headers)
-- `.platform/log.md`
+- `.platform/memory/log.md`
 
 These are **empty on purpose** — you create them from scratch during activation:
 

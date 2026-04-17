@@ -198,7 +198,7 @@ REPOS=(
 
 Then run `sync-context.sh` again to verify the new repo is in sync.
 
-### 5g. `.platform/log.md`
+### 5g. `.platform/memory/log.md`
 
 Append one line:
 
@@ -257,7 +257,7 @@ Skip this step if the stack is a one-off.
 [ ] Step 5d — platform root CLAUDE.md updated
 [ ] Step 5e — sync-context.sh --apply run; AGENTS.md + GEMINI.md regenerated at platform root
 [ ] Step 5f — new repo added to sync-context.sh REPOS array; second run clean
-[ ] Step 5g — .platform/log.md line appended
+[ ] Step 5g — .platform/memory/log.md line appended
 [ ] Step 6 — specialist skills created (if needed)
 [ ] Step 7 — fresh AI session successfully picks up context without re-explanation
 [ ] Step 8 — starter kit (AGENTBOARD.md) updated if the stack is reusable across projects

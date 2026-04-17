@@ -48,11 +48,11 @@ agentboard close <stream-slug>
 ```
 
 Then, following the checklist it prints, distill and append to these files (only where applicable — skip categories with nothing to add):
-- `.platform/gotchas.md` — landmines discovered (🔴 never-forget · 🟡 usually-matters · 🟢 minor)
-- `.platform/playbook.md` — shortcuts / rituals / commands worth recording
-- `.platform/open-questions.md` — anything still unresolved (or move a prior question to Resolved)
-- `.platform/decisions.md` — locked architectural/product/tooling decisions
-- `.platform/learnings.md` — non-obvious bug root-causes
+- `.platform/memory/gotchas.md` — landmines discovered (🔴 never-forget · 🟡 usually-matters · 🟢 minor)
+- `.platform/memory/playbook.md` — shortcuts / rituals / commands worth recording
+- `.platform/memory/open-questions.md` — anything still unresolved (or move a prior question to Resolved)
+- `.platform/memory/decisions.md` — locked architectural/product/tooling decisions
+- `.platform/memory/learnings.md` — non-obvious bug root-causes
 
 ```bash
 # Step 2 — after harvest, archive the stream
@@ -97,7 +97,7 @@ When the user gives a task not already tracked in `ACTIVE.md`, **stop and comple
 
 - `.platform/workflow.md` — the 6-stage inline workflow **← read this before running any multi-step protocol**
 - `.platform/ONBOARDING.md` — 7-step onboarding path for future sessions
-- `.platform/learnings.md` — bug post-mortems + hard-won patterns (L-NNN); **grep here first before diagnosing non-obvious bugs**
+- `.platform/memory/learnings.md` — bug post-mortems + hard-won patterns (L-NNN); **grep here first before diagnosing non-obvious bugs**
 
 ## Mandatory Protocol — Stream Audit / Analysis
 
