@@ -1,6 +1,6 @@
 # Agentboard
 
-**A starter kit that gives Claude Code, Codex CLI, and Gemini CLI a shared operating system for your project.**
+**Shared work-state and project-truth for multi-provider AI workflows.** Agentboard gives Claude Code, Codex CLI, and Gemini CLI a common `.platform/` pack so each provider loads the same project truth, tracks the same workstreams, and can pick up work another provider started.
 
 ```bash
 cd /path/to/your/project
@@ -12,6 +12,19 @@ agentboard init
 Agentboard scaffolds a `.platform/` pack plus root entry files, then hands off to the LLM to scan the actual codebase, ask a few targeted questions, and write project-specific context. No stack picker. No static React/Django/Vite templates pretending to know your repo. The LLM reads the repo and decides.
 
 > **Status:** actively evolving from a proven internal setup used across multi-repo product work. The kit is stack-agnostic; the project-specific intelligence is generated during activation.
+
+---
+
+## How it actually works
+
+Agentboard does **not** move chat history, tool-call state, or in-session memory between providers — nothing does, and pretending otherwise would be dishonest. What Agentboard ships is:
+
+1. **A shared project-truth format** — `.platform/` holds architecture, decisions, domains, conventions, and a live work-stream registry. Plain markdown, readable by any LLM.
+2. **Provider-neutral entry files** — `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md` at the repo root point each CLI at the same `.platform/` pack. Claude Code, Codex CLI, and Gemini CLI each auto-load their own entry file on session start.
+3. **A deterministic handoff packet** — `agentboard handoff <stream>` prints the minimum load order (brief → stream → domains → repos) plus the git branch hint, so the next provider can resume without a full re-brief.
+4. **A persistent work layer** — streams registered in `work/ACTIVE.md` survive context compaction, session death, and provider switches. What doesn't survive: the chat. What does: the work state.
+
+Result: start a stream in Claude Code, resume it in Codex CLI, finish it in Gemini CLI — each session loads the same files in the same order, with the same stream metadata, and with git as the cross-session edit log.
 
 ---
 
@@ -143,7 +156,7 @@ The agent writes project-specific files from what it actually finds, including:
 
 - `.platform/STATUS.md`
 - `.platform/architecture.md`
-- `.platform/decisions.md`
+- `.platform/memory/decisions.md`
 - `.platform/repos.md`
 - `.platform/domains/*.md`
 - `.platform/conventions/*.md`
@@ -286,9 +299,7 @@ agentboard new-domain <slug> [repo-id ...] [--repo <repo-id>]
 agentboard new-stream <slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]
 agentboard resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>
 agentboard handoff [stream-slug]
-agentboard claim "<task>"
-agentboard release
-agentboard log "<one line>"
+agentboard progress <stream-slug> [--base <branch>] [--note "<text>"] [--dry-run]
 agentboard status
 agentboard add-repo <path>
 agentboard usage log --provider <name> --input <N> --output <N> [--model <M>] [--stream <S>] [--repo <R>] [--type <T>] [--note <text>]
@@ -315,8 +326,7 @@ agentboard help
 - `new-stream` bootstraps a stream file, registers it in `work/ACTIVE.md`, and seeds `work/BRIEF.md` when the brief is still a placeholder; repeat `--domain` and `--repo` when the stream spans multiple areas or repos
 - `resolve` turns a canonical stream/domain/repo reference into the exact file or repo record to load
 - `handoff` prints the minimum file load order, repo scope, and current-state summary another LLM needs to resume a stream without a full re-brief
-- `claim` and `release` manage `.platform/sessions/ACTIVE.md`
-- `log` appends to `.platform/log.md`
+- `progress` appends a git-diff summary (`git diff --stat <base>...HEAD`) to the stream's `## Progress log` section, stamped with timestamp and branch; use this instead of hand-typing what changed
 - `status` prints `.platform/STATUS.md`
 - `add-repo` scaffolds entry files into a sibling repo in hub mode and refuses to overwrite existing root entry files
 - `usage log` records a token segment to `~/.agentboard/usage.db`; `usage summary/history/stream/dashboard/learn` aggregate and visualise the data — see `CHEATSHEET.md` for the full reference

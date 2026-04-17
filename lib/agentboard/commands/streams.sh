@@ -295,7 +295,31 @@ cmd_resolve() {
 cmd_handoff() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
 
-  local requested_slug="${1:-}"
+  local requested_slug="" budget_arg="" budget=0
+  if [[ -n "${1:-}" && "${1:0:2}" != "--" ]]; then
+    requested_slug="$1"
+    shift
+  fi
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --budget)
+        [[ -n "${2:-}" ]] || die "handoff requires a value after --budget"
+        budget_arg="$2"
+        budget="$(parse_token_budget "$2")" || die "Invalid --budget '$2' (use e.g. 4000 or 4k)"
+        shift 2 ;;
+      -h|--help)
+        cat <<'EOF'
+Usage: agentboard handoff [<stream-slug>] [--budget <N|Nk>]
+
+Prints the load order for the next agent's context pack.
+--budget trims secondary domains when the estimated token total exceeds the
+limit. Estimation uses bytes/4 as a rough heuristic (zero dependencies).
+EOF
+        return 0 ;;
+      *) die "Unknown flag for handoff: $1" ;;
+    esac
+  done
+
   local active="./.platform/work/ACTIVE.md"
   local brief="./.platform/work/BRIEF.md"
   local repos_file="./.platform/repos.md"
@@ -357,6 +381,14 @@ cmd_handoff() {
   printf '  owner:  %s\n' "${agent:-unknown}"
   printf '  updated:%s %s\n' "${updated:+ }" "${updated:-unknown}"
 
+  local _today _stream_updated
+  _today="$(today)"
+  _stream_updated="$(frontmatter_value "$stream_file" "updated_at")"
+  if [[ -n "$_stream_updated" && "$_stream_updated" != "$_today" ]] && ! is_placeholder_value "$_stream_updated"; then
+    printf '  %s⚠%s  %sStream state last updated %s — run %sagentboard checkpoint %s%s before handoff%s\n' \
+      "$C_YELLOW" "$C_RESET" "$C_YELLOW" "$_stream_updated" "$C_BOLD" "$slug" "$C_RESET$C_YELLOW" "$C_RESET"
+  fi
+
   local _git_branch _base_branch
   _git_branch="$(frontmatter_value "$stream_file" "git_branch")"
   _base_branch="$(frontmatter_value "$stream_file" "base_branch")"
@@ -369,18 +401,53 @@ cmd_handoff() {
   fi
   say
 
-  printf '%sLoad in this order:%s\n' "$C_BOLD" "$C_RESET"
-  printf '  1. .platform/work/BRIEF.md\n'
-  printf '  2. .platform/work/%s.md\n' "$slug"
+  local brief_tokens stream_tokens running_tokens
+  brief_tokens="$(estimate_tokens_for_file "$brief")"
+  stream_tokens="$(estimate_tokens_for_file "$stream_file")"
+  running_tokens=$(( brief_tokens + stream_tokens ))
 
-  local domain_slug
-  local domain_index=3
+  local -a included_domains=() skipped_domains=()
+  local -a domain_token_cache=()
+  local domain_slug domain_file domain_tokens first_domain=1
   while IFS= read -r domain_slug; do
     [[ -z "$domain_slug" ]] && continue
-    printf '  %d. .platform/domains/%s.md\n' "$domain_index" "$domain_slug"
-    domain_index=$((domain_index + 1))
+    domain_file="./.platform/domains/${domain_slug}.md"
+    domain_tokens="$(estimate_tokens_for_file "$domain_file")"
+    if (( budget > 0 )) && (( first_domain == 0 )) && (( running_tokens + domain_tokens > budget )); then
+      skipped_domains+=("${domain_slug}|${domain_tokens}")
+    else
+      included_domains+=("${domain_slug}|${domain_tokens}")
+      running_tokens=$(( running_tokens + domain_tokens ))
+      first_domain=0
+    fi
   done < <(inline_array_items "$(frontmatter_value "$stream_file" "domain_slugs")")
+
+  if (( budget > 0 )); then
+    printf '%sLoad in this order%s %s(budget %s tokens, using ~%d)%s\n' \
+      "$C_BOLD" "$C_RESET" "$C_DIM" "$budget_arg" "$running_tokens" "$C_RESET"
+  else
+    printf '%sLoad in this order:%s\n' "$C_BOLD" "$C_RESET"
+  fi
+  printf '  1. .platform/work/BRIEF.md%s\n' "$( (( budget > 0 )) && printf '  (~%d)' "$brief_tokens" )"
+  printf '  2. .platform/work/%s.md%s\n' "$slug" "$( (( budget > 0 )) && printf '  (~%d)' "$stream_tokens" )"
+  local entry idx=3 e_slug e_tokens
+  for entry in "${included_domains[@]}"; do
+    e_slug="${entry%%|*}"; e_tokens="${entry#*|}"
+    printf '  %d. .platform/domains/%s.md%s\n' "$idx" "$e_slug" \
+      "$( (( budget > 0 )) && printf '  (~%d)' "$e_tokens" )"
+    idx=$((idx + 1))
+  done
   say
+
+  if (( ${#skipped_domains[@]} > 0 )); then
+    printf '%sSkipped (budget tight):%s\n' "$C_BOLD" "$C_RESET"
+    for entry in "${skipped_domains[@]}"; do
+      e_slug="${entry%%|*}"; e_tokens="${entry#*|}"
+      printf '  - .platform/domains/%s.md  %s(~%d tokens)%s\n' \
+        "$e_slug" "$C_DIM" "$e_tokens" "$C_RESET"
+    done
+    say
+  fi
 
   local repo_scope=""
   repo_scope="$(inline_array_items "$(frontmatter_value "$stream_file" "repo_ids")")"
@@ -414,21 +481,55 @@ cmd_handoff() {
     say
   fi
 
-  printf '%sNext action:%s %s\n' "$C_BOLD" "$C_RESET" "$next_action"
-  if [[ -n "$build_excerpt" ]]; then
+  local r_updated r_what r_focus r_next r_blockers
+  r_updated="$(stream_resume_field "$stream_file" "Last updated")"
+  r_what="$(stream_resume_field "$stream_file" "What just happened")"
+  r_focus="$(stream_resume_field "$stream_file" "Current focus")"
+  r_next="$(stream_resume_field "$stream_file" "Next action")"
+  r_blockers="$(stream_resume_field "$stream_file" "Blockers")"
+
+  _is_resume_placeholder() {
+    local v="$1"
+    [[ -z "$v" ]] && return 0
+    [[ "$v" == "—" ]] && return 0
+    [[ "$v" == "_not set_" ]] && return 0
+    [[ "$v" == "— by —" ]] && return 0
+    return 1
+  }
+
+  if ! _is_resume_placeholder "$r_what" || ! _is_resume_placeholder "$r_next"; then
+    printf '%sResume state%s %s(from %s.md § Resume state)%s\n' "$C_BOLD" "$C_RESET" "$C_DIM" "$slug" "$C_RESET"
+    _is_resume_placeholder "$r_updated" || printf '  Last updated:       %s\n' "$r_updated"
+    _is_resume_placeholder "$r_what"    || printf '  What just happened: %s\n' "$r_what"
+    _is_resume_placeholder "$r_focus"   || printf '  Current focus:      %s\n' "$r_focus"
+    _is_resume_placeholder "$r_next"    || printf '  Next action:        %s%s%s\n' "$C_BOLD" "$r_next" "$C_RESET"
+    _is_resume_placeholder "$r_blockers" || printf '  Blockers:           %s\n' "$r_blockers"
     say
-    printf '%sWhat we are building:%s\n' "$C_BOLD" "$C_RESET"
-    printf '%s\n' "$build_excerpt"
-  fi
-  if [[ -n "$current_excerpt" ]]; then
+  else
+    printf '%sNext action:%s %s\n' "$C_BOLD" "$C_RESET" "$next_action"
+    if [[ -n "$build_excerpt" ]]; then
+      say
+      printf '%sWhat we are building:%s\n' "$C_BOLD" "$C_RESET"
+      printf '%s\n' "$build_excerpt"
+    fi
+    if [[ -n "$current_excerpt" ]]; then
+      say
+      printf '%sCurrent state:%s\n' "$C_BOLD" "$C_RESET"
+      printf '%s\n' "$current_excerpt"
+    fi
+    if [[ -n "$do_not_load" && "$do_not_load" != "_TODO_" ]]; then
+      say
+      printf '%sDo not load:%s %s\n' "$C_BOLD" "$C_RESET" "$do_not_load"
+    fi
     say
-    printf '%sCurrent state:%s\n' "$C_BOLD" "$C_RESET"
-    printf '%s\n' "$current_excerpt"
   fi
-  if [[ -n "$do_not_load" && "$do_not_load" != "_TODO_" ]]; then
-    say
-    printf '%sDo not load:%s %s\n' "$C_BOLD" "$C_RESET" "$do_not_load"
-  fi
+
+  printf '%sFor the agent reading this:%s\n' "$C_BOLD" "$C_RESET"
+  printf '  1. Load the files above in that order. Stop once the job is clear.\n'
+  printf '  2. Read the stream file and its "## Resume state" block first — it is the compact "where we are".\n'
+  printf '  3. Confirm you understand Next action, then continue from there.\n'
+  printf '  4. Before ending your session or switching providers, run:\n'
+  printf '     %sagentboard checkpoint %s --what "..." --next "..."%s\n' "$C_BOLD" "$slug" "$C_RESET"
   say
 }
 

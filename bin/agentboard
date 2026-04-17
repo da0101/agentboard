@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# agentboard — AI agent context kit
-# Bootstraps a .platform/ context pack into any project, then hands off to an
-# LLM (Claude Code, Codex CLI, Gemini CLI) to scan the project and fill the pack.
+# agentboard — shared work-state and project-truth for multi-provider AI workflows
+# Scaffolds a .platform/ pack plus provider-neutral entry files (CLAUDE.md,
+# AGENTS.md, GEMINI.md) so Claude Code, Codex CLI, and Gemini CLI each load the
+# same project truth and can resume the same workstreams across sessions.
 
 set -euo pipefail
 
@@ -20,16 +21,22 @@ TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
 TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
 TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
 
-VERSION="1.4.0"
+VERSION="1.5.0"
 
 
 source "$AGENTBOARD_ROOT/lib/agentboard/core.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/init.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/bootstrap.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/migration.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/migrate_layout.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/session.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/doctor.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/progress.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/checkpoint.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/system_setup.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/update.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage.sh"
@@ -83,7 +90,7 @@ print_banner() {
     printf '\n'
   done
 
-  printf '\n%s  AI agent context kit — v%s%s\n\n' "$C_DIM" "$VERSION" "$C_RESET"
+  printf '\n%s  Shared work-state for multi-provider AI workflows — v%s%s\n\n' "$C_DIM" "$VERSION" "$C_RESET"
 }
 
 # -----------------------------------------------------------------------------
@@ -101,15 +108,18 @@ main() {
     sync)        cmd_sync "$@" ;;
     bootstrap)   cmd_bootstrap "$@" ;;
     migrate)     cmd_migrate "$@" ;;
+    migrate-layout) cmd_migrate_layout "$@" ;;
     brief-upgrade) cmd_brief_upgrade "$@" ;;
     doctor)      cmd_doctor "$@" ;;
     new-domain)  cmd_new_domain "$@" ;;
     new-stream)  cmd_new_stream "$@" ;;
     resolve)     cmd_resolve "$@" ;;
     handoff)     cmd_handoff "$@" ;;
-    claim)       cmd_claim "$@" ;;
-    release)     cmd_release "$@" ;;
-    log)         cmd_log "$@" ;;
+    progress)    cmd_progress "$@" ;;
+    checkpoint)  cmd_checkpoint "$@" ;;
+    close)       cmd_close "$@" ;;
+    brief)       cmd_brief "$@" ;;
+    watch)       cmd_watch "$@" ;;
     status)      cmd_status "$@" ;;
     add-repo)    cmd_add_repo "$@" ;;
     usage)       cmd_usage "$@" ;;

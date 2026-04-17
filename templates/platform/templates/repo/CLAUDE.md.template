@@ -25,9 +25,9 @@
 
 ### Decisions, workflow, history
 
-- `{{PLATFORM_REPO_NAME}}/.platform/decisions.md` — why things are the way they are (locked + deferred)
+- `{{PLATFORM_REPO_NAME}}/.platform/memory/decisions.md` — why things are the way they are (locked + deferred)
 - `{{PLATFORM_REPO_NAME}}/.platform/workflow.md` — the 6-stage inline workflow
-- `{{PLATFORM_REPO_NAME}}/.platform/log.md` — rolling session history
+- `{{PLATFORM_REPO_NAME}}/.platform/memory/log.md` — rolling session history
 
 ## Canonical facts (trust these over anything else in this repo)
 

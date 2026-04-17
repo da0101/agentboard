@@ -2,10 +2,13 @@ cmd_version() { say "agentboard $VERSION"; }
 
 cmd_help() {
   cat <<'EOF'
-agentboard — AI agent context kit
+agentboard — shared work-state for multi-provider AI workflows
 
-Bootstraps a .platform/ context pack into any project so that Claude Code,
-Codex CLI, and Gemini CLI are instantly productive.
+Scaffolds a .platform/ pack plus provider-neutral entry files (CLAUDE.md,
+AGENTS.md, GEMINI.md) so Claude Code, Codex CLI, and Gemini CLI each load
+the same project truth and can resume the same workstreams across sessions.
+Agentboard does NOT move chat history between providers — it shares files,
+not conversations.
 
 USAGE
   agentboard <command> [args]
@@ -29,6 +32,10 @@ COMMANDS
   sync [--apply|--list]      Sync AGENTS.md + GEMINI.md from CLAUDE.md (default: check)
   bootstrap [--apply-domains] Discover repos, infer starter domains, and suggest streams
   migrate [--apply]          Upgrade legacy stream/domain files to metadata v1
+  migrate-layout [--apply]   Upgrade .platform/ layout — move decisions/learnings/
+                             log/gotchas/playbook/open-questions/BACKLOG into
+                             .platform/memory/. Cleans up empty sessions/.
+                             Default is --dry-run; pass --apply to perform.
   brief-upgrade [slug] ...   Rewrite legacy BRIEF.md for one target stream
   doctor                     Validate active .platform state and metadata
   new-domain <slug> ...      Create a domain file from the shared template
@@ -40,10 +47,50 @@ COMMANDS
                              --agent <a>      agent owner (default: codex)
                              --repo <id>      (repeatable)
   resolve <target>           Resolve a stream, domain, or repo by canonical id
-  handoff [stream-slug]      Print a low-token provider handoff packet
-  claim "<task>"             Add a row to .platform/sessions/ACTIVE.md
-  release                    Remove your rows from .platform/sessions/ACTIVE.md
-  log "<one line>"           Append a timestamped line to .platform/log.md
+  handoff [stream-slug]      Print a low-token provider handoff packet.
+                             Shows Resume state (from stream file), warns if
+                             stale, appends a "for the agent reading this"
+                             footer. Flags:
+                             --budget <N|Nk>   cap estimated load-order tokens;
+                                               drops secondary domains when tight
+  checkpoint <stream-slug>   Save compact "where we are" state before handoff.
+                             Overwrites the stream's ## Resume state block,
+                             prepends a Progress log entry, trims to last 10.
+                             Run this before ending a session or switching CLIs.
+                             --what "<text>"   required: what just happened
+                             --next "<text>"   required: the single next action
+                             --blocker "<t>"   current blocker (default: none)
+                             --focus "<t>"     file:line or topic in focus
+                             --diff            also append git diff --stat
+                             --dry-run         print changes without writing
+                             --tokens-in N --tokens-out N --provider <p>
+                             [--model <m>] [--complexity <c>]
+                                               auto-log a usage segment
+  close <stream-slug>        Finalize a stream. Two-step ritual:
+                             1. bare run prints the harvest checklist —
+                                distill gotchas/playbook/questions/decisions
+                                into .platform memory files.
+                             2. --confirm archives the stream and logs closure.
+                             --dry-run         preview --confirm actions
+  brief                      Print the compact project briefing — active
+                             streams, recent gotchas, open questions,
+                             usage pattern. Read this at session start.
+                             --all             show all gotchas/questions
+  watch                      Background poller that auto-checkpoints when
+                             ≥1 tracked file has changed since last poll.
+                             Use during long Codex/Gemini sessions so state
+                             stays current without manual checkpoints.
+                             --interval N      poll every N min (default 10)
+                             --threshold N     min changed files (default 1)
+                             --stream <slug>   target stream (default: auto)
+                             --once            single poll, then exit
+                             --stop            stop the running watcher
+  progress <stream-slug>     Append a git-diff summary to the stream's
+                             ## Progress log section (uses base_branch from
+                             frontmatter). Flags:
+                             --base <branch>   override recorded base branch
+                             --note "<text>"   one-line note to attach
+                             --dry-run         print block instead of writing
   status                     Print .platform/STATUS.md to stdout
   add-repo <path>            Copy per-repo entry file templates to a new repo
                              Refuses to overwrite existing entry files.
@@ -57,16 +104,13 @@ COMMANDS
                              history       — last 20 segments
                              optimize      — most expensive streams/types/providers
                              learn         — detect inefficiencies and generate rules
-                             learn --apply — write rules to .platform/learnings.md
+                             learn --apply — write rules to .platform/memory/learnings.md
                              dashboard     — visual bar-chart dashboard
                                [--today|--week|--month]
                              One entry = one context segment. Log at every
                              context clear, provider switch, or stream closure.
   version                    Print version
   help                       Show this help
-
-ENV
-  AGENTBOARD_AGENT           Agent name used in claim/release (default: $USER@$HOSTNAME)
 
 PHILOSOPHY
   No stack pre-picking. No assumptions. The LLM decides what conventions to

@@ -28,7 +28,7 @@ Key rules:
 - No `.md` artifacts unless reusable. Plans live in chat.
 - Trivial tasks skip straight to execution.
 - Parallelize subagents when they have distinct jobs.
-- Every success appends one line to `.platform/log.md`.
+- Every success appends one line to `.platform/memory/log.md`.
 
 ## Step 3 — Read the conventions for your area (as needed)
 
@@ -60,16 +60,7 @@ These are **big files**. Read only when your task is deep enough to need them.
 | Deferred issues / tech debt | `BACKLOG.md` — **do not load at session start**; read only when user asks or you are appending a new entry |
 | Bug post-mortems / hard-won patterns | `learnings.md` — **do not load at session start**; grep before diagnosing non-obvious bugs; append in Stage 6 when root cause was non-obvious |
 
-## Step 5 — Claim your session (if parallel sessions are possible)
-
-1. Read `.platform/sessions/ACTIVE.md` (if present — multi-repo projects only)
-2. If another session owns the area you want to touch, pick a different area or coordinate
-3. Add your session declaration to `ACTIVE.md` before making changes
-4. Clear your declaration at session end
-
-If you're working alone, skip this step but still update `log.md` at the end.
-
-## Step 6 — Execute
+## Step 5 — Execute
 
 Follow the 6-stage workflow from `workflow.md`. Cheat sheet:
 
@@ -78,7 +69,7 @@ Task → Triage (type/scope/risk) → Interview (only if ambiguous) → Research
      → Propose inline → Execute → Verify + Learn (append to log.md)
 ```
 
-## Step 7 — Close out
+## Step 6 — Close out
 
 If the stream is fully complete, run the **Stream Closure Protocol** from `workflow.md` (8 steps). Short version:
 

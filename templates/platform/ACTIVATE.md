@@ -47,7 +47,7 @@ Based on scan + interview, generate these files. Write them one at a time, then 
 
 **`.platform/architecture.md`** — fill in the real components, tech stack, data flow, auth model, external services, deploy topology, invariants. Use the scan + interview answers. Keep it under one screen per section.
 
-**`.platform/decisions.md`** — seed 3–5 initial locked decisions based on what the scan reveals. Examples: "Chose framework X because the codebase was already using it", "Auth handled by provider Y (found in .env.example)", "Data store is Z (found in config)". Each row needs a _why_.
+**`.platform/memory/decisions.md`** — seed 3–5 initial locked decisions based on what the scan reveals. Examples: "Chose framework X because the codebase was already using it", "Auth handled by provider Y (found in .env.example)", "Data store is Z (found in config)". Each row needs a _why_.
 
 **`.platform/repos.md`** — list the repo(s). For single-repo projects, one row. For multi-repo, one row per repo with stack + deep-reference-file name.
 
@@ -70,30 +70,46 @@ Based on scan + interview, generate these files. Write them one at a time, then 
 
 **`.platform/work/BRIEF.md`** — if the user mentioned a current active feature in answer to question 8, fill this in now: what they're building, why, what done looks like, architecture decisions locked, current state, and key files. If no active feature yet, leave the placeholder text in place — it will be filled when the first workstream starts.
 
-**`.platform/log.md`** — append one line: `{{TODAY}} — agentboard activation — .platform/ pack filled from scan + interview — <one-sentence summary of what you learned>`
+**`.platform/memory/log.md`** — append one line: `{{TODAY}} — agentboard activation — .platform/ pack filled from scan + interview — <one-sentence summary of what you learned>`
 
 ## Step 4 — Install or update the root `CLAUDE.md` **(never delete existing content)**
 
 Check whether `CLAUDE.md` already exists at the project root.
 
+**Idempotency contract (read this before writing anything).** Agentboard-generated content lives between two HTML-comment markers so a future re-activation can replace the section in place instead of stacking duplicates or corrupting the user's original text:
+
+```
+<!-- agentboard:root-entry:begin v=1 -->
+... the entire Agentboard steady-state section goes here ...
+<!-- agentboard:root-entry:end v=1 -->
+```
+
+Every file you write in this step and Step 5 (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) must start with `<!-- agentboard:root-entry:begin v=1 -->` and the Agentboard section must end with `<!-- agentboard:root-entry:end v=1 -->` before any preserved user content. The markers are the contract — do not rename, reformat, or remove them.
+
 ### Case A — No existing `CLAUDE.md` (or it's the agentboard activation stub)
 
-The agentboard stub is safe to fully replace — it's clearly marked with `# {{PROJECT_NAME}} — NOT YET ACTIVATED` at the top and a note at the bottom saying it'll be replaced after activation. Write a fresh steady-state file using the structure below.
+The agentboard stub is safe to fully replace — it's clearly marked with `# {{PROJECT_NAME}} — NOT YET ACTIVATED` at the top and a note at the bottom saying it'll be replaced after activation. Write a fresh steady-state file using the structure below, wrapped in the begin/end markers. Nothing should come after the end marker.
 
-### Case B — The user has an existing `CLAUDE.md` that is NOT the agentboard stub
+### Case B — The user has an existing `CLAUDE.md` with NO Agentboard markers
 
-**Prepend, don't delete.** The rule: add your agentboard section to the **top** of the file, leave every line of the user's original content intact below it.
+**Prepend, don't delete.** The rule: add your agentboard section (wrapped in markers) to the **top** of the file, leave every line of the user's original content intact below the end marker.
 
 Concretely:
 1. Read the user's existing `CLAUDE.md` in full.
 2. Build your agentboard section using the structure in "Steady-state structure" below.
-3. Write the new file as: `<your agentboard section>` + `\n\n---\n\n## Existing CLAUDE.md content (preserved by agentboard activation on {{TODAY}})\n\n` + `<original content>`.
+3. Write the new file as: `<!-- agentboard:root-entry:begin v=1 -->\n<your agentboard section>\n<!-- agentboard:root-entry:end v=1 -->\n\n---\n\n## Existing CLAUDE.md content (preserved by agentboard activation on {{TODAY}})\n\n` + `<original content>`.
 4. Show the user a 5-line summary of what you prepended before writing.
 5. If any of the existing content clearly contradicts your new section (e.g., their file says "always use framework X" but the scan found framework Y), flag it in chat and ask how to reconcile — **do not edit their words**.
 
-No backup file needed — the original content is still there, just pushed below your new section.
+### Case C — Re-activation: the file already contains Agentboard markers
 
-### Steady-state structure to prepend (target ~80 lines)
+Replace the content **between** `<!-- agentboard:root-entry:begin v=1 -->` and `<!-- agentboard:root-entry:end v=1 -->` with the freshly generated section. Everything after the end marker (including the preserved user content from an earlier activation, or their own edits below the end marker) must be left exactly as-is, byte for byte.
+
+Do **not** append a second `## Existing CLAUDE.md content` header — that block was already added on the first activation. Do **not** delete the end marker, or the invariant breaks for the next re-activation.
+
+No backup file needed — the markers make the operation reversible via `git diff`.
+
+### Steady-state structure to write between the markers (target ~80 lines)
 
 ```markdown
 # {{PROJECT_NAME}}
@@ -121,9 +137,11 @@ No backup file needed — the original content is still there, just pushed below
 
 Do **not** bloat it. Agents re-read this on every session — keep the prepended section lean.
 
-## Step 5 — Sync to `AGENTS.md` and `GEMINI.md` **(same prepend-don't-delete rule)**
+## Step 5 — Sync to `AGENTS.md` and `GEMINI.md` **(same marker + prepend rule)**
 
 Check whether `AGENTS.md` and/or `GEMINI.md` already exist at the project root.
+
+The same idempotency contract from Step 4 applies: every Agentboard section you write in either file must be wrapped in `<!-- agentboard:root-entry:begin v=1 -->` / `<!-- agentboard:root-entry:end v=1 -->` markers.
 
 ### Case A — They don't exist
 
@@ -132,27 +150,40 @@ Run:
 ./.platform/scripts/sync-context.sh --apply
 ```
 
-This generates them from the new `CLAUDE.md` so Codex CLI and Gemini CLI get the same entry point.
+This generates them from the new `CLAUDE.md` so Codex CLI and Gemini CLI get the same entry point. The markers are carried over from `CLAUDE.md`.
 
-### Case B — One or both exist
+### Case B — One or both exist, with NO Agentboard markers
 
 **Do not run `sync-context.sh --apply` blindly — it will overwrite them.** Instead, for each existing file:
 
 1. Read the user's existing file in full.
-2. Take the agentboard section you prepended to `CLAUDE.md` in Step 4.
-3. Prepend that same section to the user's existing `AGENTS.md` / `GEMINI.md`, followed by `\n\n---\n\n## Existing AGENTS.md content (preserved by agentboard activation on {{TODAY}})\n\n` and the original content.
+2. Take the agentboard section you wrote between the markers in `CLAUDE.md` in Step 4.
+3. Prepend that same section — with the begin/end markers — to the user's existing file, followed by `\n\n---\n\n## Existing AGENTS.md content (preserved by agentboard activation on {{TODAY}})\n\n` and the original content.
 4. Manually write the result — do **not** use `sync-context.sh --apply` because it clobbers rather than prepends.
+
+### Case C — Re-activation: an entry file already contains Agentboard markers
+
+Replace the content between the markers in place, same rule as Step 4 Case C. Everything after the end marker stays byte-for-byte identical.
 
 **If the user has multi-repo**, also tell them to edit `./.platform/scripts/sync-context.sh` `REPOS=()` array. The sync script is safe to run later for **newly-generated** (agentboard-written) entry files in sibling repos, but never for files the user authored.
 
-## Step 6 — Confirm
+## Step 6 — Run `agentboard doctor`, then confirm
 
-Show the user a summary:
+Before declaring activation done, run:
+
+```bash
+agentboard doctor
+```
+
+`doctor` re-checks the frontmatter on every stream and domain file you wrote, validates the cross-references in `work/ACTIVE.md` and `work/BRIEF.md`, and (in hub mode) verifies every row of `repos.md` resolves to a real path. **If `doctor` reports `errors > 0`, fix them before showing the summary** — silent missing keys are exactly what this gate exists to prevent.
+
+Once `doctor` passes (warnings are fine — explain them in the summary), show the user a summary:
 - What you filled in (`.platform/*.md` files)
 - What you intentionally left as placeholders for them to complete (e.g., "release blocklist has 3 empty rows — tell me what blocks launch")
 - Which root files you touched and how (`CLAUDE.md` written / merged / skipped; same for `AGENTS.md`, `GEMINI.md`)
 - That `work/BRIEF.md` is in place — filled if a current feature was mentioned, skeleton if not
 - That `work/ACTIVE.md` is in place and empty — ready to track the first workstream
+- The `agentboard doctor` summary line (errors / warnings)
 - What you'd recommend as the next task
 
 Then ask: "Does this look right, or should I revise any section?"
@@ -161,14 +192,14 @@ Then ask: "Does this look right, or should I revise any section?"
 
 ## Activation rules (so you don't mess this up)
 
-0. **Subagent dispatch rule.** If you use `Task` tool calls to parallelize any scan step, follow the dispatch convention: print `Dispatching N agent(s): <Name> [<model>] — <purpose>; ...` before every dispatch, pass `model` explicitly (Sonnet for read-only scan work, Opus only if writing code mid-activation), and give each agent a persona name. Full rule: `.platform/agents/subagent-dispatch.md`.
 1. **Read before you write.** Scan the actual files before generating any content. No hallucinating the stack.
 2. **Ask when you're unsure.** If the scan is ambiguous (e.g., you see both a `package.json` and a `pyproject.toml`), ask which is the primary.
 3. **Don't ship placeholder content in `.platform/` files.** If the user hasn't answered a question, write `_TODO: <specific thing to fill in>_` so it's greppable.
 4. **Stack-specific conventions are per-project, not generic.** Don't copy-paste a generic `conventions/react.md` — write the rules that apply to THIS codebase.
 5. **Never silently overwrite user files at the project root.** `CLAUDE.md`, `AGENTS.md`, `GEMINI.md` require explicit user permission (Step 4 and Step 5). `.platform/*` is safe to write fully since `agentboard init` created the skeleton.
-6. **No `.md` artifacts for plans.** The activation plan lives in chat, not in `.planning/`.
-7. **Every step commits (if git is initialized).** Atomic commits: "Activate project: scan + interview", "Activate project: fill architecture + decisions", "Activate project: write conventions/{stack}.md", "Activate project: install steady-state CLAUDE.md". This lets the user see exactly what you changed.
+6. **Agentboard sections in root entry files MUST be wrapped in markers.** Every `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` section you generate sits between `<!-- agentboard:root-entry:begin v=1 -->` and `<!-- agentboard:root-entry:end v=1 -->`. Re-activation replaces content between those markers in place — it does NOT prepend a second copy. If you see the markers already in the file, you are in Case C (re-activation), not Case B (fresh merge).
+7. **No `.md` artifacts for plans.** The activation plan lives in chat, not in `.planning/`.
+8. **Every step commits (if git is initialized).** Atomic commits: "Activate project: scan + interview", "Activate project: fill architecture + decisions", "Activate project: write conventions/{stack}.md", "Activate project: install steady-state CLAUDE.md". This lets the user see exactly what you changed.
 
 ---
 
@@ -198,7 +229,6 @@ These files are generic and ship verbatim — you don't need to rewrite them:
 - **`.platform/workflow.md`** — the 6-stage inline workflow (triage → interview → research → propose → execute → verify)
 - **`.platform/ONBOARDING.md`** — the 7-step onboarding path for future sessions
 - **`.platform/scripts/sync-context.sh`** — the sync script
-- **`.platform/sessions/ACTIVE.md`** — the parallel-session coordination template (for multi-repo projects)
 - **`.platform/templates/repo/*`** — scaffolding for adding new repos later via `agentboard add-repo`
 - **`.platform/work/BRIEF.md`** — feature brief (read FIRST every session — narrative context for current active feature)
 - **`.platform/work/ACTIVE.md`** — active workstream registry (read every session start, after BRIEF.md)
@@ -212,9 +242,9 @@ These files ship as **skeletal templates** that you fill in during activation:
 
 - `.platform/STATUS.md`
 - `.platform/architecture.md`
-- `.platform/decisions.md`
+- `.platform/memory/decisions.md`
 - `.platform/repos.md`
-- `.platform/log.md`
+- `.platform/memory/log.md`
 
 These are **empty on purpose** — you create them from scratch during activation:
 

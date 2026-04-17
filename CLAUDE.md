@@ -12,7 +12,7 @@ agentboard/
 ├── CLAUDE.md              ← this file — rules for working on agentboard itself
 ├── LICENSE                ← MIT
 ├── bin/
-│   └── agentboard         ← bash CLI (init / sync / claim / release / log / status / add-repo)
+│   └── agentboard         ← bash CLI (init / sync / status / add-repo / handoff / checkpoint / usage)
 └── templates/
     ├── platform/          ← copied into <project>/.platform/ by `init`
     │   ├── ONBOARDING.md      (verbatim)
@@ -24,8 +24,7 @@ agentboard/
     │   ├── log.md             (skeletal — placeholders)
     │   ├── conventions/       (EMPTY — LLM writes per-project)
     │   ├── templates/repo/    (verbatim — per-repo scaffold)
-    │   ├── scripts/sync-context.sh (verbatim)
-    │   └── sessions/ACTIVE.md (verbatim)
+    │   └── scripts/sync-context.sh (verbatim)
     └── root/
         └── CLAUDE.md.template ← activation prompt dropped at project root by `init`
 ```
@@ -50,7 +49,6 @@ The single most important design decision:
 | `workflow.md` | verbatim | 6-stage workflow is the same for every project |
 | `ONBOARDING.md` | verbatim | Reading path is the same for every project |
 | `sync-context.sh` | verbatim | Only `REPOS=()` array is per-project |
-| `sessions/ACTIVE.md` | verbatim | Generic claims table format |
 | `templates/repo/*` | verbatim | Generic per-repo scaffold |
 | `STATUS.md` | placeholder | `{{PROJECT_NAME}}`, `{{DESCRIPTION}}`, `{{TODAY}}` |
 | `architecture.md` | placeholder | Structure is generic, content is LLM-written |
@@ -78,13 +76,13 @@ The single most important design decision:
 
 - New CLI subcommand
 - Changing the init flow (don't add stack-picking, ever — that's explicitly rejected)
-- Bug fix in sync / claim / release / log / add-repo
+- Bug fix in sync / add-repo
 
 ### Hard rules
 
 1. **Never add stack pre-picking to `agentboard init`.** The LLM decides the stack during activation. `init` only asks project name + one-line description.
 2. **Never ship a static `conventions/{stack}.md` file.** The LLM writes those per-project, based on the user's actual code.
-3. **Templates that ship verbatim** (`workflow.md`, `ONBOARDING.md`, `sync-context.sh`, `sessions/ACTIVE.md`, `templates/repo/*`) must be **stack-agnostic**. No React / Django / Unity examples baked in.
+3. **Templates that ship verbatim** (`workflow.md`, `ONBOARDING.md`, `sync-context.sh`, `templates/repo/*`) must be **stack-agnostic**. No React / Django / Unity examples baked in.
 4. **Placeholders use `{{UPPERCASE_SNAKE}}`.** The only three the `init` command fills are `{{PROJECT_NAME}}`, `{{DESCRIPTION}}`, `{{TODAY}}`. Everything else is filled by the LLM during activation.
 5. **`sync-context.sh` must stay bash-portable.** macOS default shell must work. No bash 4-only features, no GNU-only flags.
 6. **No runtime dependencies.** Pure file-creation. No API calls, no npm install, no Python venv. If you want the LLM to do something, write it into the activation prompt — don't call an API from the CLI.

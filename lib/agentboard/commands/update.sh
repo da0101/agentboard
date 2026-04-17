@@ -199,10 +199,26 @@ cmd_update() {
   head "New files (add if missing)"
 
   local af
-  for af in "learnings.md" "BACKLOG.md" "domains/TEMPLATE.md"; do
+  for af in "memory/learnings.md" "memory/BACKLOG.md" "memory/gotchas.md" "memory/playbook.md" "memory/open-questions.md" "domains/TEMPLATE.md"; do
     local src="$TEMPLATES_PLATFORM/$af"
     local dst="./.platform/$af"
     [[ -f "$src" ]] || continue
+
+    # Pre-layout guard: if this is a memory/* file and the user still has the
+    # legacy root-level version, don't create the empty placeholder (that
+    # would force migrate-layout into a conflict). Direct them to run
+    # migrate-layout first.
+    if [[ "$af" == memory/* ]]; then
+      local basename="${af#memory/}"
+      local legacy="./.platform/$basename"
+      if [[ -f "$legacy" && ! -f "$dst" ]]; then
+        printf '  %s↷%s %s%s%s  %s(legacy %s present at root — run `agentboard migrate-layout --apply` first)%s\n' \
+          "$C_YELLOW" "$C_RESET" "$C_CYAN" "$af" "$C_RESET" "$C_DIM" "$basename" "$C_RESET"
+        skipped=$((skipped + 1))
+        continue
+      fi
+    fi
+
     if [[ -f "$dst" ]]; then
       printf '  %s↷%s %s%s%s  %s(exists — kept as-is)%s\n' \
         "$C_YELLOW" "$C_RESET" "$C_CYAN" "$af" "$C_RESET" "$C_DIM" "$C_RESET"

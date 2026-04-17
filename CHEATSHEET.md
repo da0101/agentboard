@@ -1,5 +1,9 @@
 # Agentboard Cheat Sheet
 
+Shared work-state and project-truth across Claude Code, Codex CLI, and Gemini
+CLI. Agentboard shares files, not chat history — each CLI loads the same
+`.platform/` pack on its own.
+
 ## Setup
 
 ```bash
@@ -42,17 +46,40 @@ agentboard new-stream <slug> \
 
 # Inspect
 agentboard resolve <stream-slug|domain-slug|repo-id>
-agentboard handoff [stream-slug]     # load order + branch hint for next agent
-```
-
----
-
-## Session management
-
-```bash
-agentboard claim "<task description>"
-agentboard release
-agentboard log "<one line>"          # append to .platform/log.md
+agentboard handoff [stream-slug] [--budget <N|Nk>]
+                                     # load order + Resume state + branch hint.
+                                     # Warns if state is stale; footer tells the
+                                     # next agent what to do. --budget drops
+                                     # secondary domains when tokens run tight.
+agentboard checkpoint <slug> --what "..." --next "..." [--blocker "..."] [--focus "..."] [--diff]
+       [--cumulative-in N --cumulative-out N --provider <p> [--model <m>] [--complexity <c>]]
+       [--tokens-in N --tokens-out N]   # alt: per-segment deltas instead of cumulative
+                                     # save compact "where we are" before handoff.
+                                     # Overwrites stream's ## Resume state block,
+                                     # prepends Progress log entry, trims to last 10.
+                                     # Run before ending session or switching CLI.
+                                     # --cumulative-in/out: pass the CLI's running
+                                     # session totals (e.g. Claude Code's context
+                                     # counter). Agentboard computes the delta so
+                                     # mid-session logging never double-counts.
+agentboard close <slug>              # step 1: print harvest checklist — distill
+                                     # gotchas/playbook/open-questions/decisions/
+                                     # learnings into .platform memory files.
+agentboard close <slug> --confirm    # step 2: archive stream, log closure, set
+                                     # status=done. Run AFTER the harvest step.
+agentboard brief [--all]             # compact project briefing (session start):
+                                     # active streams, recent gotchas, open
+                                     # questions, top usage pattern.
+agentboard watch [--interval 10] [--threshold 1] [--stream <slug>] [--once|--stop]
+                                     # background poller. every N min, if any
+                                     # tracked file changed via git status,
+                                     # auto-checkpoints the active stream so
+                                     # state stays current during long Codex/
+                                     # Gemini sessions. Skips ticks when a
+                                     # manual checkpoint happened <5 min ago.
+                                     # Typical: `agentboard watch &` at day start.
+agentboard progress <slug> [--base <b>] [--note "<text>"] [--dry-run]
+                                     # append git diff --stat to stream's Progress log
 ```
 
 ---
@@ -89,7 +116,7 @@ agentboard usage dashboard --week    # last 7 days
 agentboard usage dashboard --month   # last 30 days
 agentboard usage optimize            # most expensive task types and streams
 agentboard usage learn               # detect patterns (MODEL_OVERKILL, RESEARCH_BLOAT …)
-agentboard usage learn --apply       # write findings to .platform/learnings.md
+agentboard usage learn --apply       # write findings to .platform/memory/learnings.md
 ```
 
 ### Direct SQLite queries
