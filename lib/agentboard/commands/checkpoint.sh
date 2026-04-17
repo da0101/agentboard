@@ -17,7 +17,7 @@ cmd_checkpoint() {
 
   local what="" next_action="" blocker="" focus="" include_diff=0 dry_run=0
   local explicit_blocker=0 explicit_focus=0
-  local tokens_in="" tokens_out="" provider="" model="" complexity=""
+  local tokens_in="" tokens_out="" provider="" model="" complexity="" task_type=""
   local cum_in="" cum_out=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -56,6 +56,9 @@ cmd_checkpoint() {
       --complexity)
         [[ -n "${2:-}" ]] || die "checkpoint requires a value after --complexity"
         complexity="$2"; shift 2 ;;
+      --type)
+        [[ -n "${2:-}" ]] || die "checkpoint requires a value after --type"
+        task_type="$2"; shift 2 ;;
       -h|--help)
         cat <<'EOF'
 Usage: agentboard checkpoint <stream-slug> --what "..." --next "..." [flags]
@@ -83,6 +86,9 @@ Usage tracking (auto-log a token segment when provider + tokens given):
   --cumulative-out N       Running TOTAL output tokens since session start.
   --provider <name>        claude | codex | gemini  (or $AGENTBOARD_PROVIDER)
   --model <name>           model id (or $AGENTBOARD_MODEL)
+  --type <name>            task type for this segment (conversation | research |
+                           design | implementation | debug | audit | review |
+                           handoff | chore)
   --complexity <t>         trivial | normal | heavy  (helps 'learn' detect overkill)
 
   Use --tokens-in/out OR --cumulative-in/out, not both.
@@ -175,17 +181,46 @@ EOF
   say "  ${C_DIM}next:${C_RESET} ${next_action}"
   say "  ${C_DIM}Ready for handoff — run: agentboard handoff ${slug}${C_RESET}"
 
-  _checkpoint_auto_log_usage "$slug" "$tokens_in" "$tokens_out" "$cum_in" "$cum_out" "$provider" "$model" "$complexity" "$what"
+  _checkpoint_auto_log_usage "$slug" "$tokens_in" "$tokens_out" "$cum_in" "$cum_out" "$provider" "$model" "$complexity" "$task_type" "$what"
 }
 
 # Auto-log a usage segment when token counts + provider are provided.
 # Silently skips if any required field is missing — usage tracking stays optional.
 # Supports two modes: delta (--tokens-in/out) or cumulative (--cumulative-in/out
 # — CLI computes the delta).
+_checkpoint_infer_task_type() {
+  local what="$1"
+  local lower
+  lower="$(printf '%s' "$what" | tr '[:upper:]' '[:lower:]')"
+
+  case "$lower" in
+    *audit*|*review*|*analysis*)
+      printf 'audit' ;;
+    *debug*|*bug*|*fix*|*error*|*regression*|*investigat*)
+      printf 'debug' ;;
+    *design*|*architect*|*scope*|*plan*|*proposal*)
+      printf 'design' ;;
+    *research*|*doc*|*read*|*explor*)
+      printf 'research' ;;
+    *implement*|*implementation*|*code*|*test*|*refactor*|*build*|*write*)
+      printf 'implementation' ;;
+    *handoff*|*resume*|*checkpoint*)
+      printf 'handoff' ;;
+    *question*|*clarif*|*brainstorm*|*discuss*|*conversation*)
+      printf 'conversation' ;;
+    *)
+      printf 'chore' ;;
+  esac
+}
+
 _checkpoint_auto_log_usage() {
   local slug="$1" tokens_in="$2" tokens_out="$3" cum_in="$4" cum_out="$5"
-  local provider="$6" model="$7" complexity="$8" what="$9"
+  local provider="$6" model="$7" complexity="$8" task_type="$9" what="${10}"
   [[ -n "$provider" ]] || return 0
+
+  if [[ -z "$task_type" ]]; then
+    task_type="$(_checkpoint_infer_task_type "$what")"
+  fi
 
   local mode=""
   if [[ -n "$cum_in" || -n "$cum_out" ]]; then
@@ -218,6 +253,7 @@ _checkpoint_auto_log_usage() {
     log
     --provider "$provider"
     --stream "$slug"
+    --type "$task_type"
   )
   if [[ "$mode" == "cumulative" ]]; then
     usage_args+=(--cumulative-in "$cum_in" --cumulative-out "$cum_out")
@@ -225,7 +261,7 @@ _checkpoint_auto_log_usage() {
     usage_args+=(--input "$tokens_in" --output "$tokens_out")
   fi
   [[ -n "$model" ]] && usage_args+=(--model "$model")
-  [[ -n "$complexity" ]] && usage_args+=(--type "$complexity")
+  [[ -n "$complexity" ]] && usage_args+=(--complexity "$complexity")
   local note="checkpoint: ${what:0:80}"
   usage_args+=(--note "$note")
 

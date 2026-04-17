@@ -64,7 +64,7 @@ COMMANDS
                              --diff            also append git diff --stat
                              --dry-run         print changes without writing
                              --tokens-in N --tokens-out N --provider <p>
-                             [--model <m>] [--complexity <c>]
+                             [--model <m>] [--type <t>] [--complexity <c>]
                                                auto-log a usage segment
   close <stream-slug>        Finalize a stream. Two-step ritual:
                              1. bare run prints the harvest checklist —
@@ -85,6 +85,11 @@ COMMANDS
                              --stream <slug>   target stream (default: auto)
                              --once            single poll, then exit
                              --stop            stop the running watcher
+                             --install         install per-project scheduler
+                             --uninstall       remove per-project scheduler
+                             --status          report scheduler state + log path
+                             AGENTBOARD_WATCH_HOME=<dir>  isolate scheduler
+                                               files for tests / dry local runs
   install-hooks              Install Claude Code hook guards. Wires a
                              PreToolUse hook that blocks git commit / push /
                              reset --hard / rm -rf with an approval prompt.
@@ -105,7 +110,7 @@ COMMANDS
                              log           — record a context segment
                                --provider <name> --input <N> --output <N>
                                [--model <M>] [--stream <S>] [--repo <R>]
-                               [--type <T>] [--note <text>]
+                               [--type <T>] [--complexity <C>] [--note <text>]
                              stream <slug> — full breakdown for one stream
                              history       — last 20 segments
                              optimize      — most expensive streams/types/providers
@@ -123,4 +128,3 @@ PHILOSOPHY
   write based on your actual codebase during activation.
 EOF
 }
-

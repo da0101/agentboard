@@ -13,6 +13,7 @@ _init_usage_db() {
         stream_slug TEXT,
         repo TEXT,
         task_type TEXT,
+        task_complexity TEXT,
         input_tokens INTEGER,
         output_tokens INTEGER,
         total_tokens INTEGER,
@@ -23,6 +24,8 @@ _init_usage_db() {
   else
     sqlite3 "$_usage_db" \
       "ALTER TABLE usage ADD COLUMN note TEXT;" 2>/dev/null || true
+    sqlite3 "$_usage_db" \
+      "ALTER TABLE usage ADD COLUMN task_complexity TEXT;" 2>/dev/null || true
   fi
 }
 
@@ -53,7 +56,13 @@ _usage_session_sum() {
 _learning_entry() {
   local date today
   today="$(date +%Y-%m-%d)"
-  printf '- [%s] [token-optimization] %s\n' "$today" "$1"
+  printf '%s\n' "- [$today] [token-optimization] $1"
+}
+
+_usage_has_column() {
+  local db="$1" column="$2"
+  sqlite3 "$db" "PRAGMA table_info(usage);" 2>/dev/null \
+    | awk -F'|' -v target="$column" '$2 == target { found = 1 } END { exit(found ? 0 : 1) }'
 }
 
 # Analyse patterns and emit findings + recommendations
@@ -73,6 +82,19 @@ _analyse_patterns() {
     GROUP BY task_type
     HAVING n >= 3 AND avg < 20000
     ORDER BY avg ASC;
+  ")
+
+  # ── Conversational Opus waste: expensive conversation on premium model ────
+  while IFS='|' read -r model avg_tokens segments; do
+    [[ -z "$model" ]] && continue
+    printf 'CONVERSATION_OVERSPEND|%s|%.0f|%s\n' "$model" "$avg_tokens" "$segments"
+  done < <(sqlite3 "$db" "
+    SELECT model, AVG(total_tokens) AS avg, COUNT(*) AS n
+    FROM usage
+    WHERE lower(task_type) = 'conversation' AND model LIKE '%opus%' AND total_tokens > 0
+    GROUP BY model
+    HAVING n >= 2 AND avg > 30000
+    ORDER BY avg DESC;
   ")
 
   # ── Research bloat: research tasks averaging > 60k ────────────────────────
@@ -130,6 +152,31 @@ _analyse_patterns() {
     ORDER BY n DESC
     LIMIT 5;
   ")
+
+  # ── Generic task labels hide root cause analysis ──────────────────────────
+  while IFS='|' read -r count total; do
+    [[ -z "$count" || "$count" == "0" ]] && continue
+    printf 'GENERIC_TASK_LABELS|%s|%s|-\n' "$count" "$total"
+  done < <(sqlite3 "$db" "
+    SELECT COUNT(*), COALESCE(SUM(total_tokens),0)
+    FROM usage
+    WHERE lower(COALESCE(task_type,'')) IN
+      ('normal','heavy','trivial','small','medium','large','xl');
+  ")
+
+  # ── Coarse logging: huge spend spread across too few checkpoints ──────────
+  while IFS='|' read -r stream segments total max_seg; do
+    [[ -z "$stream" ]] && continue
+    printf 'COARSE_LOGGING|%s|%s|%s|%s\n' "$stream" "$segments" "$total" "$max_seg"
+  done < <(sqlite3 "$db" "
+    SELECT stream_slug, COUNT(*) AS n, SUM(total_tokens) AS total, MAX(total_tokens) AS max_seg
+    FROM usage
+    WHERE stream_slug IS NOT NULL AND stream_slug != '' AND total_tokens > 0
+    GROUP BY stream_slug
+    HAVING total >= 200000 AND n <= 2
+    ORDER BY total DESC
+    LIMIT 5;
+  ")
 }
 
 cmd_usage() {
@@ -137,12 +184,15 @@ cmd_usage() {
 
   _init_usage_db
   local db="$_usage_db"
+  local has_note=0 has_task_complexity=0
+  _usage_has_column "$db" "note" && has_note=1 || true
+  _usage_has_column "$db" "task_complexity" && has_task_complexity=1 || true
   local sub="${1:-summary}"
   shift || true
 
   case "$sub" in
     log)
-      local provider="" model="" stream="" input=0 output=0 repo="" type="chore" note=""
+      local provider="" model="" stream="" input=0 output=0 repo="" type="chore" complexity="" note=""
       local cum_in="" cum_out="" session_key=""
       repo="$(basename "$(pwd)")"
 
@@ -153,6 +203,7 @@ cmd_usage() {
           --stream)   stream="$2";   shift 2 ;;
           --repo)     repo="$2";     shift 2 ;;
           --type)     type="$2";     shift 2 ;;
+          --complexity) complexity="$2"; shift 2 ;;
           --input)    input="$2";    shift 2 ;;
           --output)   output="$2";   shift 2 ;;
           --cumulative-in)  cum_in="$2";  shift 2 ;;
@@ -162,7 +213,7 @@ cmd_usage() {
           *) shift ;;
         esac
       done
-      [[ -n "$provider" ]] || die "Usage: agentboard usage log --provider <name> (--input <N> --output <N> | --cumulative-in <N> --cumulative-out <N>) [--model <M>] [--stream <S>] [--session-key <K>] [--repo <R>] [--type <T>] [--note <text>]"
+      [[ -n "$provider" ]] || die "Usage: agentboard usage log --provider <name> (--input <N> --output <N> | --cumulative-in <N> --cumulative-out <N>) [--model <M>] [--stream <S>] [--session-key <K>] [--repo <R>] [--type <T>] [--complexity <C>] [--note <text>]"
 
       # Cumulative mode: Claude/Codex/Gemini report running session totals, not
       # per-segment deltas. Compute delta = cumulative - sum-logged-so-far for
@@ -204,8 +255,8 @@ cmd_usage() {
       fi
 
       local total=$((input + output))
-      sqlite3 "$db" "INSERT INTO usage (agent_provider, model, stream_slug, repo, task_type, input_tokens, output_tokens, total_tokens, note)
-        VALUES ('$provider', '$model', '$stream', '$repo', '$type', $input, $output, $total, '$note');"
+      sqlite3 "$db" "INSERT INTO usage (agent_provider, model, stream_slug, repo, task_type, task_complexity, input_tokens, output_tokens, total_tokens, note)
+        VALUES ('$provider', '$model', '$stream', '$repo', '$type', '$complexity', $input, $output, $total, '$note');"
       ok "Logged $total tokens  (provider=$provider repo=$repo stream=${stream:-none} type=$type)"
       [[ -n "$note" ]] && printf '  note: %s\n' "$note" || true
       ;;
@@ -213,12 +264,32 @@ cmd_usage() {
     stream)
       local target_stream="${1:-}"
       [[ -n "$target_stream" ]] || die "Usage: agentboard usage stream <stream-slug>"
+      local complexity_select_stream="task_complexity AS Complexity"
+      local complexity_group_stream="COALESCE(task_complexity,'—') AS Complexity"
+      local complexity_group_by_stream="task_complexity"
+      local note_select_stream="note AS Note"
+      if (( ! has_task_complexity )); then
+        complexity_select_stream="'—' AS Complexity"
+        complexity_group_stream="'—' AS Complexity"
+        complexity_group_by_stream="'—'"
+      fi
+      if (( ! has_note )); then
+        note_select_stream="'' AS Note"
+      fi
       printf '\n%s%sStream: %s%s\n\n' "$C_BOLD" "$C_CYAN" "$target_stream" "$C_RESET"
       sqlite3 -header -column "$db" "
         SELECT timestamp, agent_provider AS Provider, model AS Model,
+               task_type AS Type, ${complexity_select_stream},
                input_tokens AS Input, output_tokens AS Output,
-               total_tokens AS Total, note AS Note
+               total_tokens AS Total, ${note_select_stream}
         FROM usage WHERE stream_slug = '$target_stream' ORDER BY timestamp ASC;
+      "
+      say
+      sqlite3 -header -column "$db" "
+        SELECT task_type AS Type, ${complexity_group_stream},
+               COUNT(*) AS Segments, SUM(total_tokens) AS Total
+        FROM usage WHERE stream_slug = '$target_stream'
+        GROUP BY task_type, ${complexity_group_by_stream} ORDER BY Total DESC;
       "
       say
       sqlite3 -header -column "$db" "
@@ -238,6 +309,12 @@ cmd_usage() {
       ;;
 
     summary)
+      local complexity_select_summary="COALESCE(task_complexity,'—') AS Complexity"
+      local complexity_group_by_summary="task_complexity"
+      if (( ! has_task_complexity )); then
+        complexity_select_summary="'—' AS Complexity"
+        complexity_group_by_summary="'—'"
+      fi
       printf '\n%s%sGlobal Token Usage — Last 30 Days%s\n\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
       sqlite3 -header -column "$db" "
         SELECT agent_provider AS Provider, model AS Model,
@@ -261,15 +338,35 @@ cmd_usage() {
         FROM usage WHERE timestamp > date('now', '-30 days')
         GROUP BY task_type ORDER BY Total DESC;
       "
+      say
+      printf '%sBy Complexity:%s\n' "$C_DIM" "$C_RESET"
+      sqlite3 -header -column "$db" "
+        SELECT ${complexity_select_summary}, SUM(total_tokens) AS Total,
+               AVG(total_tokens) AS Avg_Per_Segment, COUNT(*) AS Segments
+        FROM usage WHERE timestamp > date('now', '-30 days')
+        GROUP BY ${complexity_group_by_summary} ORDER BY Total DESC;
+      "
       ;;
 
     history)
+      local complexity_select_history="task_complexity"
+      local note_select_history="note"
+      if (( ! has_task_complexity )); then
+        complexity_select_history="'' AS task_complexity"
+      fi
+      if (( ! has_note )); then
+        note_select_history="'' AS note"
+      fi
       sqlite3 -header -column "$db" \
-        "SELECT timestamp, repo, agent_provider, model, task_type, stream_slug, total_tokens, note
+        "SELECT timestamp, repo, agent_provider, model, task_type, ${complexity_select_history}, stream_slug, total_tokens, ${note_select_history}
          FROM usage ORDER BY timestamp DESC LIMIT 20;"
       ;;
 
     optimize)
+      local complexity_select_optimize="COALESCE(task_complexity,'—') AS Complexity"
+      if (( ! has_task_complexity )); then
+        complexity_select_optimize="'—' AS Complexity"
+      fi
       printf '\n%s%sOptimization Insights%s\n\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
       printf '%sMost expensive task types:%s\n' "$C_DIM" "$C_RESET"
       sqlite3 -header -column "$db" "
@@ -293,6 +390,29 @@ cmd_usage() {
                SUM(total_tokens) AS Total, COUNT(*) AS Segments
         FROM usage GROUP BY agent_provider, model ORDER BY Avg_Per_Segment DESC;
       "
+      say
+      printf '%sLargest individual segments:%s\n' "$C_DIM" "$C_RESET"
+      sqlite3 -header -column "$db" "
+        SELECT timestamp, COALESCE(stream_slug,'—') AS Stream,
+               COALESCE(task_type,'—') AS Type,
+               ${complexity_select_optimize},
+               agent_provider AS Provider, model AS Model,
+               total_tokens AS Total
+        FROM usage
+        WHERE total_tokens > 0
+        ORDER BY total_tokens DESC LIMIT 10;
+      "
+      say
+      printf '%sStreams that need finer checkpointing:%s\n' "$C_DIM" "$C_RESET"
+      sqlite3 -header -column "$db" "
+        SELECT stream_slug AS Stream, COUNT(*) AS Segments,
+               SUM(total_tokens) AS Total, MAX(total_tokens) AS Largest_Segment
+        FROM usage
+        WHERE stream_slug IS NOT NULL AND stream_slug != ''
+        GROUP BY stream_slug
+        HAVING SUM(total_tokens) >= 200000 AND COUNT(*) <= 2
+        ORDER BY Total DESC;
+      "
       ;;
 
     learn)
@@ -311,9 +431,9 @@ cmd_usage() {
       fi
 
       local findings=() recommendations=() new_learnings=()
-      local kind a b c
+      local kind a b c d
 
-      while IFS='|' read -r kind a b c; do
+      while IFS='|' read -r kind a b c d; do
         case "$kind" in
           MODEL_OVERKILL)
             local task_type="$a" avg="$b" segs="$c"
@@ -342,6 +462,15 @@ cmd_usage() {
             printf '    → %s\n\n' "$rec"
             new_learnings+=("$learning")
             ;;
+          CONVERSATION_OVERSPEND)
+            local model="$a" avg="$b" segs="$c"
+            local rec="Conversation segments are averaging ${avg} tokens on ${model}. Move routine discussion to Sonnet and checkpoint earlier when the work changes from conversation to execution."
+            local learning="Conversation work on ${model} is expensive (avg ${avg} tokens, ${segs} samples). Default conversation and planning to Sonnet unless there is clear high-risk reasoning value."
+            printf '  %s⚠ CONVERSATION_OVERSPEND%s  %s — avg %s tokens (%s segs)\n' \
+              "$C_YELLOW" "$C_RESET" "$model" "$avg" "$segs"
+            printf '    → %s\n\n' "$rec"
+            new_learnings+=("$learning")
+            ;;
           HOT_REPO)
             local repo="$a" total="$b" pct="$c"
             local rec="'${repo}' is consuming ${pct}% of all tokens. Check conventions/ for that repo — context may be loading too many files at session start."
@@ -357,6 +486,24 @@ cmd_usage() {
             local learning="Stream '${stream}' required ${segs} context resets (${total} tokens total). For similar tasks: pre-scope the domain, load only 1-2 reference files, keep stream focused."
             printf '  %s⚠ CONTEXT_THRASH%s  %s — %s context segments, %s total tokens\n' \
               "$C_YELLOW" "$C_RESET" "$stream" "$segs" "$total"
+            printf '    → %s\n\n' "$rec"
+            new_learnings+=("$learning")
+            ;;
+          GENERIC_TASK_LABELS)
+            local count="$a" total="$b"
+            local rec="${count} historical usage rows still use generic labels like normal/heavy. Future checkpoints should pass --type so token waste is explainable by work kind, not just size."
+            local learning="Generic task labels (normal/heavy/etc.) hide spend root causes. Always log usage with semantic task types such as conversation, design, implementation, debug, audit, or handoff."
+            printf '  %s⚠ GENERIC_TASK_LABELS%s  %s generic rows covering %s tokens\n' \
+              "$C_YELLOW" "$C_RESET" "$count" "$total"
+            printf '    → %s\n\n' "$rec"
+            new_learnings+=("$learning")
+            ;;
+          COARSE_LOGGING)
+            local stream="$a" segs="$b" total="$c" max_seg="$d"
+            local rec="Stream '${stream}' logged ${total} tokens across only ${segs} segment(s), with a largest segment of ${max_seg}. Checkpoint at stage boundaries so waste can be attributed before the context is nearly full."
+            local learning="High-token streams with too few checkpoints become opaque. For large streams, checkpoint at every stage change (research, design, implementation, audit) instead of only at the end."
+            printf '  %s⚠ COARSE_LOGGING%s  %s — %s tokens across %s segment(s), max segment %s\n' \
+              "$C_YELLOW" "$C_RESET" "$stream" "$total" "$segs" "$max_seg"
             printf '    → %s\n\n' "$rec"
             new_learnings+=("$learning")
             ;;

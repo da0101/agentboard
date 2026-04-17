@@ -90,12 +90,54 @@ test_brief_help() {
   assert_contains "$output" "Usage: agentboard brief"
 }
 
+test_brief_warns_about_generic_usage_labels() {
+  command -v sqlite3 >/dev/null 2>&1 || {
+    echo "skip: sqlite3 not installed"
+    return 0
+  }
+  local dir output status
+  dir="$(mktemp -d)"
+  setup_brief_fixture "$dir"
+  mkdir -p "$dir/.agentboard"
+  sqlite3 "$dir/.agentboard/usage.db" "
+    CREATE TABLE usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      agent_provider TEXT NOT NULL,
+      model TEXT,
+      stream_slug TEXT,
+      repo TEXT,
+      task_type TEXT,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      total_tokens INTEGER,
+      estimated_cost REAL,
+      note TEXT,
+      session_id TEXT
+    );
+    INSERT INTO usage (agent_provider, model, stream_slug, repo, task_type, input_tokens, output_tokens, total_tokens, estimated_cost, note, session_id) VALUES
+      ('claude','claude-opus-4-7','watch-install','agentboard','normal',100000,20000,120000,0,'','a'),
+      ('claude','claude-opus-4-7','watch-install','agentboard','heavy',40000,10000,50000,0,'','b'),
+      ('codex','gpt-5.4','other','agentboard','debug',3000,1000,4000,0,'','c'),
+      ('codex','gpt-5.4','other','agentboard','audit',2000,1000,3000,0,'','d'),
+      ('codex','gpt-5.4','other','agentboard','research',2500,1200,3700,0,'','e');
+  "
+  set +e
+  output="$(cd "$dir" && env HOME="$dir" "$TEST_ROOT/bin/agentboard" brief 2>&1)"
+  status=$?
+  set -e
+  RUN_STATUS="$status"
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "generic labels like normal/heavy"
+}
+
 for t in \
   test_init_scaffolds_memory_files \
   test_brief_shows_active_stream \
   test_brief_shows_gotchas_when_present \
   test_brief_reports_empty_state_gracefully \
-  test_brief_help; do
+  test_brief_help \
+  test_brief_warns_about_generic_usage_labels; do
   printf 'RUN: %s\n' "$t" >&2
   "$t"
 done

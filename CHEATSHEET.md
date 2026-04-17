@@ -52,7 +52,7 @@ agentboard handoff [stream-slug] [--budget <N|Nk>]
                                      # next agent what to do. --budget drops
                                      # secondary domains when tokens run tight.
 agentboard checkpoint <slug> --what "..." --next "..." [--blocker "..."] [--focus "..."] [--diff]
-       [--cumulative-in N --cumulative-out N --provider <p> [--model <m>] [--complexity <c>]]
+       [--cumulative-in N --cumulative-out N --provider <p> [--model <m>] [--type <t>] [--complexity <c>]]
        [--tokens-in N --tokens-out N]   # alt: per-segment deltas instead of cumulative
                                      # save compact "where we are" before handoff.
                                      # Overwrites stream's ## Resume state block,
@@ -62,6 +62,10 @@ agentboard checkpoint <slug> --what "..." --next "..." [--blocker "..."] [--focu
                                      # session totals (e.g. Claude Code's context
                                      # counter). Agentboard computes the delta so
                                      # mid-session logging never double-counts.
+                                     # Use --type for semantic attribution:
+                                     # conversation | research | design |
+                                     # implementation | debug | audit | review |
+                                     # handoff | chore
 agentboard close <slug>              # step 1: print harvest checklist — distill
                                      # gotchas/playbook/open-questions/decisions/
                                      # learnings into .platform memory files.
@@ -78,6 +82,14 @@ agentboard watch [--interval 10] [--threshold 1] [--stream <slug>] [--once|--sto
                                      # Gemini sessions. Skips ticks when a
                                      # manual checkpoint happened <5 min ago.
                                      # Typical: `agentboard watch &` at day start.
+agentboard watch --install [--interval 10] [--threshold 1]
+                                     # install a per-project scheduler:
+                                     # launchd on macOS, systemd user timer on Linux.
+agentboard watch --status            # show installed / active / orphan state
+agentboard watch --uninstall         # remove the scheduler for this project
+AGENTBOARD_WATCH_HOME=/tmp/ab-home agentboard watch --install
+                                     # isolate scheduler files for tests or
+                                     # dry local verification without touching ~
 agentboard install-hooks [--force] [--dry-run]
                                      # Installs Claude Code PreToolUse guard.
                                      # Blocks `git commit`, `git push`,

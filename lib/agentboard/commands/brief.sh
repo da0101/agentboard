@@ -171,13 +171,21 @@ _brief_usage_insight() {
       "$C_DIM" "${count:-0}" "$C_RESET"
     return 0
   fi
-  local top_model top_type
+  local top_model top_type generic_count
   top_model="$(sqlite3 "$db" \
     "SELECT model FROM usage WHERE model != '' GROUP BY model ORDER BY SUM(total_tokens) DESC LIMIT 1;" \
     2>/dev/null || true)"
   top_type="$(sqlite3 "$db" \
-    "SELECT type FROM usage WHERE type != '' GROUP BY type ORDER BY COUNT(*) DESC LIMIT 1;" \
+    "SELECT task_type FROM usage WHERE task_type != '' GROUP BY task_type ORDER BY SUM(total_tokens) DESC LIMIT 1;" \
     2>/dev/null || true)"
+  generic_count="$(sqlite3 "$db" \
+    "SELECT COUNT(*) FROM usage WHERE lower(COALESCE(task_type,'')) IN ('normal','heavy','trivial','small','medium','large','xl');" \
+    2>/dev/null || echo 0)"
+  if [[ -n "$generic_count" && "$generic_count" -gt 0 ]]; then
+    printf '   %s%d usage row(s) still use generic labels like normal/heavy — run `agentboard usage learn` and checkpoint with `--type`%s\n\n' \
+      "$C_DIM" "$generic_count" "$C_RESET"
+    return 0
+  fi
   if [[ -n "$top_model" && -n "$top_type" ]]; then
     printf '   Most tokens spent: %s%s%s on %s%s%s tasks (run `agentboard usage learn` for details)\n\n' \
       "$C_BOLD" "$top_model" "$C_RESET" "$C_BOLD" "$top_type" "$C_RESET"
