@@ -40,6 +40,9 @@ test_brief_shows_active_stream() {
   dir="$(mktemp -d)"
   setup_brief_fixture "$dir"
   run_cli_capture output "$dir" brief
+  if (( RUN_STATUS != 0 )); then
+    printf 'brief output (status=%s):\n%s\n' "$RUN_STATUS" "$output" >&2
+  fi
   assert_status "$RUN_STATUS" 0
   assert_contains "$output" "Active streams"
   assert_contains "$output" "login"
