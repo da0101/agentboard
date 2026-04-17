@@ -37,10 +37,10 @@ When context is running low, you're ending the session, or you're about to hand 
 
 ```bash
 agentboard checkpoint <stream-slug> --what "<1-2 lines of what just happened>" --next "<one sentence: what to do next>" \
-  --tokens-in <N> --tokens-out <N> --provider claude --model <model-id> [--complexity trivial|normal|heavy]
+  --cumulative-in <N> --cumulative-out <N> --provider claude --model <model-id> [--complexity trivial|normal|heavy]
 ```
 
-Passing the token/provider/model fields auto-logs a usage segment — `agentboard usage learn` uses that data to detect patterns (e.g., Opus-on-trivial) and surface them to future sessions. Omit them if you don't know the counts; the checkpoint itself still works.
+For `--cumulative-in` / `--cumulative-out` pass Claude Code's **current session totals** (the running counters, not per-segment deltas). Agentboard subtracts what was already logged for this stream+provider+day so mid-session logging never double-counts. Omit the token fields if you don't know the counts; the checkpoint itself still works.
 
 This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `agentboard handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
 

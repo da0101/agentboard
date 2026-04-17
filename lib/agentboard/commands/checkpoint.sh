@@ -18,6 +18,7 @@ cmd_checkpoint() {
   local what="" next_action="" blocker="" focus="" include_diff=0 dry_run=0
   local explicit_blocker=0 explicit_focus=0
   local tokens_in="" tokens_out="" provider="" model="" complexity=""
+  local cum_in="" cum_out=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --what)
@@ -40,6 +41,12 @@ cmd_checkpoint() {
       --tokens-out)
         [[ -n "${2:-}" ]] || die "checkpoint requires a value after --tokens-out"
         tokens_out="$2"; shift 2 ;;
+      --cumulative-in)
+        [[ -n "${2:-}" ]] || die "checkpoint requires a value after --cumulative-in"
+        cum_in="$2"; shift 2 ;;
+      --cumulative-out)
+        [[ -n "${2:-}" ]] || die "checkpoint requires a value after --cumulative-out"
+        cum_out="$2"; shift 2 ;;
       --provider)
         [[ -n "${2:-}" ]] || die "checkpoint requires a value after --provider"
         provider="$2"; shift 2 ;;
@@ -67,12 +74,18 @@ Optional:
   --diff                   Also append `git diff --stat` to Progress log.
   --dry-run                Print what would change; don't write.
 
-Usage tracking (auto-log a token segment when all 4 are provided):
-  --tokens-in N            Input tokens consumed this segment.
-  --tokens-out N           Output tokens produced this segment.
+Usage tracking (auto-log a token segment when provider + tokens given):
+  --tokens-in N            Input tokens consumed THIS segment only (delta).
+  --tokens-out N           Output tokens produced THIS segment only (delta).
+  --cumulative-in N        Running TOTAL input tokens since session start.
+                           CLI computes delta automatically — safe for
+                           mid-session logging without double-counting.
+  --cumulative-out N       Running TOTAL output tokens since session start.
   --provider <name>        claude | codex | gemini  (or $AGENTBOARD_PROVIDER)
   --model <name>           model id (or $AGENTBOARD_MODEL)
   --complexity <t>         trivial | normal | heavy  (helps 'learn' detect overkill)
+
+  Use --tokens-in/out OR --cumulative-in/out, not both.
 
 After running, the next agent (Claude/Codex/Gemini) can resume by running
 `agentboard handoff <stream-slug>` and reading Resume state first.
@@ -162,34 +175,66 @@ EOF
   say "  ${C_DIM}next:${C_RESET} ${next_action}"
   say "  ${C_DIM}Ready for handoff — run: agentboard handoff ${slug}${C_RESET}"
 
-  _checkpoint_auto_log_usage "$slug" "$tokens_in" "$tokens_out" "$provider" "$model" "$complexity" "$what"
+  _checkpoint_auto_log_usage "$slug" "$tokens_in" "$tokens_out" "$cum_in" "$cum_out" "$provider" "$model" "$complexity" "$what"
 }
 
 # Auto-log a usage segment when token counts + provider are provided.
 # Silently skips if any required field is missing — usage tracking stays optional.
+# Supports two modes: delta (--tokens-in/out) or cumulative (--cumulative-in/out
+# — CLI computes the delta).
 _checkpoint_auto_log_usage() {
-  local slug="$1" tokens_in="$2" tokens_out="$3" provider="$4" model="$5" complexity="$6" what="$7"
-  [[ -n "$tokens_in" && -n "$tokens_out" && -n "$provider" ]] || return 0
-  [[ "$tokens_in" =~ ^[0-9]+$ && "$tokens_out" =~ ^[0-9]+$ ]] || {
-    warn "Checkpoint: --tokens-in/--tokens-out must be integers; skipping usage log"
+  local slug="$1" tokens_in="$2" tokens_out="$3" cum_in="$4" cum_out="$5"
+  local provider="$6" model="$7" complexity="$8" what="$9"
+  [[ -n "$provider" ]] || return 0
+
+  local mode=""
+  if [[ -n "$cum_in" || -n "$cum_out" ]]; then
+    [[ -n "$cum_in" && -n "$cum_out" ]] || {
+      warn "Checkpoint: --cumulative-in and --cumulative-out must be passed together; skipping usage log"
+      return 0
+    }
+    [[ "$cum_in" =~ ^[0-9]+$ && "$cum_out" =~ ^[0-9]+$ ]] || {
+      warn "Checkpoint: --cumulative-in/--cumulative-out must be non-negative integers; skipping usage log"
+      return 0
+    }
+    if [[ -n "$tokens_in" || -n "$tokens_out" ]]; then
+      warn "Checkpoint: use --tokens-in/out OR --cumulative-in/out, not both; skipping usage log"
+      return 0
+    fi
+    mode="cumulative"
+  elif [[ -n "$tokens_in" && -n "$tokens_out" ]]; then
+    [[ "$tokens_in" =~ ^[0-9]+$ && "$tokens_out" =~ ^[0-9]+$ ]] || {
+      warn "Checkpoint: --tokens-in/--tokens-out must be integers; skipping usage log"
+      return 0
+    }
+    mode="delta"
+  else
     return 0
-  }
+  fi
+
   command -v cmd_usage >/dev/null 2>&1 || return 0
 
   local -a usage_args=(
     log
     --provider "$provider"
-    --input "$tokens_in"
-    --output "$tokens_out"
     --stream "$slug"
   )
+  if [[ "$mode" == "cumulative" ]]; then
+    usage_args+=(--cumulative-in "$cum_in" --cumulative-out "$cum_out")
+  else
+    usage_args+=(--input "$tokens_in" --output "$tokens_out")
+  fi
   [[ -n "$model" ]] && usage_args+=(--model "$model")
   [[ -n "$complexity" ]] && usage_args+=(--type "$complexity")
   local note="checkpoint: ${what:0:80}"
   usage_args+=(--note "$note")
 
   if cmd_usage "${usage_args[@]}" >/dev/null 2>&1; then
-    say "  ${C_DIM}usage logged: ${provider}${model:+/$model} — ${tokens_in} in / ${tokens_out} out${C_RESET}"
+    if [[ "$mode" == "cumulative" ]]; then
+      say "  ${C_DIM}usage logged: ${provider}${model:+/$model} — cumulative ${cum_in} in / ${cum_out} out (delta auto-computed)${C_RESET}"
+    else
+      say "  ${C_DIM}usage logged: ${provider}${model:+/$model} — ${tokens_in} in / ${tokens_out} out${C_RESET}"
+    fi
   fi
 }
 

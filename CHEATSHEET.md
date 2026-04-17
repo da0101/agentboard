@@ -52,14 +52,16 @@ agentboard handoff [stream-slug] [--budget <N|Nk>]
                                      # next agent what to do. --budget drops
                                      # secondary domains when tokens run tight.
 agentboard checkpoint <slug> --what "..." --next "..." [--blocker "..."] [--focus "..."] [--diff]
-       [--tokens-in N --tokens-out N --provider <p> [--model <m>] [--complexity <c>]]
+       [--cumulative-in N --cumulative-out N --provider <p> [--model <m>] [--complexity <c>]]
+       [--tokens-in N --tokens-out N]   # alt: per-segment deltas instead of cumulative
                                      # save compact "where we are" before handoff.
                                      # Overwrites stream's ## Resume state block,
                                      # prepends Progress log entry, trims to last 10.
                                      # Run before ending session or switching CLI.
-                                     # When --tokens-in/--tokens-out/--provider are
-                                     # all set, auto-logs a usage segment (feeds
-                                     # `agentboard usage learn`).
+                                     # --cumulative-in/out: pass the CLI's running
+                                     # session totals (e.g. Claude Code's context
+                                     # counter). Agentboard computes the delta so
+                                     # mid-session logging never double-counts.
 agentboard close <slug>              # step 1: print harvest checklist — distill
                                      # gotchas/playbook/open-questions/decisions/
                                      # learnings into .platform memory files.
