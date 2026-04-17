@@ -35,6 +35,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/progress.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/checkpoint.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/system_setup.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/update.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage.sh"
@@ -116,6 +117,7 @@ main() {
     checkpoint)  cmd_checkpoint "$@" ;;
     close)       cmd_close "$@" ;;
     brief)       cmd_brief "$@" ;;
+    watch)       cmd_watch "$@" ;;
     status)      cmd_status "$@" ;;
     add-repo)    cmd_add_repo "$@" ;;
     usage)       cmd_usage "$@" ;;

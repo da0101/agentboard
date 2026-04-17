@@ -61,6 +61,22 @@ agentboard close <stream-slug> --confirm
 
 This is the compounding ritual. Each close adds durable knowledge so the next agent running `agentboard brief` inherits what you learned, without you being there to explain it.
 
+### Long session fallback — `agentboard watch` (optional)
+
+For heavy sessions where checkpoints may be forgotten, the user can start a
+background watcher:
+
+```bash
+agentboard watch &
+```
+
+It polls `git status` every 10 min and auto-checkpoints the active stream
+whenever ≥1 tracked file has changed since the last poll. The auto-content is
+mechanical (file list + carried-over Next action) — always prefer your own
+explicit checkpoints with specific `--what` / `--next`. The watcher skips
+ticks when it sees a manual checkpoint happened in the last 5 minutes, so it
+never clobbers fresh state. Stop with `agentboard watch --stop`.
+
 ### New task bootstrap (before any non-trivial task — mandatory)
 
 When the user gives a task not already tracked in `ACTIVE.md`, **stop and complete these steps before any research, planning, or code**:

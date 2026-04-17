@@ -68,6 +68,14 @@ agentboard close <slug> --confirm    # step 2: archive stream, log closure, set
 agentboard brief [--all]             # compact project briefing (session start):
                                      # active streams, recent gotchas, open
                                      # questions, top usage pattern.
+agentboard watch [--interval 10] [--threshold 1] [--stream <slug>] [--once|--stop]
+                                     # background poller. every N min, if any
+                                     # tracked file changed via git status,
+                                     # auto-checkpoints the active stream so
+                                     # state stays current during long Codex/
+                                     # Gemini sessions. Skips ticks when a
+                                     # manual checkpoint happened <5 min ago.
+                                     # Typical: `agentboard watch &` at day start.
 agentboard progress <slug> [--base <b>] [--note "<text>"] [--dry-run]
                                      # append git diff --stat to stream's Progress log
 ```
