@@ -78,6 +78,14 @@ agentboard watch [--interval 10] [--threshold 1] [--stream <slug>] [--once|--sto
                                      # Gemini sessions. Skips ticks when a
                                      # manual checkpoint happened <5 min ago.
                                      # Typical: `agentboard watch &` at day start.
+agentboard install-hooks [--force] [--dry-run]
+                                     # Installs Claude Code PreToolUse guard.
+                                     # Blocks `git commit`, `git push`,
+                                     # `git reset --hard`, `rm -rf` etc. with
+                                     # an approval prompt. LLM cannot bypass.
+                                     # Fresh `agentboard init` already ships
+                                     # the guard — use this on existing projects
+                                     # or to re-install after edits.
 agentboard progress <slug> [--base <b>] [--note "<text>"] [--dry-run]
                                      # append git diff --stat to stream's Progress log
 ```
