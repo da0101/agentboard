@@ -85,8 +85,12 @@ test_brief_help() {
   assert_contains "$output" "Usage: agentboard brief"
 }
 
-test_init_scaffolds_memory_files
-test_brief_shows_active_stream
-test_brief_shows_gotchas_when_present
-test_brief_reports_empty_state_gracefully
-test_brief_help
+for t in \
+  test_init_scaffolds_memory_files \
+  test_brief_shows_active_stream \
+  test_brief_shows_gotchas_when_present \
+  test_brief_reports_empty_state_gracefully \
+  test_brief_help; do
+  printf 'RUN: %s\n' "$t" >&2
+  "$t"
+done
