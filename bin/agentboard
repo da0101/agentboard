@@ -33,6 +33,8 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/doctor.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/progress.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/checkpoint.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/system_setup.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/update.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage.sh"
@@ -112,6 +114,8 @@ main() {
     handoff)     cmd_handoff "$@" ;;
     progress)    cmd_progress "$@" ;;
     checkpoint)  cmd_checkpoint "$@" ;;
+    close)       cmd_close "$@" ;;
+    brief)       cmd_brief "$@" ;;
     status)      cmd_status "$@" ;;
     add-repo)    cmd_add_repo "$@" ;;
     usage)       cmd_usage "$@" ;;

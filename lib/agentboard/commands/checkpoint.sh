@@ -17,6 +17,7 @@ cmd_checkpoint() {
 
   local what="" next_action="" blocker="" focus="" include_diff=0 dry_run=0
   local explicit_blocker=0 explicit_focus=0
+  local tokens_in="" tokens_out="" provider="" model="" complexity=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --what)
@@ -33,6 +34,21 @@ cmd_checkpoint() {
         focus="$2"; explicit_focus=1; shift 2 ;;
       --diff) include_diff=1; shift ;;
       --dry-run) dry_run=1; shift ;;
+      --tokens-in)
+        [[ -n "${2:-}" ]] || die "checkpoint requires a value after --tokens-in"
+        tokens_in="$2"; shift 2 ;;
+      --tokens-out)
+        [[ -n "${2:-}" ]] || die "checkpoint requires a value after --tokens-out"
+        tokens_out="$2"; shift 2 ;;
+      --provider)
+        [[ -n "${2:-}" ]] || die "checkpoint requires a value after --provider"
+        provider="$2"; shift 2 ;;
+      --model)
+        [[ -n "${2:-}" ]] || die "checkpoint requires a value after --model"
+        model="$2"; shift 2 ;;
+      --complexity)
+        [[ -n "${2:-}" ]] || die "checkpoint requires a value after --complexity"
+        complexity="$2"; shift 2 ;;
       -h|--help)
         cat <<'EOF'
 Usage: agentboard checkpoint <stream-slug> --what "..." --next "..." [flags]
@@ -51,6 +67,13 @@ Optional:
   --diff                   Also append `git diff --stat` to Progress log.
   --dry-run                Print what would change; don't write.
 
+Usage tracking (auto-log a token segment when all 4 are provided):
+  --tokens-in N            Input tokens consumed this segment.
+  --tokens-out N           Output tokens produced this segment.
+  --provider <name>        claude | codex | gemini  (or $AGENTBOARD_PROVIDER)
+  --model <name>           model id (or $AGENTBOARD_MODEL)
+  --complexity <t>         trivial | normal | heavy  (helps 'learn' detect overkill)
+
 After running, the next agent (Claude/Codex/Gemini) can resume by running
 `agentboard handoff <stream-slug>` and reading Resume state first.
 EOF
@@ -58,6 +81,10 @@ EOF
       *) die "Unknown flag for checkpoint: $1" ;;
     esac
   done
+
+  # Env-var fallbacks for provider/model so agents can set them once per shell
+  [[ -z "$provider" ]] && provider="${AGENTBOARD_PROVIDER:-}"
+  [[ -z "$model" ]] && model="${AGENTBOARD_MODEL:-}"
 
   [[ -n "$what" ]] || die "checkpoint requires --what \"<1-2 lines>\""
   [[ -n "$next_action" ]] || die "checkpoint requires --next \"<one sentence>\""
@@ -134,6 +161,36 @@ EOF
   ok "Checkpoint saved to $stream_file"
   say "  ${C_DIM}next:${C_RESET} ${next_action}"
   say "  ${C_DIM}Ready for handoff — run: agentboard handoff ${slug}${C_RESET}"
+
+  _checkpoint_auto_log_usage "$slug" "$tokens_in" "$tokens_out" "$provider" "$model" "$complexity" "$what"
+}
+
+# Auto-log a usage segment when token counts + provider are provided.
+# Silently skips if any required field is missing — usage tracking stays optional.
+_checkpoint_auto_log_usage() {
+  local slug="$1" tokens_in="$2" tokens_out="$3" provider="$4" model="$5" complexity="$6" what="$7"
+  [[ -n "$tokens_in" && -n "$tokens_out" && -n "$provider" ]] || return 0
+  [[ "$tokens_in" =~ ^[0-9]+$ && "$tokens_out" =~ ^[0-9]+$ ]] || {
+    warn "Checkpoint: --tokens-in/--tokens-out must be integers; skipping usage log"
+    return 0
+  }
+  command -v cmd_usage >/dev/null 2>&1 || return 0
+
+  local -a usage_args=(
+    log
+    --provider "$provider"
+    --input "$tokens_in"
+    --output "$tokens_out"
+    --stream "$slug"
+  )
+  [[ -n "$model" ]] && usage_args+=(--model "$model")
+  [[ -n "$complexity" ]] && usage_args+=(--type "$complexity")
+  local note="checkpoint: ${what:0:80}"
+  usage_args+=(--note "$note")
+
+  if cmd_usage "${usage_args[@]}" >/dev/null 2>&1; then
+    say "  ${C_DIM}usage logged: ${provider}${model:+/$model} — ${tokens_in} in / ${tokens_out} out${C_RESET}"
+  fi
 }
 
 # Overwrite or insert the ## Resume state section. If the section exists, it's

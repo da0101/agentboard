@@ -52,10 +52,22 @@ agentboard handoff [stream-slug] [--budget <N|Nk>]
                                      # next agent what to do. --budget drops
                                      # secondary domains when tokens run tight.
 agentboard checkpoint <slug> --what "..." --next "..." [--blocker "..."] [--focus "..."] [--diff]
+       [--tokens-in N --tokens-out N --provider <p> [--model <m>] [--complexity <c>]]
                                      # save compact "where we are" before handoff.
                                      # Overwrites stream's ## Resume state block,
                                      # prepends Progress log entry, trims to last 10.
                                      # Run before ending session or switching CLI.
+                                     # When --tokens-in/--tokens-out/--provider are
+                                     # all set, auto-logs a usage segment (feeds
+                                     # `agentboard usage learn`).
+agentboard close <slug>              # step 1: print harvest checklist — distill
+                                     # gotchas/playbook/open-questions/decisions/
+                                     # learnings into .platform memory files.
+agentboard close <slug> --confirm    # step 2: archive stream, log closure, set
+                                     # status=done. Run AFTER the harvest step.
+agentboard brief [--all]             # compact project briefing (session start):
+                                     # active streams, recent gotchas, open
+                                     # questions, top usage pattern.
 agentboard progress <slug> [--base <b>] [--note "<text>"] [--dry-run]
                                      # append git diff --stat to stream's Progress log
 ```
