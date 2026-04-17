@@ -192,7 +192,6 @@ Then ask: "Does this look right, or should I revise any section?"
 
 ## Activation rules (so you don't mess this up)
 
-0. **Subagent dispatch rule.** If you use `Task` tool calls to parallelize any scan step, follow the dispatch convention: print `Dispatching N agent(s): <Name> [<model>] — <purpose>; ...` before every dispatch, pass `model` explicitly (Sonnet for read-only scan work, Opus only if writing code mid-activation), and give each agent a persona name. Full rule: `.platform/agents/subagent-dispatch.md`.
 1. **Read before you write.** Scan the actual files before generating any content. No hallucinating the stack.
 2. **Ask when you're unsure.** If the scan is ambiguous (e.g., you see both a `package.json` and a `pyproject.toml`), ask which is the primary.
 3. **Don't ship placeholder content in `.platform/` files.** If the user hasn't answered a question, write `_TODO: <specific thing to fill in>_` so it's greppable.
@@ -230,7 +229,6 @@ These files are generic and ship verbatim — you don't need to rewrite them:
 - **`.platform/workflow.md`** — the 6-stage inline workflow (triage → interview → research → propose → execute → verify)
 - **`.platform/ONBOARDING.md`** — the 7-step onboarding path for future sessions
 - **`.platform/scripts/sync-context.sh`** — the sync script
-- **`.platform/sessions/ACTIVE.md`** — the parallel-session coordination template (for multi-repo projects)
 - **`.platform/templates/repo/*`** — scaffolding for adding new repos later via `agentboard add-repo`
 - **`.platform/work/BRIEF.md`** — feature brief (read FIRST every session — narrative context for current active feature)
 - **`.platform/work/ACTIVE.md`** — active workstream registry (read every session start, after BRIEF.md)

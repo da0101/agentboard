@@ -58,18 +58,6 @@ agentboard checkpoint <slug> --what "..." --next "..." [--blocker "..."] [--focu
                                      # Run before ending session or switching CLI.
 agentboard progress <slug> [--base <b>] [--note "<text>"] [--dry-run]
                                      # append git diff --stat to stream's Progress log
-agentboard tui [--status <s>] [--owner <n>] [--repo <id>] [--sort <c>] [--watch <s>]
-                                     # read-only dashboard of work/ACTIVE.md + branches
-```
-
----
-
-## Session management
-
-```bash
-agentboard claim "<task description>"
-agentboard release
-agentboard log "<one line>"          # append to .platform/log.md
 ```
 
 ---
