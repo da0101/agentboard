@@ -85,6 +85,12 @@ COMMANDS
                              --stream <slug>   target stream (default: auto)
                              --once            single poll, then exit
                              --stop            stop the running watcher
+  install-hooks              Install Claude Code hook guards. Wires a
+                             PreToolUse hook that blocks git commit / push /
+                             reset --hard / rm -rf with an approval prompt.
+                             LLM cannot bypass. Safe on re-install.
+                             --force           overwrite existing settings.json
+                             --dry-run         preview without writing
   progress <stream-slug>     Append a git-diff summary to the stream's
                              ## Progress log section (uses base_branch from
                              frontmatter). Flags:
