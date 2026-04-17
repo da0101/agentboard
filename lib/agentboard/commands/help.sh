@@ -59,6 +59,19 @@ COMMANDS
                              --focus "<t>"     file:line or topic in focus
                              --diff            also append git diff --stat
                              --dry-run         print changes without writing
+                             --tokens-in N --tokens-out N --provider <p>
+                             [--model <m>] [--complexity <c>]
+                                               auto-log a usage segment
+  close <stream-slug>        Finalize a stream. Two-step ritual:
+                             1. bare run prints the harvest checklist —
+                                distill gotchas/playbook/questions/decisions
+                                into .platform memory files.
+                             2. --confirm archives the stream and logs closure.
+                             --dry-run         preview --confirm actions
+  brief                      Print the compact project briefing — active
+                             streams, recent gotchas, open questions,
+                             usage pattern. Read this at session start.
+                             --all             show all gotchas/questions
   progress <stream-slug>     Append a git-diff summary to the stream's
                              ## Progress log section (uses base_branch from
                              frontmatter). Flags:

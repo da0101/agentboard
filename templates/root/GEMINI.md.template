@@ -16,9 +16,10 @@ This file is auto-loaded when you open this project in Gemini CLI. All mandatory
 
 ### Session start (every session — mandatory)
 
-Read in order:
-1. **`work/BRIEF.md`** — narrative brief: what we're building, why, current state, relevant context
-2. **`work/ACTIVE.md`** — stream registry
+1. **Run `agentboard brief`** first — compact "state of the project" view: active streams, recent gotchas (landmines the 20-year-employee would warn you about), open questions, latest usage pattern. This is your institutional memory; read it before touching code.
+2. Then read the narrative docs in order:
+   - **`work/BRIEF.md`** — what we're building, why, current state, relevant context
+   - **`work/ACTIVE.md`** — stream registry
 
 If there is an active stream you're resuming, **run `agentboard handoff <slug>`** before anything else — it prints the exact load order and the Resume state (what just happened, current focus, next action) left by the previous agent. This is how context is shared between Claude, Codex, and Gemini without re-explaining.
 
@@ -29,10 +30,36 @@ Report to user: 1 stream → "Resuming **\<stream\>** — next: \<action\>. Cont
 When context is running low, you're ending the session, or you're about to hand off to another CLI (Claude → Codex, Codex → Gemini, etc.), **run**:
 
 ```bash
-agentboard checkpoint <stream-slug> --what "<1-2 lines of what just happened>" --next "<one sentence: what to do next>"
+agentboard checkpoint <stream-slug> --what "<1-2 lines of what just happened>" --next "<one sentence: what to do next>" \
+  --tokens-in <N> --tokens-out <N> --provider gemini --model <model-id> [--complexity trivial|normal|heavy]
 ```
 
+Passing the token/provider/model fields auto-logs a usage segment — `agentboard usage learn` uses that data to detect patterns (e.g., overkill-model-on-trivial-task) and surface them to future sessions. Omit them if you don't know the counts; the checkpoint itself still works.
+
 This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `agentboard handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
+
+### Stream closure — before archiving (mandatory harvest ritual)
+
+When a stream is done, **do not just archive the file**. Run the two-step close to feed project memory:
+
+```bash
+# Step 1 — print the harvest checklist
+agentboard close <stream-slug>
+```
+
+Then, following the checklist it prints, distill and append to these files (only where applicable — skip categories with nothing to add):
+- `.platform/gotchas.md` — landmines discovered (🔴 never-forget · 🟡 usually-matters · 🟢 minor)
+- `.platform/playbook.md` — shortcuts / rituals / commands worth recording
+- `.platform/open-questions.md` — anything still unresolved (or move a prior question to Resolved)
+- `.platform/decisions.md` — locked architectural/product/tooling decisions
+- `.platform/learnings.md` — non-obvious bug root-causes
+
+```bash
+# Step 2 — after harvest, archive the stream
+agentboard close <stream-slug> --confirm
+```
+
+This is the compounding ritual. Each close adds durable knowledge so the next agent running `agentboard brief` inherits what you learned, without you being there to explain it.
 
 ### New task bootstrap (before any non-trivial task — mandatory)
 
