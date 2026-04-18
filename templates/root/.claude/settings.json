@@ -20,6 +20,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"./.platform/scripts/hooks/pre-tool-use-lock.sh\"",
+            "timeout": 35
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -29,6 +39,16 @@
             "type": "command",
             "command": "bash \"./.platform/scripts/hooks/event-logger.sh\"",
             "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"./.platform/scripts/hooks/post-tool-use-unlock.sh\"",
+            "timeout": 5
           }
         ]
       }
