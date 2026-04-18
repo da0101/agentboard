@@ -38,6 +38,30 @@ For `--cumulative-in` / `--cumulative-out` pass your **current session totals** 
 
 This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `agentboard handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
 
+### Reasoning annotation — after significant edits (mandatory)
+
+After every Write or Edit that another agent will need to understand, run:
+
+```bash
+agentboard log-reason [<file>] "<one sentence why>"
+```
+
+**When to call it:**
+- Refactors, extractions, new abstractions
+- Deletions of non-obvious code
+- Architectural choices that aren't clear from the code alone
+- Any change Codex or Gemini will need to understand without your conversation context
+
+**Skip for:** formatting, typo fixes, obvious variable renames.
+
+Examples:
+```bash
+agentboard log-reason src/auth.ts "Extracted token validation into middleware so Codex can call it from the algorithm layer without duplicating logic"
+agentboard log-reason "Removed legacy polling loop — replaced by daemon push model"
+```
+
+This is what makes cross-provider handoff accurate. Without it, the next provider sees *what* changed but not *why*.
+
 ### Stream closure — before archiving (mandatory harvest ritual)
 
 When a stream is done, **do not just archive the file**. Run the two-step close to feed project memory:

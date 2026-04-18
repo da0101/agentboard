@@ -38,6 +38,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/recover.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/events.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/daemon.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/lock.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/log_reason.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
@@ -126,6 +127,7 @@ main() {
     events)      cmd_events "$@" ;;
     daemon)      cmd_daemon "$@" ;;
     lock)        cmd_lock "$@" ;;
+    log-reason)  cmd_log_reason "$@" ;;
     close)       cmd_close "$@" ;;
     brief)       cmd_brief "$@" ;;
     watch)       cmd_watch "$@" ;;
