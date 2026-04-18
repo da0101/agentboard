@@ -389,7 +389,7 @@ EOF
       "$C_YELLOW" "$C_RESET" "$C_YELLOW" "$_stream_updated" "$C_RESET"
     if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
       local _recent_commits
-      _recent_commits="$(git log --oneline --since="$_stream_updated" 2>/dev/null | head -10)"
+      _recent_commits="$(git --no-pager log --oneline --max-count=10 --since="$_stream_updated" 2>/dev/null || true)"
       if [[ -n "$_recent_commits" ]]; then
         printf '  %sCommits since last checkpoint:%s\n' "$C_DIM" "$C_RESET"
         local _cline
