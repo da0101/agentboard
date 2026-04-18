@@ -163,6 +163,35 @@ cmd_update() {
     updated=$((updated + 1))
   fi
 
+  # scripts/{codex-ab,gemini-ab,session-track.sh} — always upsert.
+  # These are the provider wrappers and the shared session-tracking helper:
+  # pure protocol, no per-project content. Upgrading them propagates the
+  # event-capture / observability improvements to existing projects.
+  local wrap_src wrap_dst wname
+  for wname in codex-ab gemini-ab session-track.sh; do
+    wrap_src="$TEMPLATES_PLATFORM/scripts/$wname"
+    wrap_dst="./.platform/scripts/$wname"
+    [[ -f "$wrap_src" ]] || continue
+    if (( dry_run )); then
+      if [[ -f "$wrap_dst" ]]; then
+        printf '  %s~%s scripts/%s\n' "$C_YELLOW" "$C_RESET" "$wname"
+      else
+        printf '  %s+%s scripts/%s  %s(would add)%s\n' "$C_GREEN" "$C_RESET" "$wname" "$C_DIM" "$C_RESET"
+      fi
+    else
+      local wrap_is_new=0
+      [[ -f "$wrap_dst" ]] || wrap_is_new=1
+      cp "$wrap_src" "$wrap_dst"
+      chmod +x "$wrap_dst"
+      if (( wrap_is_new )); then
+        printf '  %s+%s %sscripts/%s%s  %s(new)%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$wname" "$C_RESET" "$C_DIM" "$C_RESET"
+      else
+        printf '  %s↻%s %sscripts/%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$wname" "$C_RESET"
+      fi
+    fi
+    updated=$((updated + 1))
+  done
+
   # scripts/hooks/ — always upsert (no project-specific content; propagate bug fixes)
   if [[ -d "$TEMPLATES_PLATFORM/scripts/hooks" ]]; then
     local hook_src hook_dst hname

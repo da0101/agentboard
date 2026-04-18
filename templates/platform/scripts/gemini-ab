@@ -1,21 +1,52 @@
 #!/usr/bin/env bash
 # gemini-ab — agentboard-aware Gemini CLI wrapper
-# 1. Runs `agentboard brief` before launch (session bootstrap).
-# 2. Auto-checkpoints the active stream when the session ends without a
+# 1. Logs SessionStart + FileChange + SessionEnd events — closes the
+#    observability gap vs Claude Code (which has native PostToolUse hooks).
+#    A 5s background poller inside this wrapper records every tracked file
+#    change as an event, giving the next agent the same visibility it has
+#    into a Claude Code session.
+# 2. Runs `agentboard brief` + `events tail` before launch so Gemini sees
+#    what prior sessions did.
+# 3. Auto-checkpoints the active stream when the session ends without a
 #    manual checkpoint — same safety net as Claude Code's session hooks.
 #
 # Usage:   bash .platform/scripts/gemini-ab [gemini args...]
 # Alias:   alias gemini='bash "$(git rev-parse --show-toplevel)/.platform/scripts/gemini-ab"'
 
+AGENTBOARD_PROVIDER="gemini"
+AGENTBOARD_SESSION_ID="gemini-$$-$(date +%s 2>/dev/null || printf 'unknown')"
+export AGENTBOARD_PROVIDER AGENTBOARD_SESSION_ID
+
 # ── Session bootstrap ────────────────────────────────────────────────────────
-if [[ -d ".platform" ]] && command -v agentboard >/dev/null 2>&1; then
-  agentboard brief 2>/dev/null || true
-  printf '\n'
+_ab_poller_pid=0
+if [[ -d ".platform" ]]; then
+  if [[ -f ".platform/scripts/session-track.sh" ]]; then
+    # shellcheck disable=SC1091
+    . ".platform/scripts/session-track.sh"
+    _ab_session_event "SessionStart" "$AGENTBOARD_SESSION_ID" "\"provider\":\"gemini\""
+    _ab_poller_pid="$(_ab_start_file_poller "$AGENTBOARD_SESSION_ID" "gemini" 5)"
+  fi
+  if command -v agentboard >/dev/null 2>&1; then
+    agentboard brief 2>/dev/null || true
+    printf '\n\033[1mRecent tool activity from other providers:\033[0m\n'
+    agentboard events tail -n 10 2>/dev/null || true
+    printf '\n'
+  fi
 fi
 
-# ── Run Gemini (not exec — wrapper stays alive for post-session checkpoint) ──
+# ── Run Gemini (not exec — wrapper stays alive for post-session work) ────────
 command gemini "$@"
 _ab_exit=$?
+
+# ── Stop file poller + log SessionEnd ────────────────────────────────────────
+if [[ "$_ab_poller_pid" -gt 0 ]] 2>/dev/null; then
+  if declare -f _ab_stop_file_poller >/dev/null 2>&1; then
+    _ab_stop_file_poller "$_ab_poller_pid"
+  fi
+fi
+if declare -f _ab_session_event >/dev/null 2>&1; then
+  _ab_session_event "SessionEnd" "$AGENTBOARD_SESSION_ID" "\"provider\":\"gemini\",\"exit_code\":$_ab_exit"
+fi
 
 # ── Auto-checkpoint on exit ──────────────────────────────────────────────────
 # Fires only when: .platform exists, exactly one active stream, and the stream
@@ -30,7 +61,7 @@ if [[ -d ".platform" ]] && command -v agentboard >/dev/null 2>&1; then
     _ab_count="$(printf '%s\n' "$_ab_slugs" | grep -c '[a-zA-Z]' 2>/dev/null || echo 0)"
 
     if [[ "$_ab_count" -eq 1 ]]; then
-      _ab_slug="$(printf '%s\n' "$_ab_slugs" | head -1)"
+      _ab_slug="$(printf '%s\n' "$_ab_slugs" | command head -1)"
       _ab_sf=".platform/work/${_ab_slug}.md"
 
       # Skip if stream file was touched in the last 10 min (recent manual checkpoint)
