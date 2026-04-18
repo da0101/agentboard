@@ -191,6 +191,66 @@ test_init_ships_bash_guard_hook_in_settings() {
     || fail "init should ship bash-guard.sh"
 }
 
+# ─── --aliases flag behavior ──────────────────────────────────────────────
+
+test_install_hooks_aliases_writes_to_zshrc() {
+  local dir; dir="$(mktemp -d)"
+  _fresh_project "$dir"
+  local fake_home; fake_home="$(mktemp -d)"
+  touch "$fake_home/.zshrc"
+  local saved_HOME="$HOME"
+  HOME="$fake_home"
+  ( cd "$dir"; _ab_install_aliases 0 >/dev/null 2>&1 )
+  HOME="$saved_HOME"
+  assert_file_contains "$fake_home/.zshrc" "agentboard:aliases:begin"
+  assert_file_contains "$fake_home/.zshrc" "command codex"
+  assert_file_contains "$fake_home/.zshrc" "command gemini"
+  rm -rf "$dir" "$fake_home"
+}
+
+test_install_hooks_aliases_idempotent() {
+  local dir; dir="$(mktemp -d)"
+  _fresh_project "$dir"
+  local fake_home; fake_home="$(mktemp -d)"
+  touch "$fake_home/.zshrc"
+  local saved_HOME="$HOME"
+  HOME="$fake_home"
+  ( cd "$dir"; _ab_install_aliases 0 >/dev/null 2>&1; _ab_install_aliases 0 >/dev/null 2>&1 )
+  HOME="$saved_HOME"
+  local count; count="$(grep -c 'agentboard:aliases:begin' "$fake_home/.zshrc" 2>/dev/null || printf '0')"
+  [[ "$count" -eq 1 ]] || fail "expected exactly one aliases block, got $count"
+  rm -rf "$dir" "$fake_home"
+}
+
+test_install_hooks_aliases_force_replaces_block() {
+  local dir; dir="$(mktemp -d)"
+  _fresh_project "$dir"
+  local fake_home; fake_home="$(mktemp -d)"
+  touch "$fake_home/.zshrc"
+  local saved_HOME="$HOME"
+  HOME="$fake_home"
+  ( cd "$dir"; _ab_install_aliases 0 >/dev/null 2>&1; _ab_install_aliases 1 >/dev/null 2>&1 )
+  HOME="$saved_HOME"
+  local count; count="$(grep -c 'agentboard:aliases:begin' "$fake_home/.zshrc" 2>/dev/null || printf '0')"
+  [[ "$count" -eq 1 ]] || fail "expected exactly one aliases block after --force, got $count"
+  rm -rf "$dir" "$fake_home"
+}
+
+test_install_hooks_aliases_flag_runs_only_aliases() {
+  local dir; dir="$(mktemp -d)"
+  _fresh_project "$dir"
+  local fake_home; fake_home="$(mktemp -d)"
+  touch "$fake_home/.zshrc"
+  local output
+  HOME="$fake_home" run_cli_capture output "$dir" install-hooks --aliases
+  assert_status "$RUN_STATUS" 0
+  assert_file_contains "$fake_home/.zshrc" "agentboard:aliases:begin"
+  # Should NOT install bash-guard (aliases-only mode)
+  [[ ! -f "$dir/.platform/scripts/hooks/bash-guard.sh" ]] \
+    || fail "aliases-only mode should not install bash-guard.sh"
+  rm -rf "$dir" "$fake_home"
+}
+
 for t in \
   test_guard_allows_benign_bash \
   test_guard_blocks_git_commit \
@@ -208,7 +268,11 @@ for t in \
   test_install_hooks_dry_run_writes_nothing \
   test_install_hooks_fails_without_platform_dir \
   test_install_hooks_help \
-  test_init_ships_bash_guard_hook_in_settings; do
+  test_init_ships_bash_guard_hook_in_settings \
+  test_install_hooks_aliases_writes_to_zshrc \
+  test_install_hooks_aliases_idempotent \
+  test_install_hooks_aliases_force_replaces_block \
+  test_install_hooks_aliases_flag_runs_only_aliases; do
   printf 'RUN: %s\n' "$t" >&2
   "$t"
 done

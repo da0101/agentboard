@@ -177,6 +177,14 @@ agentboard doctor
 
 `doctor` re-checks the frontmatter on every stream and domain file you wrote, validates the cross-references in `work/ACTIVE.md` and `work/BRIEF.md`, and (in hub mode) verifies every row of `repos.md` resolves to a real path. **If `doctor` reports `errors > 0`, fix them before showing the summary** — silent missing keys are exactly what this gate exists to prevent.
 
+If the user works with **Codex CLI or Gemini CLI** (in addition to or instead of Claude Code), also run:
+
+```bash
+agentboard install-hooks --aliases
+```
+
+This writes shell functions to `~/.zshrc` / `~/.bashrc` so that typing `codex` or `gemini` in any project automatically routes through `.platform/scripts/codex-ab` / `gemini-ab`, which runs `agentboard brief` before each session. Without this, Codex and Gemini users get no session bootstrap. Mention it in your summary if you ran it.
+
 Once `doctor` passes (warnings are fine — explain them in the summary), show the user a summary:
 - What you filled in (`.platform/*.md` files)
 - What you intentionally left as placeholders for them to complete (e.g., "release blocklist has 3 empty rows — tell me what blocks launch")

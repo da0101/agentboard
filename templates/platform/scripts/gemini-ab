@@ -14,7 +14,7 @@ if [[ -d ".platform" ]] && command -v agentboard >/dev/null 2>&1; then
 fi
 
 # ── Run Gemini (not exec — wrapper stays alive for post-session checkpoint) ──
-gemini "$@"
+command gemini "$@"
 _ab_exit=$?
 
 # ── Auto-checkpoint on exit ──────────────────────────────────────────────────

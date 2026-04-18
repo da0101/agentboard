@@ -76,18 +76,74 @@ _ab_install_git_hook() {
   fi
 }
 
+_ab_install_aliases() {
+  local force="${1:-0}"
+  local did_write=0
+
+  for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
+    [[ -f "$rc" ]] || continue
+
+    local already=0
+    grep -q "agentboard:aliases" "$rc" 2>/dev/null && already=1
+
+    if (( already )); then
+      if (( force )); then
+        local tmp; tmp="$(mktemp 2>/dev/null)" || { warn "Could not create temp file for $rc"; continue; }
+        awk '/# agentboard:aliases:begin/{skip=1} /# agentboard:aliases:end/{skip=0; next} !skip{print}' \
+          "$rc" > "$tmp" && mv "$tmp" "$rc" || { rm -f "$tmp"; warn "Failed to update $rc"; continue; }
+        printf '  %s↺%s %s  %s(removed old block — re-appending)%s\n' \
+          "$C_YELLOW" "$C_RESET" "$rc" "$C_DIM" "$C_RESET"
+      else
+        printf '  %s↷%s %s  %s(agentboard aliases already present — use --force to update)%s\n' \
+          "$C_YELLOW" "$C_RESET" "$rc" "$C_DIM" "$C_RESET"
+        continue
+      fi
+    fi
+
+    cat >> "$rc" <<'SHELL'
+
+# agentboard:aliases:begin
+codex() {
+  local _w; _w="$(git rev-parse --show-toplevel 2>/dev/null)/.platform/scripts/codex-ab"
+  if [[ -f "$_w" ]]; then bash "$_w" "$@"; else command codex "$@"; fi
+}
+gemini() {
+  local _w; _w="$(git rev-parse --show-toplevel 2>/dev/null)/.platform/scripts/gemini-ab"
+  if [[ -f "$_w" ]]; then bash "$_w" "$@"; else command gemini "$@"; fi
+}
+# agentboard:aliases:end
+SHELL
+    printf '  %s✓%s %s  %s(agentboard shell functions appended)%s\n' \
+      "$C_GREEN" "$C_RESET" "$rc" "$C_DIM" "$C_RESET"
+    did_write=1
+  done
+
+  if (( did_write )); then
+    ok "Shell functions installed."
+    say "  ${C_DIM}Reload your shell: source ~/.zshrc  or  source ~/.bashrc${C_RESET}"
+    say "  ${C_DIM}After that, 'codex' and 'gemini' auto-route through project wrappers.${C_RESET}"
+  fi
+}
+
 cmd_install_hooks() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
 
-  local force=0 dry_run=0
+  local force=0 dry_run=0 aliases_only=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --force)   force=1; shift ;;
-      --dry-run) dry_run=1; shift ;;
-      -h|--help) _install_hooks_print_help; return 0 ;;
+      --force)     force=1; shift ;;
+      --dry-run)   dry_run=1; shift ;;
+      --aliases)   aliases_only=1; shift ;;
+      -h|--help)   _install_hooks_print_help; return 0 ;;
       *) die "Unknown flag for install-hooks: $1" ;;
     esac
   done
+
+  if (( aliases_only )); then
+    head "Agentboard shell aliases"
+    _ab_install_aliases "$force"
+    return 0
+  fi
 
   local guard_src="$TEMPLATES_PLATFORM/scripts/hooks/bash-guard.sh"
   local guard_dst="./.platform/scripts/hooks/bash-guard.sh"
@@ -205,6 +261,7 @@ JSON
 _install_hooks_print_help() {
   cat <<'EOF'
 Usage: agentboard install-hooks [--force] [--dry-run]
+       agentboard install-hooks --aliases [--force]
 
 Installs the full agentboard hook stack for all providers.
 
@@ -227,18 +284,22 @@ What gets installed:
   .platform/scripts/codex-ab                     [Codex CLI]
   .platform/scripts/gemini-ab                    [Gemini CLI]
       Provider wrappers — run `agentboard brief` before launch so agents
-      start every session with full project context. Use as aliases:
-        alias codex="bash .platform/scripts/codex-ab"
-        alias gemini="bash .platform/scripts/gemini-ab"
+      start every session with full project context.
 
 Flags:
+  --aliases   Write shell functions for 'codex' and 'gemini' into
+              ~/.zshrc and/or ~/.bashrc so they auto-route through the
+              project wrappers globally (no per-project alias needed).
+              Idempotent. Re-run with --force to update an existing block.
   --force     Overwrite existing .claude/settings.json and/or git hooks
               (backups saved with .agentboard-backup-<ts> suffix).
+              Also used with --aliases to replace an existing block.
   --dry-run   Print what would change without writing anything.
 
 Notes:
   - Fresh `agentboard init` already installs everything. This command is
     for existing projects, re-install, or upgrading hooks after agentboard update.
   - All hooks are fail-open: errors allow through rather than block.
+  - --aliases is the only step that modifies files outside the project dir.
 EOF
 }

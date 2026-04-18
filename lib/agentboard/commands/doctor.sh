@@ -400,6 +400,22 @@ cmd_doctor() {
     fi
   done
 
+  # Alias presence check — only warn when codex/gemini are installed but wrappers not hooked
+  for _cli in codex gemini; do
+    if command -v "$_cli" >/dev/null 2>&1; then
+      local _alias_found=0
+      for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
+        [[ -f "$rc" ]] && grep -q "agentboard:aliases" "$rc" 2>/dev/null && _alias_found=1
+      done
+      if (( _alias_found == 0 )); then
+        warn "$_cli is in PATH but agentboard shell functions not installed — run 'agentboard install-hooks --aliases'"
+        warnings=$((warnings + 1))
+      else
+        ok "Shell function for $_cli installed"
+      fi
+    fi
+  done
+
   say
   if (( errors > 0 )); then
     printf '%s%sDoctor found issues%s\n' "$C_BOLD" "$C_RED" "$C_RESET"

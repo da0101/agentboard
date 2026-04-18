@@ -90,7 +90,7 @@ agentboard watch --uninstall         # remove the scheduler for this project
 AGENTBOARD_WATCH_HOME=/tmp/ab-home agentboard watch --install
                                      # isolate scheduler files for tests or
                                      # dry local verification without touching ~
-agentboard install-hooks [--force] [--dry-run]
+agentboard install-hooks [--force] [--dry-run] [--aliases]
                                      # Installs Claude Code PreToolUse guard.
                                      # Blocks `git commit`, `git push`,
                                      # `git reset --hard`, `rm -rf` etc. with
@@ -98,6 +98,11 @@ agentboard install-hooks [--force] [--dry-run]
                                      # Fresh `agentboard init` already ships
                                      # the guard — use this on existing projects
                                      # or to re-install after edits.
+                                     # --aliases: writes shell functions for
+                                     # `codex` and `gemini` into ~/.zshrc /
+                                     # ~/.bashrc so they auto-route through
+                                     # .platform/scripts/codex-ab|gemini-ab
+                                     # (runs `agentboard brief` before launch).
 agentboard progress <slug> [--base <b>] [--note "<text>"] [--dry-run]
                                      # append git diff --stat to stream's Progress log
 ```

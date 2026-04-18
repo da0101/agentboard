@@ -301,7 +301,13 @@ agentboard doctor
 agentboard new-domain <slug> [repo-id ...] [--repo <repo-id>]
 agentboard new-stream <slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]
 agentboard resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>
-agentboard handoff [stream-slug]
+agentboard handoff [stream-slug] [--budget <N|Nk>]
+agentboard checkpoint <slug> --what "..." --next "..." [--provider <p>] [--type <t>] [--diff]
+agentboard close <slug>
+agentboard close <slug> --confirm
+agentboard brief [--all]
+agentboard watch [--interval <n>] [--once] [--install] [--uninstall] [--status]
+agentboard install-hooks [--force] [--dry-run] [--aliases]
 agentboard progress <stream-slug> [--base <branch>] [--note "<text>"] [--dry-run]
 agentboard status
 agentboard add-repo <path>
@@ -328,7 +334,12 @@ agentboard help
 - `new-domain` bootstraps a domain file with metadata and can assign multiple repo IDs up front
 - `new-stream` bootstraps a stream file, registers it in `work/ACTIVE.md`, and seeds `work/BRIEF.md` when the brief is still a placeholder; repeat `--domain` and `--repo` when the stream spans multiple areas or repos
 - `resolve` turns a canonical stream/domain/repo reference into the exact file or repo record to load
-- `handoff` prints the minimum file load order, repo scope, and current-state summary another LLM needs to resume a stream without a full re-brief
+- `handoff` prints the minimum file load order, repo scope, and current-state summary another LLM needs to resume a stream without a full re-brief; `--budget` drops secondary domains when token count is tight
+- `checkpoint` saves a compact "where we are" snapshot into the stream file before a context clear, provider switch, or session end; overwrites `## Resume state` and prepends a trimmed `## Progress log` entry
+- `close` runs in two steps: first call prints the harvest checklist (distill gotchas/decisions/learnings into `.platform/memory/`); second call with `--confirm` archives the stream and logs closure
+- `brief` prints the compact session-start briefing: active streams, recent gotchas, open questions, top usage pattern; run this at the start of every session
+- `watch` background poller that auto-checkpoints the active stream whenever tracked files change via `git status`; `--install` registers a per-project scheduler (launchd on macOS, systemd on Linux); `--aliases` on `install-hooks` wires `codex`/`gemini` CLI through the project wrappers globally
+- `install-hooks` installs the full hook stack: Claude Code PreToolUse bash-guard, git pre-commit closure gate, git post-commit activity log, and Codex/Gemini provider wrappers; `--aliases` writes shell functions to `~/.zshrc`/`~/.bashrc` so `codex` and `gemini` auto-route through the project wrappers
 - `progress` appends a git-diff summary (`git diff --stat <base>...HEAD`) to the stream's `## Progress log` section, stamped with timestamp and branch; use this instead of hand-typing what changed
 - `status` prints `.platform/STATUS.md`
 - `add-repo` scaffolds entry files into a sibling repo in hub mode and refuses to overwrite existing root entry files
