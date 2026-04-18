@@ -44,6 +44,9 @@ if [[ "$_ab_poller_pid" -gt 0 ]] 2>/dev/null; then
     _ab_stop_file_poller "$_ab_poller_pid"
   fi
 fi
+if declare -f _ab_stop_daemon >/dev/null 2>&1; then
+  _ab_stop_daemon
+fi
 if declare -f _ab_session_event >/dev/null 2>&1; then
   _ab_session_event "SessionEnd" "$AGENTBOARD_SESSION_ID" "\"provider\":\"gemini\",\"exit_code\":$_ab_exit"
 fi

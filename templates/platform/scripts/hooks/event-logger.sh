@@ -59,18 +59,35 @@ provider_e="$(_jsesc "$provider")"
 stream_e="$(_jsesc "$stream")"
 tool_e="$(_jsesc "$tool")"
 
-# Append one JSON line. Format string enforces the newline; malformed raw
-# input only breaks its own line (append-only: never corrupts prior lines).
-# Use flock for concurrent-write safety when available, best-effort otherwise.
-if command -v flock >/dev/null 2>&1; then
-  (
-    flock -w 1 9 || exit 0
+# Try daemon first (serializes concurrent writes from parallel agents).
+# Fall back to direct append if daemon isn't reachable.
+_port_file=".platform/.daemon-port"
+_daemon_ok=0
+if [[ -f "$_port_file" ]] && command -v curl >/dev/null 2>&1; then
+  _port="$(cat "$_port_file" 2>/dev/null)"
+  if [[ "$_port" =~ ^[0-9]+$ ]]; then
+    _payload="$(printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"%s","raw":%s}' \
+      "$ts" "$provider_e" "$stream_e" "$tool_e" "$input")"
+    if curl -sf -m 1 -X POST "http://127.0.0.1:$_port/event" \
+        -H 'Content-Type: application/json' \
+        -d "$_payload" >/dev/null 2>&1; then
+      _daemon_ok=1
+    fi
+  fi
+fi
+
+if (( _daemon_ok == 0 )); then
+  # Direct fallback (existing behavior)
+  if command -v flock >/dev/null 2>&1; then
+    (
+      flock -w 1 9 || exit 0
+      printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"%s","raw":%s}\n' \
+        "$ts" "$provider_e" "$stream_e" "$tool_e" "$input" >&9
+    ) 9>>"$log_file" 2>/dev/null
+  else
     printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"%s","raw":%s}\n' \
-      "$ts" "$provider_e" "$stream_e" "$tool_e" "$input" >&9
-  ) 9>>"$log_file" 2>/dev/null
-else
-  printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"%s","raw":%s}\n' \
-    "$ts" "$provider_e" "$stream_e" "$tool_e" "$input" >> "$log_file" 2>/dev/null
+      "$ts" "$provider_e" "$stream_e" "$tool_e" "$input" >> "$log_file" 2>/dev/null
+  fi
 fi
 
 exit 0

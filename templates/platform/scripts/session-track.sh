@@ -28,6 +28,31 @@ _ab_session_event() {
   printf '%s' "$payload" | bash "$_ab_events_hook" 2>/dev/null || true
 }
 
+# Best-effort: start daemon if not already running.
+# Sets _ab_daemon_was_started=1 so the caller can stop it on exit.
+_ab_daemon_was_started=0
+_ab_ensure_daemon() {
+  command -v agentboard >/dev/null 2>&1 || return 0
+  command -v node >/dev/null 2>&1 || return 0
+  [[ -d ".platform" ]] || return 0
+  local _pf=".platform/.daemon-port"
+  if [[ -f "$_pf" ]]; then
+    local _p; _p="$(cat "$_pf" 2>/dev/null)"
+    if [[ "$_p" =~ ^[0-9]+$ ]] && curl -sf -m 1 "http://127.0.0.1:$_p/health" >/dev/null 2>&1; then
+      return 0  # already running
+    fi
+  fi
+  agentboard daemon start >/dev/null 2>&1 || return 0
+  _ab_daemon_was_started=1
+}
+
+_ab_stop_daemon() {
+  [[ "$_ab_daemon_was_started" -eq 1 ]] || return 0
+  command -v agentboard >/dev/null 2>&1 || return 0
+  agentboard daemon stop >/dev/null 2>&1 || true
+  _ab_daemon_was_started=0
+}
+
 # Start a background file-change poller. Writes one event per changed tracked
 # file per poll interval. Returns the poller PID; caller must stop it on exit.
 #
@@ -37,6 +62,7 @@ _ab_start_file_poller() {
   [[ -f "$_ab_events_hook" ]] || { printf '0'; return 0; }
   command -v git >/dev/null 2>&1 || { printf '0'; return 0; }
   git rev-parse --git-dir >/dev/null 2>&1 || { printf '0'; return 0; }
+  _ab_ensure_daemon 2>/dev/null || true
 
   # Capture baseline SYNCHRONOUSLY before backgrounding. If we let the
   # backgrounded subshell compute it, fork latency allows file modifications
