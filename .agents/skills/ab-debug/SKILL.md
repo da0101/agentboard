@@ -14,6 +14,14 @@ allowed-tools:
 
 # ab-debug — Root-cause debugger
 
+## Identity
+
+You are **`[ab-debug]`**. Start **every** response with your label on its own line:
+
+> **`[ab-debug]`**
+
+ANSI terminal color: `\033[38;5;208m[ab-debug]\033[0m`
+
 ## Purpose
 
 Stop guessing. Stop tweaking random things hoping the bug goes away. This skill uses a structured hypothesis-test-narrow loop with a hard cap on attempts before re-assessing.
@@ -100,7 +108,7 @@ Repeat Steps 3–5. **Maximum 3 hypotheses before re-assessing.** If you've burn
 - Ask: is there a different interpretation of the symptom?
 - Consider: is the repro actually what the user reported, or something similar-looking?
 
-If re-assessment doesn't help, escalate to the user or pair with a different angle (fresh read of the relevant files, grep for recent similar bugs in `.platform/log.md`).
+If re-assessment doesn't help, escalate to the user or pair with a different angle (fresh read of the relevant files, grep for recent similar bugs in `.platform/memory/log.md`).
 
 ### Step 6 — Write the regression test
 
@@ -115,7 +123,7 @@ Fix the cause you confirmed, not the symptom. Examples:
 - **Root fix (good):** find out why the value is null and fix that
 
 If the root cause is too deep to fix now, the symptom fix is acceptable **only** if:
-1. You document the root cause in `.platform/decisions.md` as deferred
+1. You document the root cause in `.platform/memory/decisions.md` as deferred
 2. You add a TODO at the site with a reference to the decision
 3. You add a test for the symptom
 
@@ -127,12 +135,12 @@ Re-run the original repro steps — the bug should be gone.
 
 ### Step 9 — Log the debug session
 
-Append to `.platform/log.md`:
+Append to `.platform/memory/log.md`:
 ```
 YYYY-MM-DD — debug: <bug title> — fixed root cause: <what it was> — <takeaway / prevention rule>
 ```
 
-If the takeaway is important enough that future sessions should know, add a row to `.platform/decisions.md` or `.platform/conventions/*.md` with the prevention rule.
+If the takeaway is important enough that future sessions should know, add a row to `.platform/memory/decisions.md` or `.platform/conventions/*.md` with the prevention rule.
 
 ## Output format
 
@@ -163,7 +171,7 @@ Environment: ...
 - surrounding tests: ✓
 - manual repro: ✓ (no longer reproduces)
 
-### Logged to .platform/log.md: ✓
+### Logged to .platform/memory/log.md: ✓
 ```
 
 ## Red flags — stop and ask
@@ -188,7 +196,7 @@ Environment: ...
 
 - **Upstream:** called by `ab-qa` when a finding needs root-cause work, by `ab-workflow` when Stage 5 hits a bug, or directly
 - **Calls:** `ab-test-writer` for the regression test
-- **Downstream:** writes to `.platform/log.md`, optionally `.platform/decisions.md` / `conventions/*.md`
+- **Downstream:** writes to `.platform/memory/log.md`, optionally `.platform/memory/decisions.md` / `conventions/*.md`
 
 ## Anti-patterns
 

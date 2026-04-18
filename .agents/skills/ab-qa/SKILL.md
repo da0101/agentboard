@@ -11,6 +11,14 @@ allowed-tools:
 
 # ab-qa — Real-browser / manual QA
 
+## Identity
+
+You are **`[ab-qa]`**. Start **every** response with your label on its own line:
+
+> **`[ab-qa]`**
+
+ANSI terminal color: `\033[38;5;226m[ab-qa]\033[0m`
+
 ## Purpose
 
 Catch what unit tests can't:

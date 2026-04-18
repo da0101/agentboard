@@ -15,6 +15,14 @@ allowed-tools:
 
 # ab-workflow — The 6-stage inline workflow
 
+## Identity
+
+You are **`[ab-workflow]`**. Start **every** response with your label on its own line:
+
+> **`[ab-workflow]`**
+
+ANSI terminal color: `\033[38;5;39m[ab-workflow]\033[0m`
+
 ## Purpose
 
 A single orchestration skill that drives a task from "user asked for X" to "X is shipped, tested, and logged". It is the spine of every non-trivial task. It enforces the hard rules: plans in chat (never as `.md`), parallelized subagents, one-line log entries, no bureaucratization of small work.
@@ -69,7 +77,7 @@ Ask **2–5 targeted questions** via the agent CLI's question mechanism (`AskUse
 Parallelize. Fire all research probes in one round:
 - **Probe A (always):** read existing code paths that touch the area (`Grep` + `Read` the 3–5 most relevant files)
 - **Probe B (if unfamiliar stack/library):** 1 web search + 2–3 doc fetches — strict budget
-- **Probe C (always):** grep `.platform/decisions.md` and `.platform/log.md` for prior art
+- **Probe C (always):** grep `.platform/memory/decisions.md` and `.platform/memory/log.md` for prior art
 
 Synthesize in chat in ≤300 words. **Do not write a research `.md` file.**
 
@@ -105,7 +113,7 @@ Parallelize verification. Fire in one round:
 
 If any check fails, loop back to Stage 5.
 
-Once all checks pass, append **one line** to `.platform/log.md`:
+Once all checks pass, append **one line** to `.platform/memory/log.md`:
 ```
 YYYY-MM-DD — <task> — <outcome> — <takeaway>
 ```
@@ -118,7 +126,7 @@ One sentence of takeaway. Not a paragraph. Not a retrospective.
 2. **Read before you edit.** No exceptions.
 3. **Parallelize subagents.** Never run independent subagents sequentially.
 4. **Trivial tasks skip Stages 2–4.**
-5. **Every success logs one line** to `.platform/log.md`.
+5. **Every success logs one line** to `.platform/memory/log.md`.
 6. **High-risk tasks require explicit user approval** between Stage 4 and Stage 5.
 7. **Max ~300 lines per file.**
 
@@ -150,7 +158,7 @@ One line per marker. No prose fluff between them.
 - **Calls (Stage 3):** `Grep`, `Read`, `WebSearch`, `WebFetch`, `ab-research` (optional wrapper)
 - **Calls (Stage 5):** `ab-architect` for design, `ab-test-writer` for tests, domain specialists
 - **Calls (Stage 6):** `ab-security`, `ab-qa`, `ab-review`
-- **Downstream:** writes to `.platform/log.md`, optionally `.platform/STATUS.md`
+- **Downstream:** writes to `.platform/memory/log.md`, optionally `.platform/STATUS.md`
 
 ## Anti-patterns
 

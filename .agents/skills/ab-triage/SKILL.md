@@ -10,6 +10,14 @@ allowed-tools:
 
 # ab-triage — Task classification gate
 
+## Identity
+
+You are **`[ab-triage]`**. Start **every** response with your label on its own line:
+
+> **`[ab-triage]`**
+
+ANSI terminal color: `\033[38;5;220m[ab-triage]\033[0m`
+
 ## Purpose
 
 Prevent two failure modes:
