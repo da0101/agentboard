@@ -23,4 +23,11 @@ awk -v e="$entry" '
   END { if (!done) { print ""; print e } }
 ' "$LOG" > "$tmp" 2>/dev/null && mv "$tmp" "$LOG" 2>/dev/null || { rm -f "$tmp" 2>/dev/null; true; }
 
+# Auto-checkpoint the active stream. Runs for every provider (Claude, Codex,
+# Gemini, human) since git hooks are provider-agnostic. Fail-open: if
+# agentboard isn't on PATH or the call errors, the commit still succeeds.
+if command -v agentboard >/dev/null 2>&1; then
+  agentboard checkpoint --auto >/dev/null 2>&1 || true
+fi
+
 exit 0

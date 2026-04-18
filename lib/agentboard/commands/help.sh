@@ -66,6 +66,15 @@ COMMANDS
                              --tokens-in N --tokens-out N --provider <p>
                              [--model <m>] [--type <t>] [--complexity <c>]
                                                auto-log a usage segment
+  checkpoint --auto [slug]   Auto-checkpoint the single active stream using the
+                             latest git commit as --what. Called by the
+                             post-commit hook after every commit (all providers).
+                             Fails silently if ambiguous or not in a git repo.
+  recover <stream-slug>      Reconstruct a checkpoint from git log when context
+                             was lost without a manual checkpoint. Scans
+                             commits since the stream's last updated_at.
+                             --confirm         write the recovery checkpoint
+                             --since <ref>     override the scan range
   close <stream-slug>        Finalize a stream. Two-step ritual:
                              1. bare run prints the harvest checklist —
                                 distill gotchas/playbook/questions/decisions

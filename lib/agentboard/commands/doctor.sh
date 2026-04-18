@@ -385,6 +385,17 @@ cmd_doctor() {
         warnings=$((warnings + 1))
       fi
     done
+
+    # Auto-checkpoint: post-commit hook must call `agentboard checkpoint --auto`
+    # for the cross-provider self-healing story to work. Git hooks run for every
+    # provider, so this is the one enforcement point that covers Codex/Gemini.
+    local post_commit="./.git/hooks/post-commit"
+    if [[ -f "$post_commit" ]] && grep -q "agentboard checkpoint --auto" "$post_commit" 2>/dev/null; then
+      ok "Auto-checkpoint wired into post-commit hook"
+    else
+      warn "Post-commit hook does not call 'agentboard checkpoint --auto' — auto-checkpoint disabled. Run 'agentboard update' to refresh hooks."
+      warnings=$((warnings + 1))
+    fi
   fi
 
   for _w in codex-ab gemini-ab; do

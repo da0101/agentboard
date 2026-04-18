@@ -1,6 +1,15 @@
 cmd_checkpoint() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
 
+  # --auto mode: auto-detect active stream + pull --what from latest git commit.
+  # Fail-open (returns 0 on any skip condition). Designed to be called from the
+  # post-commit git hook so every commit is an automatic checkpoint regardless
+  # of which provider (Claude / Codex / Gemini) is driving.
+  if [[ "${1:-}" == "--auto" ]]; then
+    _checkpoint_auto_mode "${2:-}"
+    return 0
+  fi
+
   local slug="${1:-}"
   if [[ -z "$slug" || "${slug:0:2}" == "--" || "$slug" == "-h" ]]; then
     if [[ "$slug" == "-h" || "$slug" == "--help" ]]; then
@@ -211,6 +220,62 @@ _checkpoint_infer_task_type() {
     *)
       printf 'chore' ;;
   esac
+}
+
+_checkpoint_auto_mode() {
+  local requested_slug="${1:-}"
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+  [[ -d "./.platform" ]] || return 0
+
+  local slug="$requested_slug"
+  if [[ -z "$slug" ]]; then
+    local active=() f st
+    while IFS= read -r f; do
+      [[ -n "$f" ]] || continue
+      st="$(frontmatter_value "$f" "status" 2>/dev/null)" || continue
+      case "$st" in done|archived|closed) continue ;; esac
+      active+=("$(basename "$f" .md)")
+    done < <(stream_files 2>/dev/null)
+    (( ${#active[@]} == 1 )) || return 0
+    slug="${active[0]}"
+  fi
+
+  [[ -n "$slug" ]] || return 0
+  local stream_file="./.platform/work/${slug}.md"
+  [[ -f "$stream_file" ]] || return 0
+  has_frontmatter "$stream_file" 2>/dev/null || return 0
+
+  local head_hash commit_msg
+  head_hash="$(git rev-parse --short HEAD 2>/dev/null)" || return 0
+  commit_msg="$(git log -1 --format='%s' 2>/dev/null)" || return 0
+  [[ -n "$commit_msg" ]] || return 0
+
+  # Idempotency: if this commit hash was already auto-recorded, skip.
+  grep -qF "(auto) ${head_hash}" "$stream_file" 2>/dev/null && return 0
+
+  local today_str agent ts what
+  today_str="$(today)"
+  agent="${AGENTBOARD_AGENT:-${USER:-agent}}"
+  ts="$(date '+%Y-%m-%d %H:%M')"
+  what="(auto) ${head_hash}: ${commit_msg}"
+
+  local resume_block
+  resume_block="$(cat <<EOF
+## Resume state
+_Overwritten by \`agentboard checkpoint\` — the compact payload the next agent reads first. Keep this block under ~10 lines._
+
+- **Last updated:** ${today_str} by ${agent} (auto)
+- **What just happened:** ${what}
+- **Current focus:** —
+- **Next action:** (auto-saved from commit — update next action manually)
+- **Blockers:** none
+EOF
+)"
+
+  _checkpoint_write_resume_state "$stream_file" "$resume_block" 2>/dev/null || return 0
+  _checkpoint_prepend_progress_entry "$stream_file" "${ts} — ${what}" 2>/dev/null || return 0
+  replace_frontmatter_line "$stream_file" "updated_at" "$today_str" 2>/dev/null || return 0
+  return 0
 }
 
 _checkpoint_auto_log_usage() {
