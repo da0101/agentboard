@@ -7,12 +7,12 @@ source "$ROOT/helpers.sh"
 
 export NO_COLOR=1
 
-test_codex_wrapper_has_model_selection() {
+test_codex_wrapper_has_effort_selection() {
   local codex="$TEST_ROOT/templates/platform/scripts/codex-ab"
-  grep -q "_ab_model" "$codex" \
-    || fail "codex-ab does not define _ab_model"
-  grep -q "\-\-model" "$codex" \
-    || fail "codex-ab does not pass --model to codex"
+  grep -q "_ab_effort" "$codex" \
+    || fail "codex-ab does not define _ab_effort"
+  grep -q "model_reasoning_effort" "$codex" \
+    || fail "codex-ab does not pass model_reasoning_effort to codex"
 }
 
 test_gemini_wrapper_has_model_selection() {
@@ -23,10 +23,10 @@ test_gemini_wrapper_has_model_selection() {
     || fail "gemini-ab does not pass --model to gemini"
 }
 
-test_codex_defaults_to_o4_mini_non_tty() {
+test_codex_defaults_to_medium_non_tty() {
   local codex="$TEST_ROOT/templates/platform/scripts/codex-ab"
-  grep -q '_ab_model="o4-mini"' "$codex" \
-    || fail "codex-ab does not default _ab_model to o4-mini"
+  grep -q '_ab_effort="medium"' "$codex" \
+    || fail "codex-ab does not default _ab_effort to medium"
 }
 
 test_gemini_defaults_to_flash_non_tty() {
@@ -35,12 +35,12 @@ test_gemini_defaults_to_flash_non_tty() {
     || fail "gemini-ab does not default _ab_model to gemini-2.5-flash"
 }
 
-test_sessionstart_includes_model_codex() {
+test_sessionstart_includes_effort_codex() {
   local codex="$TEST_ROOT/templates/platform/scripts/codex-ab"
   grep -q 'SessionStart' "$codex" \
     || fail "codex-ab does not emit SessionStart"
-  grep 'SessionStart' "$codex" | grep -q 'model' \
-    || fail "codex-ab SessionStart event does not include model"
+  grep 'SessionStart' "$codex" | grep -q 'effort' \
+    || fail "codex-ab SessionStart event does not include effort"
 }
 
 test_sessionstart_includes_model_gemini() {
@@ -51,9 +51,9 @@ test_sessionstart_includes_model_gemini() {
     || fail "gemini-ab SessionStart event does not include model"
 }
 
-test_codex_wrapper_has_model_selection
+test_codex_wrapper_has_effort_selection
 test_gemini_wrapper_has_model_selection
-test_codex_defaults_to_o4_mini_non_tty
+test_codex_defaults_to_medium_non_tty
 test_gemini_defaults_to_flash_non_tty
-test_sessionstart_includes_model_codex
+test_sessionstart_includes_effort_codex
 test_sessionstart_includes_model_gemini

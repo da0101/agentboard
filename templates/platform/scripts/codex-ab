@@ -32,31 +32,33 @@ if [[ -d ".platform" ]]; then
   fi
 fi
 
-# ── Model selection ──────────────────────────────────────────────────────────
-# Codex CLI uses --model <name>. Real model names as of 2026:
-#   o4-mini  → fast, cheap (simple edits, reviews)
-#   o3       → full reasoning (architecture, algorithms, complex debug)
-_ab_model="o4-mini"
+# ── Reasoning effort selection ───────────────────────────────────────────────
+# Codex CLI uses -c model_reasoning_effort=<level>. Model defaults to whatever
+# is set in ~/.codex/config.toml (typically gpt-5.4 or latest).
+# Effort controls how hard the model thinks — not which model runs.
+_ab_effort="medium"
 if [[ -t 0 ]]; then
-  printf '\n\033[1mCodex model\033[0m \033[2m(Enter = o4-mini)\033[0m\n'
-  printf '  1) o4-mini  — fast, cheap; simple edits, reviews  \033[2m[default]\033[0m\n'
-  printf '  2) o3       — full reasoning; architecture, algorithms, hard bugs\n'
-  printf 'Choice [1-2]: '
+  printf '\n\033[1mCodex reasoning effort\033[0m \033[2m(Enter = medium)\033[0m\n'
+  printf '  1) low     — fast, cheap; simple edits, formatting, reviews\n'
+  printf '  2) medium  — standard tasks  \033[2m[default]\033[0m\n'
+  printf '  3) high    — complex reasoning, architecture, hard bugs\n'
+  printf 'Choice [1-3]: '
   read -r _ab_choice 2>/dev/null || _ab_choice=""
   case "$_ab_choice" in
-    2) _ab_model="o3" ;;
-    *) _ab_model="o4-mini" ;;
+    1) _ab_effort="low" ;;
+    3) _ab_effort="high" ;;
+    *) _ab_effort="medium" ;;
   esac
 fi
 
 # ── Log SessionStart (after effort is known) + start file poller ─────────────
 if [[ -d ".platform" ]] && declare -f _ab_session_event >/dev/null 2>&1; then
-  _ab_session_event "SessionStart" "$AGENTBOARD_SESSION_ID" "\"provider\":\"codex\",\"model\":\"$_ab_model\""
+  _ab_session_event "SessionStart" "$AGENTBOARD_SESSION_ID" "\"provider\":\"codex\",\"effort\":\"$_ab_effort\""
   _ab_poller_pid="$(_ab_start_file_poller "$AGENTBOARD_SESSION_ID" "codex" 5)"
 fi
 
 # ── Run Codex (not exec — wrapper stays alive for post-session work) ─────────
-command codex --model "$_ab_model" "$@"
+command codex -c "model_reasoning_effort=\"$_ab_effort\"" "$@"
 _ab_exit=$?
 
 # ── Stop file poller + log SessionEnd ────────────────────────────────────────
