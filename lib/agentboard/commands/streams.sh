@@ -385,8 +385,23 @@ EOF
   _today="$(today)"
   _stream_updated="$(frontmatter_value "$stream_file" "updated_at")"
   if [[ -n "$_stream_updated" && "$_stream_updated" != "$_today" ]] && ! is_placeholder_value "$_stream_updated"; then
-    printf '  %s⚠%s  %sStream state last updated %s — run %sagentboard checkpoint %s%s before handoff%s\n' \
-      "$C_YELLOW" "$C_RESET" "$C_YELLOW" "$_stream_updated" "$C_BOLD" "$slug" "$C_RESET$C_YELLOW" "$C_RESET"
+    printf '  %s⚠%s  %sStream state last updated %s — resume state may be stale%s\n' \
+      "$C_YELLOW" "$C_RESET" "$C_YELLOW" "$_stream_updated" "$C_RESET"
+    if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
+      local _recent_commits
+      _recent_commits="$(git log --oneline --since="$_stream_updated" 2>/dev/null | head -10)"
+      if [[ -n "$_recent_commits" ]]; then
+        printf '  %sCommits since last checkpoint:%s\n' "$C_DIM" "$C_RESET"
+        local _cline
+        while IFS= read -r _cline; do
+          printf '    %s%s%s\n' "$C_DIM" "$_cline" "$C_RESET"
+        done <<< "$_recent_commits"
+      else
+        printf '  %s(no commits since last checkpoint — context may be genuinely stale)%s\n' \
+          "$C_DIM" "$C_RESET"
+      fi
+    fi
+    printf '\n'
   fi
 
   local _git_branch _base_branch

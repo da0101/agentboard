@@ -1,15 +1,53 @@
 #!/usr/bin/env bash
 # codex-ab — agentboard-aware Codex CLI wrapper
-# Prints project state (agentboard brief) before launching Codex so the
-# agent starts every session with full context — same effect as Claude Code's
-# session-bootstrap hook.
+# 1. Runs `agentboard brief` before launch (session bootstrap).
+# 2. Auto-checkpoints the active stream when the session ends without a
+#    manual checkpoint — same safety net as Claude Code's session hooks.
 #
 # Usage:   bash .platform/scripts/codex-ab [codex args...]
 # Alias:   alias codex='bash "$(git rev-parse --show-toplevel)/.platform/scripts/codex-ab"'
 
+# ── Session bootstrap ────────────────────────────────────────────────────────
 if [[ -d ".platform" ]] && command -v agentboard >/dev/null 2>&1; then
   agentboard brief 2>/dev/null || true
   printf '\n'
 fi
 
-exec codex "$@"
+# ── Run Codex (not exec — wrapper stays alive for post-session checkpoint) ───
+codex "$@"
+_ab_exit=$?
+
+# ── Auto-checkpoint on exit ──────────────────────────────────────────────────
+# Fires only when: .platform exists, exactly one active stream, and the stream
+# file has not been touched in the last 10 min (no recent manual checkpoint).
+if [[ -d ".platform" ]] && command -v agentboard >/dev/null 2>&1; then
+  _ab_active=".platform/work/ACTIVE.md"
+  if [[ -f "$_ab_active" ]]; then
+    _ab_slugs="$(grep -E '^\|[[:space:]]*[a-zA-Z]' "$_ab_active" \
+      | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$2); print $2}' \
+      | grep -vE '^(Stream|[-_]+)$' \
+      | grep -E '^[a-zA-Z][a-zA-Z0-9_-]*$')"
+    _ab_count="$(printf '%s\n' "$_ab_slugs" | grep -c '[a-zA-Z]' 2>/dev/null || echo 0)"
+
+    if [[ "$_ab_count" -eq 1 ]]; then
+      _ab_slug="$(printf '%s\n' "$_ab_slugs" | head -1)"
+      _ab_sf=".platform/work/${_ab_slug}.md"
+
+      # Skip if stream file was touched in the last 10 min (recent manual checkpoint)
+      if [[ -f "$_ab_sf" ]] && ! find "$_ab_sf" -mmin -10 -type f 2>/dev/null | grep -q .; then
+        _ab_next="$(grep -m1 '\*\*Next action:\*\*' "$_ab_sf" 2>/dev/null \
+          | sed 's/.*\*\*Next action:\*\*[[:space:]]*//' \
+          | sed 's/[[:space:]]*$//')"
+        [[ -z "$_ab_next" ]] && _ab_next="Review recent changes and continue"
+
+        agentboard checkpoint "$_ab_slug" \
+          --what "auto-checkpoint: Codex session ended without manual checkpoint" \
+          --next "$_ab_next" \
+          --provider codex 2>/dev/null && \
+          printf '\n(auto-checkpointed stream %s on exit)\n' "$_ab_slug" >&2 || true
+      fi
+    fi
+  fi
+fi
+
+exit "$_ab_exit"

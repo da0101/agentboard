@@ -44,16 +44,23 @@ EOF
 _brief_active_streams() {
   local file count=0
   local -a rows=()
+  local _today_brief; _today_brief="$(today)"
   while IFS= read -r file; do
-    local status slug agent next
+    local status slug agent next updated
     status="$(frontmatter_value "$file" "status")"
     case "$status" in done|archived|closed) continue ;; esac
     slug="$(frontmatter_value "$file" "slug")"
     agent="$(frontmatter_value "$file" "agent_owner")"
     next="$(stream_next_action "$file")"
+    updated="$(frontmatter_value "$file" "updated_at")"
     [[ -z "$next" ]] && next="—"
     rows+=("$(printf '   %s%s%s  (%s, %s)  → %s' \
       "$C_BOLD" "$slug" "$C_RESET" "${status:-?}" "${agent:-?}" "$next")")
+    if [[ -n "$updated" ]] && ! is_placeholder_value "$updated" \
+        && [[ "$updated" != "$_today_brief" ]]; then
+      rows+=("$(printf '   %s⚠  checkpoint stale (last: %s) — run: agentboard checkpoint %s%s' \
+        "$C_YELLOW" "$updated" "$slug" "$C_RESET")")
+    fi
     count=$((count + 1))
   done < <(stream_files)
 
