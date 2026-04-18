@@ -23,8 +23,6 @@ if [[ -d ".platform" ]]; then
   if [[ -f ".platform/scripts/session-track.sh" ]]; then
     # shellcheck disable=SC1091
     . ".platform/scripts/session-track.sh"
-    _ab_session_event "SessionStart" "$AGENTBOARD_SESSION_ID" "\"provider\":\"codex\""
-    _ab_poller_pid="$(_ab_start_file_poller "$AGENTBOARD_SESSION_ID" "codex" 5)"
   fi
   if command -v agentboard >/dev/null 2>&1; then
     agentboard brief 2>/dev/null || true
@@ -34,8 +32,32 @@ if [[ -d ".platform" ]]; then
   fi
 fi
 
+# ── Model/effort selection ────────────────────────────────────────────────────
+_ab_effort="medium"
+if [[ -t 0 ]]; then
+  printf '\n\033[1mCodex effort level\033[0m \033[2m(Enter = medium)\033[0m\n'
+  printf '  1) low      — simple edits, fast, cheap\n'
+  printf '  2) medium   — standard tasks  \033[2m[default]\033[0m\n'
+  printf '  3) high     — complex reasoning, architecture\n'
+  printf '  4) xhigh    — hardest problems, maximum quality\n'
+  printf 'Choice [1-4]: '
+  read -r _ab_choice 2>/dev/null || _ab_choice=""
+  case "$_ab_choice" in
+    1) _ab_effort="low" ;;
+    3) _ab_effort="high" ;;
+    4) _ab_effort="xhigh" ;;
+    *) _ab_effort="medium" ;;
+  esac
+fi
+
+# ── Log SessionStart (after effort is known) + start file poller ─────────────
+if [[ -d ".platform" ]] && declare -f _ab_session_event >/dev/null 2>&1; then
+  _ab_session_event "SessionStart" "$AGENTBOARD_SESSION_ID" "\"provider\":\"codex\",\"effort\":\"$_ab_effort\""
+  _ab_poller_pid="$(_ab_start_file_poller "$AGENTBOARD_SESSION_ID" "codex" 5)"
+fi
+
 # ── Run Codex (not exec — wrapper stays alive for post-session work) ─────────
-command codex "$@"
+command codex --effort "$_ab_effort" "$@"
 _ab_exit=$?
 
 # ── Stop file poller + log SessionEnd ────────────────────────────────────────

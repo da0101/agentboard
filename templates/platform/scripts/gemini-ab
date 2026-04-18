@@ -23,8 +23,6 @@ if [[ -d ".platform" ]]; then
   if [[ -f ".platform/scripts/session-track.sh" ]]; then
     # shellcheck disable=SC1091
     . ".platform/scripts/session-track.sh"
-    _ab_session_event "SessionStart" "$AGENTBOARD_SESSION_ID" "\"provider\":\"gemini\""
-    _ab_poller_pid="$(_ab_start_file_poller "$AGENTBOARD_SESSION_ID" "gemini" 5)"
   fi
   if command -v agentboard >/dev/null 2>&1; then
     agentboard brief 2>/dev/null || true
@@ -34,8 +32,28 @@ if [[ -d ".platform" ]]; then
   fi
 fi
 
+# ── Model selection ───────────────────────────────────────────────────────────
+_ab_model="gemini-2.5-flash"
+if [[ -t 0 ]]; then
+  printf '\n\033[1mGemini model\033[0m \033[2m(Enter = flash)\033[0m\n'
+  printf '  1) flash    — fast, cheap, standard tasks  \033[2m[default]\033[0m\n'
+  printf '  2) pro      — complex reasoning, architecture\n'
+  printf 'Choice [1-2]: '
+  read -r _ab_choice 2>/dev/null || _ab_choice=""
+  case "$_ab_choice" in
+    2) _ab_model="gemini-2.5-pro" ;;
+    *) _ab_model="gemini-2.5-flash" ;;
+  esac
+fi
+
+# ── Log SessionStart (after model is known) + start file poller ──────────────
+if [[ -d ".platform" ]] && declare -f _ab_session_event >/dev/null 2>&1; then
+  _ab_session_event "SessionStart" "$AGENTBOARD_SESSION_ID" "\"provider\":\"gemini\",\"model\":\"$_ab_model\""
+  _ab_poller_pid="$(_ab_start_file_poller "$AGENTBOARD_SESSION_ID" "gemini" 5)"
+fi
+
 # ── Run Gemini (not exec — wrapper stays alive for post-session work) ────────
-command gemini "$@"
+command gemini --model "$_ab_model" "$@"
 _ab_exit=$?
 
 # ── Stop file poller + log SessionEnd ────────────────────────────────────────

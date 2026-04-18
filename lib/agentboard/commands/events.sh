@@ -10,6 +10,8 @@ cmd_events() {
     stream)      _events_stream "$@" ;;
     stats)       _events_stats ;;
     clear)       _events_clear "$@" ;;
+    rotate)      _events_rotate "$@" ;;
+    archive)     _events_archive ;;
     path)        printf '%s\n' "$(_events_log_path)" ;;
     -h|--help)   _events_print_help ;;
     *)           die "Unknown events subcommand: $sub (see 'agentboard events --help')" ;;
@@ -180,6 +182,77 @@ _events_clear() {
   ok "Archived $size event(s) to $archive"
 }
 
+_events_rotate() {
+  local force=0 threshold=5000
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --force)         force=1; shift ;;
+      --threshold)
+        [[ -n "${2:-}" ]] || die "events rotate: --threshold requires a number"
+        threshold="$2"; shift 2 ;;
+      *) die "Unknown flag for events rotate: $1" ;;
+    esac
+  done
+
+  local log; log="$(_events_log_path)"
+  [[ -f "$log" ]] || { ok "events.jsonl does not exist — nothing to rotate."; return 0; }
+
+  local line_count
+  line_count="$(awk 'NF' "$log" | wc -l | tr -d ' ')"
+
+  if (( ! force && line_count < threshold )); then
+    say "events.jsonl has ${line_count} lines (threshold: ${threshold}). Use --force to rotate anyway."
+    return 0
+  fi
+
+  # If daemon is running, delegate via /rotate endpoint
+  if [[ -f ".platform/.daemon-port" ]]; then
+    local _port; _port="$(cat .platform/.daemon-port 2>/dev/null || true)"
+    if [[ -n "$_port" ]] && curl -sf "http://127.0.0.1:${_port}/health" >/dev/null 2>&1; then
+      curl -sf "http://127.0.0.1:${_port}/rotate" >/dev/null 2>&1 || true
+      ok "Rotated events.jsonl via daemon (${line_count} lines archived)"
+      return 0
+    fi
+  fi
+
+  # No daemon — rotate directly in bash
+  local today; today="$(date +%Y-%m-%d)"
+  local dir=".platform"
+  local archive="${dir}/events-${today}.jsonl"
+
+  # Append to archive (creates if absent, accumulates if already exists)
+  cat "$log" >> "$archive"
+  # Truncate the live file
+  printf '' > "$log"
+
+  ok "Rotated events.jsonl → events-${today}.jsonl (${line_count} lines archived)"
+}
+
+_events_archive() {
+  local dir=".platform"
+  local found=0
+
+  printf '\n%s%sarchived event logs%s\n\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '  %-35s  %8s  %s\n' "file" "lines" "size"
+  printf '  %-35s  %8s  %s\n' "----" "-----" "----"
+
+  # nullglob-safe iteration
+  local f
+  for f in "${dir}"/events-*.jsonl; do
+    [[ -e "$f" ]] || continue
+    found=1
+    local fname; fname="$(basename "$f")"
+    local lines; lines="$(awk 'NF' "$f" | wc -l | tr -d ' ')"
+    local size; size="$(du -sh "$f" 2>/dev/null | cut -f1 || printf '?')"
+    printf '  %-35s  %8s  %s\n' "$fname" "$lines" "$size"
+  done
+
+  if (( ! found )); then
+    say "${C_DIM}No archived event logs.${C_RESET}"
+  fi
+  say
+}
+
 _events_pretty_print() {
   local content="$1"
   if [[ -z "$content" ]]; then
@@ -217,6 +290,8 @@ Subcommands:
   stream <slug> [--json]        All events tagged with this stream.
   stats                         Event count + top tools.
   clear [--confirm]             Archive the current log (preview by default).
+  rotate [--force] [--threshold N]  Rotate events.jsonl → events-YYYY-MM-DD.jsonl.
+  archive                       List all archived event log files.
   path                          Print the log file path.
 
 The events log is written by a PostToolUse hook at .platform/scripts/hooks/

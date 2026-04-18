@@ -64,6 +64,30 @@ function cleanup() {
 }
 
 // ---------------------------------------------------------------------------
+// Log rotation
+// ---------------------------------------------------------------------------
+
+const ROTATION_THRESHOLD = 5000; // lines
+
+function rotateLogs() {
+  try {
+    const data = fs.readFileSync(eventsPath, 'utf8');
+    const lines = data.split('\n').filter(l => l.trim());
+    if (lines.length < ROTATION_THRESHOLD) return;
+
+    // Archive filename: events-YYYY-MM-DD.jsonl (use today's date)
+    const today = new Date().toISOString().slice(0, 10);
+    const dir = eventsPath.replace(/\/[^/]+$/, '');
+    const archivePath = `${dir}/events-${today}.jsonl`;
+
+    // If archive for today already exists, append to it
+    fs.appendFileSync(archivePath, data, 'utf8');
+    // Truncate the live file
+    fs.writeFileSync(eventsPath, '', 'utf8');
+  } catch (_) {}
+}
+
+// ---------------------------------------------------------------------------
 // Lock state
 // ---------------------------------------------------------------------------
 
@@ -133,6 +157,7 @@ function handlePostEvent(req, res) {
     }
     // appendFileSync serializes concurrent writes (the whole point of this daemon)
     fs.appendFileSync(eventsPath, line + '\n', 'utf8');
+    try { rotateLogs(); } catch (_) {}
     send(res, 204, '');
   }).catch(err => {
     if (err.message === 'body_too_large') {
@@ -187,6 +212,11 @@ function handleShutdown(_req, res) {
   cleanup();
   // Give the response a tick to flush before exiting
   setImmediate(() => process.exit(0));
+}
+
+function handleRotate(_req, res) {
+  rotateLogs();
+  send(res, 200, { status: 'rotated' });
 }
 
 // POST /lock  body: {file, provider, session_id?}
@@ -282,6 +312,8 @@ const server = http.createServer((req, res) => {
       handleDeleteLock(req, res);
     } else if (req.method === 'GET' && urlPath === '/locks') {
       handleGetLocks(req, res);
+    } else if (req.method === 'GET' && urlPath === '/rotate') {
+      handleRotate(req, res);
     } else {
       send(res, 404, 'not found');
     }
