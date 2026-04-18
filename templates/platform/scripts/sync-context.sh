@@ -15,6 +15,7 @@
 # Modes
 # -----
 #   ./sync-context.sh             # CHECK mode (default). Shows drift, exits non-zero on any.
+#   ./sync-context.sh --dry-run   # CHECK mode alias (explicit name, same exit codes).
 #   ./sync-context.sh --apply     # APPLY mode. Overwrites AGENTS.md + GEMINI.md from CLAUDE.md.
 #   ./sync-context.sh --list      # Show which repos will be touched and exit.
 #   ./sync-context.sh --help      # This help text.
@@ -65,16 +66,17 @@ fi
 # ---------------------------------------------------------------------------
 MODE="check"
 case "${1:-}" in
-  "")       MODE="check" ;;
-  --apply)  MODE="apply" ;;
-  --list)   MODE="list" ;;
+  "")        MODE="check" ;;
+  --dry-run) MODE="check" ;;
+  --apply)   MODE="apply" ;;
+  --list)    MODE="list" ;;
   --help|-h)
     sed -n '2,/^set -euo pipefail/p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^set -euo pipefail$/d'
     exit 0
     ;;
   *)
     echo "${C_RED}error:${C_RESET} unknown flag '$1'"
-    echo "usage: $0 [--apply|--list|--help]"
+    echo "usage: $0 [--apply|--dry-run|--list|--help]"
     exit 2
     ;;
 esac

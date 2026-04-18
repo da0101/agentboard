@@ -305,6 +305,57 @@ test_local_context_artifacts_are_listed() {
   assert_file_contains "$ref_file" '`openapi.yaml`'
 }
 
+test_full_workflow_stream_lifecycle() {
+  local dir
+  dir="$(mktemp -d)"
+  make_single_repo_fixture "$dir"
+  init_project "$dir"
+
+  (
+    cd "$dir"
+    "$AGENTBOARD" new-domain auth >/dev/null
+    "$AGENTBOARD" new-stream login --domain auth --base-branch main --branch feat/login >/dev/null
+  )
+
+  [[ -f "$dir/.platform/work/login.md" ]] || fail "stream file not created"
+  assert_file_contains "$dir/.platform/work/ACTIVE.md" "login"
+
+  local cp_out
+  cp_out="$(cd "$dir"; "$AGENTBOARD" checkpoint login --what "initial auth scaffolding" --next "wire up tokens")"
+  assert_contains "$cp_out" "Checkpoint saved"
+  assert_file_contains "$dir/.platform/work/login.md" "initial auth scaffolding"
+
+  local close_out
+  close_out="$(cd "$dir"; "$AGENTBOARD" close login)"
+  assert_contains "$close_out" "Harvest checklist"
+
+  local sf="$dir/.platform/work/login.md"
+  local tmp; tmp="$(mktemp)"
+  awk '/^closure_approved:/ { print "closure_approved: true"; next } { print }' "$sf" > "$tmp" && mv "$tmp" "$sf"
+
+  (cd "$dir"; "$AGENTBOARD" close login --confirm >/dev/null)
+  [[ ! -f "$dir/.platform/work/login.md" ]] || fail "stream still present after --confirm"
+  [[ -f "$dir/.platform/work/archive/login.md" ]] || fail "stream not archived"
+  assert_file_contains "$dir/.platform/memory/log.md" "closed stream login"
+}
+
+test_brief_renders_active_stream() {
+  local dir output
+  dir="$(mktemp -d)"
+  make_single_repo_fixture "$dir"
+  init_project "$dir"
+
+  (
+    cd "$dir"
+    "$AGENTBOARD" new-domain auth >/dev/null
+    "$AGENTBOARD" new-stream login --domain auth >/dev/null
+  )
+
+  output="$(cd "$dir"; "$AGENTBOARD" brief)"
+  assert_contains "$output" "login"
+  assert_contains "$output" "Active"
+}
+
 test_single_repo_branch_inference
 test_apply_domains_creates_stubs
 test_default_branch_dirty_worktree_inference
@@ -313,5 +364,7 @@ test_unknown_repo_safe_fallback
 test_node_backend_role_hint
 test_ios_role_hint_safe_defaults
 test_local_context_artifacts_are_listed
+test_full_workflow_stream_lifecycle
+test_brief_renders_active_stream
 
 printf 'PASS: integration\n'
