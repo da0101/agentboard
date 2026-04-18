@@ -42,8 +42,10 @@ cmd_doctor() {
     errors=$((errors + 1))
   fi
 
+  local _not_yet_activated=0
   if [[ -f "$root_claude" ]] && grep -q "NOT YET ACTIVATED" "$root_claude"; then
     ok "Activation stub detected — sync check skipped until activation"
+    _not_yet_activated=1
   elif [[ -x "$sync_script" ]]; then
     local sync_output=""
     if sync_output="$("$sync_script" 2>&1)"; then
@@ -56,6 +58,20 @@ cmd_doctor() {
   else
     warn "sync-context.sh missing or not executable"
     warnings=$((warnings + 1))
+  fi
+
+  # Activation quality: only meaningful after activation has run
+  if (( _not_yet_activated == 0 )); then
+    local arch_file="./.platform/architecture.md"
+    local conv_dir="./.platform/conventions"
+    if [[ -f "$arch_file" ]] && grep -q '{{' "$arch_file" 2>/dev/null; then
+      warn "architecture.md still has unfilled {{PLACEHOLDER}} content — run activation ('activate this project')"
+      warnings=$((warnings + 1))
+    fi
+    if [[ -d "$conv_dir" ]] && [[ -z "$(ls -A "$conv_dir" 2>/dev/null)" ]]; then
+      warn "conventions/ is empty — activation should write at least one stack conventions file"
+      warnings=$((warnings + 1))
+    fi
   fi
 
   local seen_stream_ids="" seen_domain_ids=""

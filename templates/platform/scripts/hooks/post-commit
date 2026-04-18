@@ -13,6 +13,11 @@ hash="$(git rev-parse --short HEAD 2>/dev/null)" || exit 0
 msg="$(git log -1 --format='%s' 2>/dev/null)" || exit 0
 ts="$(date '+%Y-%m-%d')"
 
-printf -- '- %s — commit `%s`: %s — auto-logged\n' "$ts" "$hash" "$msg" >> "$LOG" 2>/dev/null || true
+# Prepend after the first --- separator so newest entries stay at the top,
+# matching the "Newest at the top" instruction in log.md's own header.
+entry="- $ts — commit \`$hash\`: $msg — auto-logged"
+tmp="$(mktemp 2>/dev/null)" || exit 0
+awk -v e="$entry" '/^---$/ && !done { print; print e; done=1; next } { print }' \
+  "$LOG" > "$tmp" 2>/dev/null && mv "$tmp" "$LOG" 2>/dev/null || { rm -f "$tmp" 2>/dev/null; true; }
 
 exit 0
