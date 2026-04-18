@@ -7,7 +7,6 @@
 
 const http = require('http');
 const fs   = require('fs');
-const path = require('path');
 
 // ---------------------------------------------------------------------------
 // Args
@@ -129,7 +128,7 @@ function handleGetEvents(req, res) {
   send(res, 200, results.slice(-limit));
 }
 
-function handleGetHealth(req, res) {
+function handleGetHealth(_req, res) {
   send(res, 200, {
     pid:    process.pid,
     uptime: Math.floor(process.uptime()),
@@ -137,7 +136,7 @@ function handleGetHealth(req, res) {
   });
 }
 
-function handleShutdown(req, res) {
+function handleShutdown(_req, res) {
   send(res, 200, 'shutting down');
   cleanup();
   // Give the response a tick to flush before exiting
