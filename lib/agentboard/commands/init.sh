@@ -238,7 +238,11 @@ NOTICE
     cp "$settings_template" "$settings_target"
     ok "Wrote → $C_CYAN$target/.claude/settings.json$C_RESET (closure gate + session bootstrap hooks)"
   fi
-  _ab_install_git_closure_hook "$target" 0 0 || true
+  _ab_install_git_hook "pre-commit"  ".platform/scripts/hooks/pre-commit"  "$target" 0 0 || true
+  _ab_install_git_hook "post-commit" ".platform/scripts/hooks/post-commit" "$target" 0 0 || true
+  for _w in codex-ab gemini-ab; do
+    [[ -f "$target/.platform/scripts/$_w" ]] && chmod +x "$target/.platform/scripts/$_w"
+  done
   say
 
   # Install skills additively — never overwrite existing skills

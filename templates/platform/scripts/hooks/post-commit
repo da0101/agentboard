@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# post-commit — agentboard activity log (installed by agentboard)
+# Appends one line to .platform/memory/log.md after every commit.
+# Gives Codex/Gemini sessions a breadcrumb trail without manual checkpoints.
+#
+# Fail-open: always exits 0. Never blocks a commit.
+
+LOG=".platform/memory/log.md"
+
+[[ -f "$LOG" ]] || exit 0
+
+hash="$(git rev-parse --short HEAD 2>/dev/null)" || exit 0
+msg="$(git log -1 --format='%s' 2>/dev/null)" || exit 0
+ts="$(date '+%Y-%m-%d')"
+
+printf -- '- %s — commit `%s`: %s — auto-logged\n' "$ts" "$hash" "$msg" >> "$LOG" 2>/dev/null || true
+
+exit 0

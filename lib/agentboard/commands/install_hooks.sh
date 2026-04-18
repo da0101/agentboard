@@ -1,42 +1,45 @@
 # ---------------------------------------------------------------------------
-# Shared helper — install the git pre-commit closure gate.
+# Shared helper — install a delegating git hook stub.
 # Called from cmd_install_hooks and cmd_init.
-# Args: project_dir [force=0] [dry_run=0]
+# Args: hook_name platform_script project_dir [force=0] [dry_run=0]
+#   hook_name:       pre-commit | post-commit | …
+#   platform_script: relative path from project root to the platform script
+#   project_dir:     project root (default: .)
 # Returns 1 if an existing hook conflicts and --force was not passed.
 # ---------------------------------------------------------------------------
-_ab_install_git_closure_hook() {
-  local project_dir="${1:-.}"
-  local force="${2:-0}"
-  local dry_run="${3:-0}"
+_ab_install_git_hook() {
+  local hook_name="$1"
+  local platform_script="$2"
+  local project_dir="${3:-.}"
+  local force="${4:-0}"
+  local dry_run="${5:-0}"
 
-  local hook_src="${project_dir}/.platform/scripts/hooks/pre-commit"
-  local hook_dst="${project_dir}/.git/hooks/pre-commit"
+  local hook_src="${project_dir}/${platform_script}"
+  local hook_dst="${project_dir}/.git/hooks/${hook_name}"
   local marker="agentboard"
 
-  # Not a git repo — nothing to wire
   [[ -d "${project_dir}/.git" ]] || return 0
 
-  # Platform script not present — init hasn't run yet
   if [[ ! -f "$hook_src" ]]; then
-    warn "pre-commit hook source missing at $hook_src — skipping git hook"
+    warn "$hook_name source missing at $hook_src — skipping"
     return 0
   fi
 
-  # Single-quoted heredoc keeps $? literal in the stub script
+  # Stub delegates to the platform script (kept in .platform/, git-trackable).
+  # Single-quoted string keeps $? literal in the written file.
   local stub='#!/usr/bin/env bash
-# agentboard — pre-commit closure gate
-[[ -f ".platform/scripts/hooks/pre-commit" ]] && bash ".platform/scripts/hooks/pre-commit" || exit $?'
+# agentboard — '"$hook_name"'
+[[ -f "'"$platform_script"'" ]] && bash "'"$platform_script"'" || exit $?'
 
   if (( dry_run )); then
     if [[ ! -f "$hook_dst" ]]; then
-      printf '  %s+%s would write %s  %s(new — git closure gate)%s\n' \
-        "$C_CYAN" "$C_RESET" "$hook_dst" "$C_DIM" "$C_RESET"
+      printf '  %s+%s would write %s  %s(new — %s)%s\n' \
+        "$C_CYAN" "$C_RESET" "$hook_dst" "$C_DIM" "$hook_name" "$C_RESET"
     elif grep -q "$marker" "$hook_dst" 2>/dev/null; then
-      printf '  %s↷%s %s  %s(agentboard git gate already present — no change)%s\n' \
-        "$C_YELLOW" "$C_RESET" "$hook_dst" "$C_DIM" "$C_RESET"
+      printf '  %s↷%s %s  %s(agentboard %s already present — no change)%s\n' \
+        "$C_YELLOW" "$C_RESET" "$hook_dst" "$C_DIM" "$hook_name" "$C_RESET"
     elif (( force )); then
-      printf '  %s+%s would back up %s and overwrite\n' \
-        "$C_CYAN" "$C_RESET" "$hook_dst"
+      printf '  %s+%s would back up %s and overwrite\n' "$C_CYAN" "$C_RESET" "$hook_dst"
     else
       printf '  %s!%s %s exists without agentboard — re-run with --force to overwrite\n' \
         "$C_YELLOW" "$C_RESET" "$hook_dst"
@@ -46,32 +49,28 @@ _ab_install_git_closure_hook() {
 
   if [[ ! -f "$hook_dst" ]]; then
     mkdir -p "$(dirname "$hook_dst")"
-    printf '%s' "$stub" > "$hook_dst"
+    printf '%s\n' "$stub" > "$hook_dst"
     chmod +x "$hook_dst"
-    printf '  %s✓%s %s  %s(new — git closure gate installed)%s\n' \
-      "$C_GREEN" "$C_RESET" "$hook_dst" "$C_DIM" "$C_RESET"
+    printf '  %s✓%s %s  %s(new — %s installed)%s\n' \
+      "$C_GREEN" "$C_RESET" "$hook_dst" "$C_DIM" "$hook_name" "$C_RESET"
   elif grep -q "$marker" "$hook_dst" 2>/dev/null; then
-    printf '  %s↷%s %s  %s(agentboard git gate already present — no change)%s\n' \
-      "$C_YELLOW" "$C_RESET" "$hook_dst" "$C_DIM" "$C_RESET"
+    printf '  %s↷%s %s  %s(agentboard %s already present — no change)%s\n' \
+      "$C_YELLOW" "$C_RESET" "$hook_dst" "$C_DIM" "$hook_name" "$C_RESET"
   elif (( force )); then
     local ts; ts="$(date +%s)"
     local backup="${hook_dst}.agentboard-backup-${ts}"
     cp "$hook_dst" "$backup"
-    printf '%s' "$stub" > "$hook_dst"
+    printf '%s\n' "$stub" > "$hook_dst"
     chmod +x "$hook_dst"
     printf '  %s✓%s %s  %s(overwrote — backup at %s)%s\n' \
       "$C_GREEN" "$C_RESET" "$hook_dst" "$C_DIM" "$backup" "$C_RESET"
   else
     warn "$hook_dst exists and does NOT reference agentboard."
-    say "  ${C_DIM}Two options:${C_RESET}"
-    say "    1) Re-run with ${C_BOLD}--force${C_RESET} to back up and overwrite."
-    say "    2) Append this to your existing pre-commit hook manually:"
+    say "  ${C_DIM}Options: --force to overwrite, or append manually:${C_RESET}"
     printf '\n'
-    cat <<'SNIPPET'
-      # agentboard closure gate
-      [[ -f ".platform/scripts/hooks/pre-commit" ]] && \
-        bash ".platform/scripts/hooks/pre-commit" || exit $?
-SNIPPET
+    printf '      # agentboard %s\n' "$hook_name"
+    printf '      [[ -f "%s" ]] && bash "%s" || exit $?\n' \
+      "$platform_script" "$platform_script"
     printf '\n'
     return 1
   fi
@@ -126,8 +125,6 @@ cmd_install_hooks() {
     printf '  %s↷%s %s  %s(bash-guard already referenced — no change)%s\n' \
       "$C_YELLOW" "$C_RESET" "$settings_dst" "$C_DIM" "$C_RESET"
   else
-    # Existing settings without the guard. Safest thing is to back up + overwrite
-    # when --force. Otherwise refuse and print a snippet for manual install.
     if (( force )); then
       local ts; ts="$(date +%s)"
       local backup="${settings_dst}.agentboard-backup-${ts}"
@@ -163,8 +160,30 @@ JSON
     fi
   fi
 
-  # 3) Git pre-commit closure gate (provider-agnostic)
-  _ab_install_git_closure_hook "." "$force" "$dry_run" || true
+  # 3) Git pre-commit closure gate (provider-agnostic — blocks unapproved stream closure)
+  _ab_install_git_hook "pre-commit" \
+    ".platform/scripts/hooks/pre-commit" "." "$force" "$dry_run" || true
+
+  # 4) Git post-commit activity log (auto-breadcrumbs for Codex/Gemini sessions)
+  _ab_install_git_hook "post-commit" \
+    ".platform/scripts/hooks/post-commit" "." "$force" "$dry_run" || true
+
+  # 5) Provider wrappers — print alias instructions (don't auto-modify shell config)
+  if ! (( dry_run )); then
+    local wrappers_dir="./.platform/scripts"
+    local did_wrappers=0
+    for w in codex-ab gemini-ab; do
+      local wp="${wrappers_dir}/${w}"
+      if [[ -f "$wp" ]]; then
+        chmod +x "$wp"
+        did_wrappers=1
+      fi
+    done
+    if (( did_wrappers )); then
+      printf '  %s✓%s %s  %s(provider wrappers — see alias tip below)%s\n' \
+        "$C_GREEN" "$C_RESET" "$wrappers_dir/{codex-ab,gemini-ab}" "$C_DIM" "$C_RESET"
+    fi
+  fi
 
   if (( dry_run )); then
     say "${C_DIM}Dry run. Re-run without --dry-run to apply.${C_RESET}"
@@ -173,45 +192,53 @@ JSON
 
   ok "Hooks installed."
   say "  ${C_DIM}Claude Code: approval prompt fires on git commit / push / reset --hard / rm -rf.${C_RESET}"
-  say "  ${C_DIM}All providers: git pre-commit blocks stream closure without human sign-off.${C_RESET}"
+  say "  ${C_DIM}All providers: pre-commit blocks unapproved stream closure; post-commit logs to memory/log.md.${C_RESET}"
+  say
+  say "  ${C_BOLD}Codex / Gemini session bootstrap alias${C_RESET} — add to your shell for full parity:"
+  printf '    alias codex=%s"bash \"%s/.platform/scripts/codex-ab\""%s\n' \
+    "$C_CYAN" '$(git rev-parse --show-toplevel 2>/dev/null || pwd)' "$C_RESET"
+  printf '    alias gemini=%s"bash \"%s/.platform/scripts/gemini-ab\""%s\n' \
+    "$C_CYAN" '$(git rev-parse --show-toplevel 2>/dev/null || pwd)' "$C_RESET"
+  say "  ${C_DIM}These wrappers run \`agentboard brief\` before each session — same as Claude Code's session hook.${C_RESET}"
 }
 
 _install_hooks_print_help() {
   cat <<'EOF'
 Usage: agentboard install-hooks [--force] [--dry-run]
 
-Installs the Claude Code hook system that gates destructive shell commands
-and enforces stream-closure approval.
+Installs the full agentboard hook stack for all providers.
 
 What gets installed:
-  .platform/scripts/hooks/bash-guard.sh
-      PreToolUse hook on the Bash tool. Intercepts `git commit`, `git push`,
-      `git reset --hard`, `git checkout --`, `git branch -D`, `rm -rf` and
-      returns `permissionDecision: ask` — you click yes/no in Claude Code.
-      LLMs cannot bypass. Claude Code only.
+  .platform/scripts/hooks/bash-guard.sh         [Claude Code only]
+      PreToolUse hook — intercepts destructive Bash commands (git commit,
+      git push, git reset --hard, rm -rf) and asks for approval.
 
-  .claude/settings.json
-      Wires the guard into Claude Code. Also installs the existing
-      closure-gate and session-bootstrap hooks shipped with agentboard init.
+  .claude/settings.json                          [Claude Code only]
+      Wires bash-guard + closure gate + session bootstrap into Claude Code.
 
-  .git/hooks/pre-commit
-      Provider-agnostic closure gate. Fires before every commit regardless
-      of which AI tool (Claude, Codex, Gemini) made the edit. Blocks
-      committing an ACTIVE.md change that removes a stream row unless the
-      stream file has closure_approved: true. Fail-open: unexpected errors
-      allow the commit through. Bypass (emergency): git commit --no-verify.
+  .git/hooks/pre-commit                          [all providers]
+      Blocks committing an ACTIVE.md change that removes a stream row
+      unless closure_approved: true. Fail-open. Bypass: --no-verify.
+
+  .git/hooks/post-commit                         [all providers]
+      Appends one line to .platform/memory/log.md after every commit.
+      Auto-breadcrumbs for Codex/Gemini sessions that miss checkpoints.
+
+  .platform/scripts/codex-ab                     [Codex CLI]
+  .platform/scripts/gemini-ab                    [Gemini CLI]
+      Provider wrappers — run `agentboard brief` before launch so agents
+      start every session with full project context. Use as aliases:
+        alias codex="bash .platform/scripts/codex-ab"
+        alias gemini="bash .platform/scripts/gemini-ab"
 
 Flags:
-  --force     Overwrite existing .claude/settings.json and/or
-              .git/hooks/pre-commit (backups saved with .agentboard-backup-<ts>
-              suffix). Without --force, conflicting files are left alone and
-              a snippet is printed for manual install.
+  --force     Overwrite existing .claude/settings.json and/or git hooks
+              (backups saved with .agentboard-backup-<ts> suffix).
   --dry-run   Print what would change without writing anything.
 
 Notes:
-  - Fresh `agentboard init` already installs all three. This command is
-    for existing projects, re-install, or upgrading the git hook.
-  - The bash-guard is deliberately fail-open: if the hook errors, commands
-    still run. Worst case: one extra click. Never blocks your work.
+  - Fresh `agentboard init` already installs everything. This command is
+    for existing projects, re-install, or upgrading hooks after agentboard update.
+  - All hooks are fail-open: errors allow through rather than block.
 EOF
 }

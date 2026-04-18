@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# codex-ab — agentboard-aware Codex CLI wrapper
+# Prints project state (agentboard brief) before launching Codex so the
+# agent starts every session with full context — same effect as Claude Code's
+# session-bootstrap hook.
+#
+# Usage:   bash .platform/scripts/codex-ab [codex args...]
+# Alias:   alias codex='bash "$(git rev-parse --show-toplevel)/.platform/scripts/codex-ab"'
+
+if [[ -d ".platform" ]] && command -v agentboard >/dev/null 2>&1; then
+  agentboard brief 2>/dev/null || true
+  printf '\n'
+fi
+
+exec codex "$@"

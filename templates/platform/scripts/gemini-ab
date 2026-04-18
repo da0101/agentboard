@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# gemini-ab — agentboard-aware Gemini CLI wrapper
+# Prints project state (agentboard brief) before launching Gemini so the
+# agent starts every session with full context — same effect as Claude Code's
+# session-bootstrap hook.
+#
+# Usage:   bash .platform/scripts/gemini-ab [gemini args...]
+# Alias:   alias gemini='bash "$(git rev-parse --show-toplevel)/.platform/scripts/gemini-ab"'
+
+if [[ -d ".platform" ]] && command -v agentboard >/dev/null 2>&1; then
+  agentboard brief 2>/dev/null || true
+  printf '\n'
+fi
+
+exec gemini "$@"

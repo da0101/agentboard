@@ -357,16 +357,32 @@ cmd_doctor() {
     fi
   fi
 
-  # Git pre-commit closure gate
+  # Git hooks + provider wrappers
   if [[ -d "./.git" ]]; then
-    local git_hook="./.git/hooks/pre-commit"
-    if [[ -f "$git_hook" ]] && grep -q "agentboard" "$git_hook" 2>/dev/null; then
-      ok "Git pre-commit closure gate installed (.git/hooks/pre-commit)"
+    local hook
+    for hook in pre-commit post-commit; do
+      local hook_file="./.git/hooks/$hook"
+      if [[ -f "$hook_file" ]] && grep -q "agentboard" "$hook_file" 2>/dev/null; then
+        ok "Git $hook hook installed"
+      else
+        warn "Git $hook hook not installed — run 'agentboard install-hooks'"
+        warnings=$((warnings + 1))
+      fi
+    done
+  fi
+
+  for _w in codex-ab gemini-ab; do
+    local wp="./.platform/scripts/$_w"
+    if [[ -x "$wp" ]]; then
+      ok "Provider wrapper $_w present and executable"
+    elif [[ -f "$wp" ]]; then
+      warn "Provider wrapper $wp exists but is not executable — run chmod +x"
+      warnings=$((warnings + 1))
     else
-      warn "Git pre-commit closure gate not installed — run 'agentboard install-hooks' for cross-provider enforcement"
+      warn "Provider wrapper $wp missing — run 'agentboard install-hooks'"
       warnings=$((warnings + 1))
     fi
-  fi
+  done
 
   say
   if (( errors > 0 )); then
