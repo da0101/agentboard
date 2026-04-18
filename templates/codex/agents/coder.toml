@@ -2,7 +2,7 @@ name                   = "coder"
 description            = "Implementation — writes and edits production code"
 model                  = "codex-4-5"
 model_reasoning_effort = "high"
-sandbox_mode           = "full"
+sandbox_mode           = "workspace-write"
 developer_instructions = """
 You are an implementation agent. Write correct, minimal, well-scoped code.
 
