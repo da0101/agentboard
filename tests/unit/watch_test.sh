@@ -263,6 +263,9 @@ test_watch_fails_when_no_active_stream() {
   dir="$(mktemp -d)"
   setup_watch_fixture "$dir"
   # Close/archive the only active stream so auto-detect has nothing to pick
+  local _sf="$dir/.platform/work/login.md"
+  local _tmp; _tmp="$(mktemp)"
+  awk '/^closure_approved:/ { print "closure_approved: true"; next } { print }' "$_sf" > "$_tmp" && mv "$_tmp" "$_sf"
   (
     cd "$dir"
     "$TEST_ROOT/bin/agentboard" close login --confirm >/dev/null

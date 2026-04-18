@@ -32,6 +32,16 @@ cmd_close() {
     return 0
   fi
 
+  if (( ! dry_run )); then
+    local _approved; _approved="$(frontmatter_value "$stream_file" "closure_approved")"
+    if [[ "$_approved" != "true" ]]; then
+      die "closure_approved is not set to true in $stream_file.
+  Complete the harvest checklist first:
+    agentboard close $slug
+  Then set  closure_approved: true  in the stream file and re-run --confirm."
+    fi
+  fi
+
   local archive_dir="./.platform/work/archive"
   mkdir -p "$archive_dir"
   local archive_path="$archive_dir/${slug}.md"
@@ -135,9 +145,11 @@ ${C_BOLD}5. LEARNINGS${C_RESET} — non-obvious bug root-cause or hard-won patte
    File:   .platform/memory/learnings.md
    Add a new L-NNN block using the format at the top of that file.
 
-When the harvest is done, run:
-  ${C_BOLD}agentboard close ${slug} --confirm${C_RESET}
+When the harvest is done:
+  1. Set  closure_approved: true  in ${stream_file}
+  2. Run  ${C_BOLD}agentboard close ${slug} --confirm${C_RESET}
 
+Step 1 is required — --confirm will refuse to run without it.
 Skipping harvest is fine if the stream produced nothing durable — but once
 the stream is archived, its raw context is no longer in active memory. The
 only knowledge that survives is what you distilled into the files above.

@@ -41,15 +41,16 @@ _usage_session_sum() {
   day="$(printf '%s' "$key" | awk -F'|' '{print $3}')"
   # Empty day means caller gave non-standard session key; fall back to matching
   # the key exactly on stream_slug + provider with any timestamp.
+  local _s="${stream//\'/\'\'}" _p="${provider//\'/\'\'}" _d="${day//\'/\'\'}"
   if [[ -z "$day" ]]; then
     sqlite3 "$db" "SELECT COALESCE(SUM($column), 0) FROM usage
-      WHERE stream_slug = '$stream' AND agent_provider = '$provider';"
+      WHERE stream_slug = '$_s' AND agent_provider = '$_p';"
     return 0
   fi
   sqlite3 "$db" "SELECT COALESCE(SUM($column), 0) FROM usage
-    WHERE stream_slug = '$stream'
-      AND agent_provider = '$provider'
-      AND DATE(timestamp, 'localtime') = '$day';"
+    WHERE stream_slug = '$_s'
+      AND agent_provider = '$_p'
+      AND DATE(timestamp, 'localtime') = '$_d';"
 }
 
 # Emit a learning entry as a markdown bullet for .platform/memory/learnings.md
@@ -255,8 +256,12 @@ cmd_usage() {
       fi
 
       local total=$((input + output))
+      local _sql_p="${provider//\'/\'\'}"   _sql_m="${model//\'/\'\'}"
+      local _sql_s="${stream//\'/\'\'}"     _sql_r="${repo//\'/\'\'}"
+      local _sql_t="${type//\'/\'\'}"       _sql_c="${complexity//\'/\'\'}"
+      local _sql_n="${note//\'/\'\'}"
       sqlite3 "$db" "INSERT INTO usage (agent_provider, model, stream_slug, repo, task_type, task_complexity, input_tokens, output_tokens, total_tokens, note)
-        VALUES ('$provider', '$model', '$stream', '$repo', '$type', '$complexity', $input, $output, $total, '$note');"
+        VALUES ('$_sql_p', '$_sql_m', '$_sql_s', '$_sql_r', '$_sql_t', '$_sql_c', $input, $output, $total, '$_sql_n');"
       ok "Logged $total tokens  (provider=$provider repo=$repo stream=${stream:-none} type=$type)"
       [[ -n "$note" ]] && printf '  note: %s\n' "$note" || true
       ;;

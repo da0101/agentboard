@@ -17,7 +17,10 @@ ts="$(date '+%Y-%m-%d')"
 # matching the "Newest at the top" instruction in log.md's own header.
 entry="- $ts — commit \`$hash\`: $msg — auto-logged"
 tmp="$(mktemp 2>/dev/null)" || exit 0
-awk -v e="$entry" '/^---$/ && !done { print; print e; done=1; next } { print }' \
-  "$LOG" > "$tmp" 2>/dev/null && mv "$tmp" "$LOG" 2>/dev/null || { rm -f "$tmp" 2>/dev/null; true; }
+awk -v e="$entry" '
+  /^---$/ && !done { print; print e; done=1; next }
+  { print }
+  END { if (!done) { print ""; print e } }
+' "$LOG" > "$tmp" 2>/dev/null && mv "$tmp" "$LOG" 2>/dev/null || { rm -f "$tmp" 2>/dev/null; true; }
 
 exit 0

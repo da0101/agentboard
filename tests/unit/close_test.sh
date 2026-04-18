@@ -38,10 +38,19 @@ test_close_without_confirm_prints_harvest_checklist() {
   [[ -f "$dir/.platform/work/login.md" ]] || fail "stream file was archived without --confirm"
 }
 
+_approve_stream() {
+  local dir="$1" slug="$2"
+  local sf="$dir/.platform/work/${slug}.md"
+  local tmp; tmp="$(mktemp)"
+  awk '/^closure_approved:/ { print "closure_approved: true"; next } { print }' "$sf" > "$tmp"
+  mv "$tmp" "$sf"
+}
+
 test_close_confirm_archives_stream() {
   local dir output
   dir="$(mktemp -d)"
   setup_close_fixture "$dir"
+  _approve_stream "$dir" login
   run_cli_capture output "$dir" close login --confirm
   assert_status "$RUN_STATUS" 0
   [[ ! -f "$dir/.platform/work/login.md" ]] || fail "stream file still present after --confirm"
@@ -54,6 +63,7 @@ test_close_confirm_appends_log_entry() {
   local dir output
   dir="$(mktemp -d)"
   setup_close_fixture "$dir"
+  _approve_stream "$dir" login
   run_cli_capture output "$dir" close login --confirm
   assert_status "$RUN_STATUS" 0
   assert_file_contains "$dir/.platform/memory/log.md" "closed stream login"
@@ -63,11 +73,24 @@ test_close_confirm_removes_from_active_registry() {
   local dir output
   dir="$(mktemp -d)"
   setup_close_fixture "$dir"
+  _approve_stream "$dir" login
   # Baseline: active registry lists the stream
   assert_file_contains "$dir/.platform/work/ACTIVE.md" "login"
   run_cli_capture output "$dir" close login --confirm
   assert_status "$RUN_STATUS" 0
   assert_file_not_contains "$dir/.platform/work/ACTIVE.md" "| login |"
+}
+
+test_close_confirm_blocked_without_approval() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_close_fixture "$dir"
+  # closure_approved defaults to false — confirm should be blocked
+  run_cli_capture output "$dir" close login --confirm
+  assert_status "$RUN_STATUS" 1
+  assert_contains "$output" "closure_approved"
+  # Stream file must not have been archived
+  [[ -f "$dir/.platform/work/login.md" ]] || fail "stream was archived despite missing approval"
 }
 
 test_close_dry_run_writes_nothing() {
@@ -111,6 +134,7 @@ test_close_without_confirm_prints_harvest_checklist
 test_close_confirm_archives_stream
 test_close_confirm_appends_log_entry
 test_close_confirm_removes_from_active_registry
+test_close_confirm_blocked_without_approval
 test_close_dry_run_writes_nothing
 test_close_rejects_bad_slug
 test_close_rejects_missing_stream
