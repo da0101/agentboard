@@ -75,6 +75,17 @@ COMMANDS
                              commits since the stream's last updated_at.
                              --confirm         write the recovery checkpoint
                              --since <ref>     override the scan range
+  events <sub>               Cross-provider tool-call event log (JSONL).
+                             Captured automatically by Claude Code hooks;
+                             Codex/Gemini can pipe into .platform/scripts/
+                             hooks/event-logger.sh from their own hooks.
+                             tail [-n N]       last N events
+                             since <ISO-ts>    events at or after timestamp
+                             stream <slug>     events tagged with stream
+                             stats             event count + top tools
+                             clear [--confirm] archive the log
+                             path              print log file path
+                             --json            raw JSONL output
   close <stream-slug>        Finalize a stream. Two-step ritual:
                              1. bare run prints the harvest checklist —
                                 distill gotchas/playbook/questions/decisions

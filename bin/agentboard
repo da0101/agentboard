@@ -35,6 +35,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/progress.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/checkpoint.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/recover.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/events.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
@@ -120,6 +121,7 @@ main() {
     progress)    cmd_progress "$@" ;;
     checkpoint)  cmd_checkpoint "$@" ;;
     recover)     cmd_recover "$@" ;;
+    events)      cmd_events "$@" ;;
     close)       cmd_close "$@" ;;
     brief)       cmd_brief "$@" ;;
     watch)       cmd_watch "$@" ;;
