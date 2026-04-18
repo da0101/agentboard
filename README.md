@@ -242,7 +242,8 @@ your-project/
 ├── AGENTS.md
 ├── GEMINI.md
 ├── .claude/
-│   └── settings.json
+│   ├── settings.json
+│   └── skills/            (ab-* skill pack)
 ├── .agents/
 │   └── skills/
 └── .platform/
@@ -251,12 +252,16 @@ your-project/
     ├── workflow.md
     ├── STATUS.md
     ├── architecture.md
-    ├── decisions.md
     ├── repos.md
-    ├── log.md
-    ├── BACKLOG.md
-    ├── learnings.md
-    ├── agents/
+    ├── agents/            (commands.md, context-organization.md, skill-labels.md, …)
+    ├── memory/
+    │   ├── decisions.md
+    │   ├── log.md
+    │   ├── learnings.md
+    │   ├── gotchas.md
+    │   ├── playbook.md
+    │   ├── open-questions.md
+    │   └── BACKLOG.md
     ├── domains/
     │   └── TEMPLATE.md
     ├── work/
@@ -264,8 +269,6 @@ your-project/
     │   ├── ACTIVE.md
     │   ├── TEMPLATE.md
     │   └── archive/
-    ├── sessions/
-    │   └── ACTIVE.md
     ├── scripts/
     │   ├── sync-context.sh
     │   └── hooks/

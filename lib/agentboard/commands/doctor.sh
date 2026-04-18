@@ -357,6 +357,17 @@ cmd_doctor() {
     fi
   fi
 
+  # Git pre-commit closure gate
+  if [[ -d "./.git" ]]; then
+    local git_hook="./.git/hooks/pre-commit"
+    if [[ -f "$git_hook" ]] && grep -q "agentboard" "$git_hook" 2>/dev/null; then
+      ok "Git pre-commit closure gate installed (.git/hooks/pre-commit)"
+    else
+      warn "Git pre-commit closure gate not installed — run 'agentboard install-hooks' for cross-provider enforcement"
+      warnings=$((warnings + 1))
+    fi
+  fi
+
   say
   if (( errors > 0 )); then
     printf '%s%sDoctor found issues%s\n' "$C_BOLD" "$C_RED" "$C_RESET"

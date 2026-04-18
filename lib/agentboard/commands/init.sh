@@ -227,7 +227,7 @@ NOTICE
   # Contains enforcement hooks: closure gate (blocks premature stream closure) +
   # session bootstrap (structured state report on every session start).
   # Additive-safe: only created if no existing .claude/settings.json is present.
-  head "Enforcement hooks (.claude/settings.json)"
+  head "Enforcement hooks"
   local settings_template="$TEMPLATES_ROOT/.claude/settings.json"
   local settings_target="$target/.claude/settings.json"
   if [[ -f "$settings_target" ]]; then
@@ -238,6 +238,7 @@ NOTICE
     cp "$settings_template" "$settings_target"
     ok "Wrote → $C_CYAN$target/.claude/settings.json$C_RESET (closure gate + session bootstrap hooks)"
   fi
+  _ab_install_git_closure_hook "$target" 0 0 || true
   say
 
   # Install skills additively — never overwrite existing skills
