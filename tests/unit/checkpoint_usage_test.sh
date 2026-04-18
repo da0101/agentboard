@@ -31,6 +31,7 @@ run_checkpoint_with_usage() {
   local dir="$1"; shift
   (
     cd "$dir"
+    unset AGENTBOARD_PROVIDER AGENTBOARD_SESSION_ID
     env HOME="$dir" "$TEST_ROOT/bin/agentboard" checkpoint login \
       --what "did the thing" --next "do the next" \
       "$@"
