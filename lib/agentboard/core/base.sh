@@ -403,6 +403,9 @@ agentboard_runtime_gitignore_block() {
 .platform/events-*.jsonl
 .platform/events.jsonl.archive-*
 .platform/.daemon-port
+.platform/.file-change-state.lock
+.platform/.file-change-state.lock.d/
+.platform/.file-change-state.tsv
 .platform/.file-locks.json
 .platform/.session-streams.tsv
 .platform/.watch.pid

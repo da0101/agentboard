@@ -61,6 +61,81 @@ _ab_stop_daemon() {
   _ab_daemon_was_started=0
 }
 
+_ab_file_change_state=".platform/.file-change-state.tsv"
+_ab_file_change_lock=".platform/.file-change-state.lock"
+
+_ab_file_diff_sig() {
+  local file="$1" sig
+  sig="$(git diff --no-ext-diff HEAD -- "$file" 2>/dev/null | shasum 2>/dev/null | awk '{print $1}')"
+  [[ -n "$sig" ]] || sig="-"
+  printf '%s\n' "$sig"
+}
+
+_ab_emit_file_change_updates_locked() {
+  local current_file="$1" state_file="$2"
+  local tmp_state tmp_emit file sig prev_sig
+  tmp_state="$(mktemp 2>/dev/null)" || return 1
+  tmp_emit="$(mktemp 2>/dev/null)" || { rm -f "$tmp_state"; return 1; }
+
+  if [[ -s "$current_file" ]]; then
+    while IFS=$'\t' read -r file sig; do
+      [[ -n "$file" ]] || continue
+      prev_sig=""
+      if [[ -f "$state_file" ]]; then
+        prev_sig="$(awk -F'\t' -v file="$file" '$1 == file { print $2; exit }' "$state_file")"
+      fi
+      [[ "$prev_sig" == "$sig" ]] || printf '%s\t%s\n' "$file" "$sig" >> "$tmp_emit"
+      printf '%s\t%s\n' "$file" "$sig" >> "$tmp_state"
+    done < "$current_file"
+  fi
+
+  if [[ -s "$tmp_state" ]]; then
+    mv "$tmp_state" "$state_file" 2>/dev/null || rm -f "$tmp_state"
+  else
+    rm -f "$state_file" "$tmp_state"
+  fi
+
+  cat "$tmp_emit"
+  rm -f "$tmp_emit"
+}
+
+_ab_collect_new_file_changes() {
+  local changed="$1" tmp_current updates
+  tmp_current="$(mktemp 2>/dev/null)" || return 1
+
+  while IFS= read -r _f; do
+    [[ -n "$_f" ]] || continue
+    printf '%s\t%s\n' "$_f" "$(_ab_file_diff_sig "$_f")" >> "$tmp_current"
+  done <<< "$changed"
+
+  if command -v flock >/dev/null 2>&1; then
+    updates="$(
+      (
+        flock -w 2 9 || exit 0
+        _ab_emit_file_change_updates_locked "$tmp_current" "$_ab_file_change_state"
+      ) 9>"$_ab_file_change_lock"
+    )"
+  else
+    local _lock_dir="${_ab_file_change_lock}.d" _i _locked=0
+    for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+      if mkdir "$_lock_dir" 2>/dev/null; then
+        _locked=1
+        break
+      fi
+      sleep 0.1
+    done
+    if [[ "$_locked" -eq 1 ]]; then
+      updates="$(_ab_emit_file_change_updates_locked "$tmp_current" "$_ab_file_change_state")"
+      rmdir "$_lock_dir" 2>/dev/null || true
+    else
+      updates=""
+    fi
+  fi
+
+  rm -f "$tmp_current"
+  printf '%s' "$updates"
+}
+
 # Start a background file-change poller. Writes one event per changed tracked
 # file per poll interval. Returns the poller PID; caller must stop it on exit.
 #
@@ -87,7 +162,6 @@ _ab_start_file_poller() {
     _provider_env="$provider"
     _stream_env="${AGENTBOARD_STREAM:-}"
     _prev_sig="$_baseline_sig"
-    _logged_files=""
 
     while sleep "$interval"; do
       _cur_diff="$(git diff HEAD 2>/dev/null)"
@@ -95,21 +169,14 @@ _ab_start_file_poller() {
       [[ -z "$_cur_sig" ]] && _cur_sig="-"
       [[ "$_cur_sig" == "$_prev_sig" ]] && continue
 
-      # Only log files not yet seen this session — prevents re-emitting all
-      # previously-changed files every time any single file changes.
       _changed="$(git diff --name-only HEAD 2>/dev/null | sort -u)"
-      _new_files=""
-      while IFS= read -r _f; do
-        [[ -n "$_f" ]] || continue
-        printf '%s\n' "$_logged_files" | grep -qxF "$_f" 2>/dev/null && continue
-        _logged_files="${_logged_files}${_f}"$'\n'
-        _new_files="${_new_files}${_f}"$'\n'
-      done <<< "$_changed"
       _prev_sig="$_cur_sig"
+      _new_files="$(_ab_collect_new_file_changes "$_changed")"
       [[ -z "$_new_files" ]] && continue
 
       while IFS= read -r _f; do
         [[ -n "$_f" ]] || continue
+        _f="${_f%%$'\t'*}"
         if [[ -n "$_stream_env" ]]; then
           _payload="{\"hook_event_name\":\"FileChange\",\"session_id\":\"$session_id\",\"stream\":\"$_stream_env\",\"tool_name\":\"_observed_edit\",\"file_path\":\"$_f\"}"
         else

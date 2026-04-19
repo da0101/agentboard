@@ -97,6 +97,74 @@ test_file_poller_stops_cleanly() {
   )
 }
 
+test_file_poller_dedupes_across_concurrent_sessions() {
+  local dir
+  dir="$(mktemp -d)"
+  setup_track_fixture "$dir"
+  (
+    cd "$dir"
+    # shellcheck disable=SC1091
+    . "$dir/.platform/scripts/session-track.sh"
+    pid1="$(_ab_start_file_poller "test-session-1" "codex" 1)"
+    pid2="$(_ab_start_file_poller "test-session-2" "codex" 1)"
+    printf 'change\n' >> package.json
+    sleep 3
+    _ab_stop_file_poller "$pid1"
+    _ab_stop_file_poller "$pid2"
+  )
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created by concurrent pollers"
+  local count
+  count="$(grep -c '"file_path":"package.json"' "$log" || true)"
+  assert_eq "$count" "1"
+}
+
+test_file_poller_relogs_same_file_after_new_diff() {
+  local dir
+  dir="$(mktemp -d)"
+  setup_track_fixture "$dir"
+  (
+    cd "$dir"
+    # shellcheck disable=SC1091
+    . "$dir/.platform/scripts/session-track.sh"
+    pid="$(_ab_start_file_poller "test-session" "codex" 1)"
+    printf 'change-1\n' >> package.json
+    sleep 2
+    printf 'change-2\n' >> package.json
+    sleep 2
+    _ab_stop_file_poller "$pid"
+  )
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created for repeat-diff test"
+  local count
+  count="$(grep -c '"file_path":"package.json"' "$log" || true)"
+  assert_eq "$count" "2"
+}
+
+test_file_poller_clears_state_after_file_returns_clean() {
+  local dir
+  dir="$(mktemp -d)"
+  setup_track_fixture "$dir"
+  (
+    cd "$dir"
+    # shellcheck disable=SC1091
+    . "$dir/.platform/scripts/session-track.sh"
+    pid="$(_ab_start_file_poller "test-session" "codex" 1)"
+    printf 'change\n' >> package.json
+    sleep 2
+    git checkout -- package.json >/dev/null 2>&1
+    sleep 2
+    printf 'change\n' >> package.json
+    sleep 2
+    _ab_stop_file_poller "$pid"
+  )
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created for clean-roundtrip test"
+  local count
+  count="$(grep -c '"file_path":"package.json"' "$log" || true)"
+  assert_eq "$count" "2"
+}
+
 test_wrappers_reference_session_track() {
   local codex="$TEST_ROOT/templates/platform/scripts/codex-ab"
   local gemini="$TEST_ROOT/templates/platform/scripts/gemini-ab"
@@ -128,5 +196,8 @@ test_session_track_helper_installed
 test_session_event_writes_jsonl_line
 test_file_poller_logs_changed_tracked_files
 test_file_poller_stops_cleanly
+test_file_poller_dedupes_across_concurrent_sessions
+test_file_poller_relogs_same_file_after_new_diff
+test_file_poller_clears_state_after_file_returns_clean
 test_wrappers_reference_session_track
 test_update_refreshes_wrappers_and_tracker
