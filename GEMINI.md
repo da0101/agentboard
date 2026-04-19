@@ -134,6 +134,14 @@ Follow the 6-stage workflow in `templates/platform/workflow.md`:
 
 Plans live in chat, not `.md` files. Every successful task appends one line to `.platform/memory/log.md` (this repo dogfoods agentboard — `.platform/` is gitignored but populated locally).
 
+After every non-trivial Write or Edit, log WHY:
+
+```bash
+agentboard log-reason [<file>] "<one sentence why>"
+```
+
+Skip for: formatting, typo fixes, obvious renames.
+
 ## Reference implementation
 
 The full setup this kit generates was battle-tested on the **RestoHub platform** (4-repo Django + React SaaS). Source: `/Users/danilulmashev/Documents/GitHub/restohub-platform/.platform/`. That's where the workflow, sync script, and per-repo scaffold were proven. The activation-prompt model is a generalization of that learning.

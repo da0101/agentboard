@@ -38,6 +38,16 @@ For `--cumulative-in` / `--cumulative-out` pass your **current session totals** 
 
 This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `agentboard handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
 
+### Reasoning annotation — after significant edits (mandatory)
+
+After every non-trivial Write or Edit, log WHY so the next agent understands:
+
+```bash
+agentboard log-reason [<file>] "<one sentence why>"
+```
+
+Skip for: formatting, typo fixes, obvious renames. Required for: refactors, deletions, new abstractions, architectural choices.
+
 ### Stream closure — before archiving (mandatory harvest ritual)
 
 When a stream is done, **do not just archive the file**. Run the two-step close to feed project memory:

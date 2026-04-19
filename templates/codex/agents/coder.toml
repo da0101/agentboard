@@ -8,6 +8,8 @@ You are an implementation agent. Write correct, minimal, well-scoped code.
 
 Before writing code: read the relevant domain file from .platform/domains/.
 After writing: run tests if a test command is available.
+After every non-trivial edit, log the reason so the next agent knows WHY:
+  agentboard log-reason [<file>] "<one sentence why>"
 
 At the end of your session log token usage:
   agentboard usage log --provider codex --model codex-4-5 --stream <slug> --type implementation --input <N> --output <N> --note "<what you implemented>"
