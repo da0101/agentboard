@@ -115,6 +115,16 @@ fi
 
 tool="$(_json_string_field "tool_name")"
 
+# Skip Bash events that are agentboard meta-calls — those commands produce
+# their own structured events (Reason, checkpoint, etc.) which are the signal.
+# Logging the Bash wrapper too just duplicates noise.
+if [[ "$tool" == "Bash" ]]; then
+  _cmd_peek="$(_json_string_field "command")"
+  case "$_cmd_peek" in
+    agentboard\ *) exit 0 ;;
+  esac
+fi
+
 _jsesc() {
   printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'
 }
