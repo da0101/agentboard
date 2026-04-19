@@ -152,27 +152,33 @@ case "$hook_event" in
     detail_key=""
     detail_val=""
     case "$tool" in
-      Edit|Write|MultiEdit|Read|NotebookEdit)
+      Read)
+        exit 0  # internal lookups — not "what I changed"
+        ;;
+      Edit|Write|MultiEdit|NotebookEdit)
         _fp="$(_json_string_field "file_path")"
+        # Skip .platform/ meta-file edits (memory, stream files, daemon state)
+        _rel="${_fp##"$(pwd)/"}"
+        case "$_rel" in .platform/*) exit 0 ;; esac
         if [[ -n "$_fp" ]]; then
           detail_key="file"
-          detail_val="${_fp##"$(pwd)/"}"   # relativize if under cwd
+          detail_val="$_rel"
         fi
         ;;
       Bash)
         _cmd="$(_json_string_field "command")"
+        # Keep only git commits/pushes — all other Bash is handoff noise
+        case "$_cmd" in
+          git\ commit\ *|git\ push\ *) ;;
+          *) exit 0 ;;
+        esac
         if [[ -n "$_cmd" ]]; then
           detail_key="cmd"
           detail_val="${_cmd:0:120}"
         fi
         ;;
       WebSearch|WebFetch)
-        _q="$(_json_string_field "query")"
-        [[ -z "$_q" ]] && _q="$(_json_string_field "url")"
-        if [[ -n "$_q" ]]; then
-          detail_key="query"
-          detail_val="${_q:0:120}"
-        fi
+        exit 0  # internal research — not "what I changed"
         ;;
     esac
     if [[ -n "$detail_key" && -n "$detail_val" ]]; then

@@ -34,7 +34,7 @@ if [[ -d ".platform" ]]; then
   if command -v agentboard >/dev/null 2>&1; then
     agentboard brief 2>/dev/null || true
     printf '\n\033[1mRecent tool activity from other providers:\033[0m\n'
-    agentboard events tail -n 10 2>/dev/null || true
+    agentboard events tail -n 20 2>/dev/null || true
     printf '\n'
   fi
 fi
