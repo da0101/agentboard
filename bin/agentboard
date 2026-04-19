@@ -120,6 +120,8 @@ main() {
     new-domain)  cmd_new_domain "$@" ;;
     new-stream)  cmd_new_stream "$@" ;;
     resolve)     cmd_resolve "$@" ;;
+    current-stream) cmd_current_stream "$@" ;;
+    next-action) cmd_next_action "$@" ;;
     handoff)     cmd_handoff "$@" ;;
     progress)    cmd_progress "$@" ;;
     checkpoint)  cmd_checkpoint "$@" ;;

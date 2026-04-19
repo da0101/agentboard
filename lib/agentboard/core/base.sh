@@ -396,6 +396,56 @@ brief_is_placeholder() {
   grep -q "_not yet set — fill this in when you start your first workstream_" "$brief"
 }
 
+agentboard_runtime_gitignore_block() {
+  cat <<'EOF'
+# agentboard:runtime-begin
+.platform/events.jsonl
+.platform/events-*.jsonl
+.platform/events.jsonl.archive-*
+.platform/.daemon-port
+.platform/.file-locks.json
+.platform/.session-streams.tsv
+.platform/.watch.pid
+.platform/.watch/
+# agentboard:runtime-end
+EOF
+}
+
+agentboard_runtime_gitignore_is_current() {
+  local gitignore="${1:-./.gitignore}" line
+  [[ -f "$gitignore" ]] || return 1
+  grep -q '^# agentboard:runtime-begin$' "$gitignore" || return 1
+  grep -q '^# agentboard:runtime-end$' "$gitignore" || return 1
+  while IFS= read -r line; do
+    [[ -z "$line" || "$line" =~ ^# ]] && continue
+    grep -Fxq "$line" "$gitignore" || return 1
+  done < <(agentboard_runtime_gitignore_block)
+}
+
+ensure_agentboard_runtime_gitignore() {
+  local gitignore="${1:-./.gitignore}" tmp line
+  tmp="$(mktemp)"
+
+  if [[ -f "$gitignore" ]] && grep -q '^# agentboard:runtime-begin$' "$gitignore"; then
+    awk '
+      /^# agentboard:runtime-begin$/ { in_block = 1; next }
+      /^# agentboard:runtime-end$/   { in_block = 0; next }
+      !in_block { print }
+    ' "$gitignore" > "$tmp"
+  elif [[ -f "$gitignore" ]]; then
+    cat "$gitignore" > "$tmp"
+  fi
+
+  if [[ -s "$tmp" ]]; then
+    tail -c 1 "$tmp" 2>/dev/null | grep -q '^$' || printf '\n' >> "$tmp"
+  fi
+  if [[ -s "$tmp" ]]; then
+    printf '\n' >> "$tmp"
+  fi
+  agentboard_runtime_gitignore_block >> "$tmp"
+  mv "$tmp" "$gitignore"
+}
+
 stream_rows_from_active() {
   local active="$1"
   awk -F'|' '
@@ -508,4 +558,3 @@ path_contains_dir() {
   done
   return 1
 }
-

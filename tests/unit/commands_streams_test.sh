@@ -107,8 +107,50 @@ test_handoff_shows_branch_info() {
   assert_contains "$output" "git checkout"
 }
 
+test_current_stream_and_next_action_commands() {
+  local dir output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  init_project_fixture "$dir"
+
+  (
+    cd "$dir"
+    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/agentboard" new-domain billing >/dev/null
+    "$TEST_ROOT/bin/agentboard" new-stream auth-fix --domain auth >/dev/null
+    "$TEST_ROOT/bin/agentboard" new-stream billing-fix --domain billing >/dev/null
+    tmp="$(mktemp)"
+    awk '
+      /^\- \*\*Next action:\*\* _not set_$/ && !done {
+        print "- **Next action:** Verify the billing handoff path."
+        done = 1
+        next
+      }
+      { print }
+    ' ".platform/work/billing-fix.md" > "$tmp"
+    mv "$tmp" ".platform/work/billing-fix.md"
+  )
+
+  run_cli_capture output "$dir" current-stream --quiet
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "auth-fix"
+
+  run_cli_capture output "$dir" current-stream --stream billing-fix --session-id sess-99 --remember --quiet
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "billing-fix"
+
+  run_cli_capture output "$dir" current-stream --session-id sess-99 --quiet
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "billing-fix"
+
+  run_cli_capture output "$dir" next-action billing-fix --quiet
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "Verify the billing handoff path."
+}
+
 test_new_domain_new_stream_resolve_and_handoff
 test_new_stream_rejects_unknown_domain
 test_new_stream_branch_flags_written_to_frontmatter
 test_new_stream_branch_defaults_when_flags_omitted
 test_handoff_shows_branch_info
+test_current_stream_and_next_action_commands

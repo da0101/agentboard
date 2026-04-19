@@ -56,6 +56,21 @@ test_event_logger_tags_events_with_active_stream() {
   assert_file_contains "$dir/.platform/events.jsonl" '"stream":"login"'
 }
 
+test_event_logger_prefers_session_mapping_over_first_stream() {
+  local dir
+  dir="$(mktemp -d)"
+  setup_events_fixture "$dir"
+  (
+    cd "$dir"
+    "$TEST_ROOT/bin/agentboard" new-domain billing >/dev/null
+    "$TEST_ROOT/bin/agentboard" new-stream billing-fix \
+      --domain billing --base-branch main --branch feat/billing >/dev/null
+    "$TEST_ROOT/bin/agentboard" current-stream --stream billing-fix --session-id sess-42 --remember --quiet >/dev/null
+  )
+  _fire_event "$dir" '{"session_id":"sess-42","tool_name":"Bash"}'
+  assert_file_contains "$dir/.platform/events.jsonl" '"stream":"billing-fix"'
+}
+
 test_event_logger_skips_empty_input() {
   local dir
   dir="$(mktemp -d)"
@@ -194,6 +209,7 @@ test_claude_settings_template_wires_event_logger() {
 
 test_event_logger_writes_valid_jsonl
 test_event_logger_tags_events_with_active_stream
+test_event_logger_prefers_session_mapping_over_first_stream
 test_event_logger_skips_empty_input
 test_events_tail_shows_recent
 test_events_tail_json_mode_is_raw_jsonl

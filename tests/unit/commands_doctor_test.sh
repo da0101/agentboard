@@ -66,5 +66,18 @@ test_doctor_passes_for_valid_streams() {
   assert_contains "$output" "Doctor passed"
 }
 
+test_doctor_warns_when_runtime_gitignore_missing() {
+  local dir output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  init_project_fixture "$dir"
+  rm -f "$dir/.gitignore"
+
+  run_cli_capture output "$dir" doctor
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "runtime block"
+}
+
 test_doctor_fails_for_missing_stream_metadata
 test_doctor_passes_for_valid_streams
+test_doctor_warns_when_runtime_gitignore_missing

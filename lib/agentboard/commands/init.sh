@@ -240,9 +240,11 @@ NOTICE
   fi
   _ab_install_git_hook "pre-commit"  ".platform/scripts/hooks/pre-commit"  "$target" 0 0 || true
   _ab_install_git_hook "post-commit" ".platform/scripts/hooks/post-commit" "$target" 0 0 || true
-  for _w in codex-ab gemini-ab; do
+  for _w in codex-ab gemini-ab aliases.sh; do
     [[ -f "$target/.platform/scripts/$_w" ]] && chmod +x "$target/.platform/scripts/$_w"
   done
+  ensure_agentboard_runtime_gitignore "$target/.gitignore"
+  ok "Updated → $C_CYAN$target/.gitignore$C_RESET (ignored agentboard runtime artifacts)"
   say
 
   # Install skills additively — never overwrite existing skills
@@ -344,4 +346,3 @@ NOTICE
     say
   fi
 }
-

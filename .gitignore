@@ -14,3 +14,15 @@ dist/
 .codex/
 .claude/settings.json
 .claude/settings.json.agentboard-backup-*
+
+
+# agentboard:runtime-begin
+.platform/events.jsonl
+.platform/events-*.jsonl
+.platform/events.jsonl.archive-*
+.platform/.daemon-port
+.platform/.file-locks.json
+.platform/.session-streams.tsv
+.platform/.watch.pid
+.platform/.watch/
+# agentboard:runtime-end

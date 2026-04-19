@@ -118,6 +118,51 @@ EOF
   assert_contains "$rendered" '.platform/domains/auth.md'
 }
 
+test_stream_resolution_uses_session_map_then_brief() {
+  local dir
+  dir="$(mktemp -d)"
+  mkdir -p "$dir/.platform/work"
+
+  cat > "$dir/.platform/work/auth-fix.md" <<'EOF'
+---
+stream_id: stream-auth-fix
+slug: auth-fix
+status: active
+---
+EOF
+
+  cat > "$dir/.platform/work/billing-fix.md" <<'EOF'
+---
+stream_id: stream-billing-fix
+slug: billing-fix
+status: active
+---
+EOF
+
+  cat > "$dir/.platform/work/ACTIVE.md" <<'EOF'
+# Active workstreams
+
+| Stream | Type | Status | Agent | Updated |
+|---|---|---|---|---|
+| auth-fix | bug | active | codex | 2026-04-18 |
+| billing-fix | feature | active | codex | 2026-04-18 |
+EOF
+
+  cat > "$dir/.platform/work/BRIEF.md" <<'EOF'
+# Feature Brief
+
+**Stream file:** `work/auth-fix.md`
+EOF
+
+  (
+    cd "$dir"
+    remember_session_stream "sess-1" "billing-fix"
+    assert_eq "$(resolve_current_stream "" "sess-1")" "billing-fix"
+    assert_eq "$(resolve_current_stream "" "")" "auth-fix"
+  )
+}
+
 test_canonical_ids_and_file_enumeration
 test_repo_table_and_sync_script_updates
 test_render_brief_from_stream_includes_context
+test_stream_resolution_uses_session_map_then_brief

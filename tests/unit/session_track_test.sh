@@ -37,6 +37,7 @@ test_session_event_writes_jsonl_line() {
   setup_track_fixture "$dir"
   (
     cd "$dir"
+    export AGENTBOARD_STREAM="login"
     # shellcheck disable=SC1091
     . "$dir/.platform/scripts/session-track.sh"
     _ab_session_event "SessionStart" "codex-test-1" '"provider":"codex"'
@@ -49,6 +50,7 @@ test_session_event_writes_jsonl_line() {
   assert_file_contains "$log" '"hook_event_name":"SessionStart"'
   assert_file_contains "$log" '"hook_event_name":"SessionEnd"'
   assert_file_contains "$log" 'codex-test-1'
+  assert_file_contains "$log" '"stream":"login"'
 }
 
 test_file_poller_logs_changed_tracked_files() {

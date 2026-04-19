@@ -47,6 +47,14 @@ COMMANDS
                              --agent <a>      agent owner (default: codex)
                              --repo <id>      (repeatable)
   resolve <target>           Resolve a stream, domain, or repo by canonical id
+  current-stream             Resolve the canonical current stream slug
+                             --stream <slug>   explicit slug override
+                             --session-id <id> use or remember session mapping
+                             --remember        persist session-id -> stream
+                             --quiet           print only the slug
+  next-action [slug]         Print the canonical next action for a stream
+                             --session-id <id> resolve stream from session
+                             --quiet           print only the action text
   handoff [stream-slug]      Print a low-token provider handoff packet.
                              Shows Resume state (from stream file), warns if
                              stale, appends a "for the agent reading this"

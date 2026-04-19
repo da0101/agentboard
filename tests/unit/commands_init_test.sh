@@ -15,6 +15,8 @@ test_project_init_writes_single_repo_pack() {
   [[ -f "$dir/.platform/ACTIVATE.md" ]] || fail "expected ACTIVATE.md in single-repo init"
   [[ ! -f "$dir/.platform/ACTIVATE-HUB.md" ]] || fail "did not expect ACTIVATE-HUB.md in single-repo init"
   [[ -f "$dir/.claude/settings.json" ]] || fail "expected .claude/settings.json"
+  assert_file_contains "$dir/.gitignore" "# agentboard:runtime-begin"
+  assert_file_contains "$dir/.gitignore" ".platform/.session-streams.tsv"
 }
 
 test_hub_init_writes_hub_pack() {

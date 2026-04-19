@@ -261,6 +261,105 @@ stream_next_action() {
   ' "$stream_file"
 }
 
+session_stream_map_file() {
+  printf '%s\n' "./.platform/.session-streams.tsv"
+}
+
+brief_primary_stream_slug() {
+  local brief="./.platform/work/BRIEF.md"
+  [[ -f "$brief" ]] || return 1
+
+  local slug
+  slug="$(sed -n 's/^\*\*Stream file:\*\* `work\/\([^`]*\)\.md`$/\1/p' "$brief")"
+  slug="${slug%%$'\n'*}"
+  [[ -n "$slug" && -f "./.platform/work/${slug}.md" ]] || return 1
+  printf '%s\n' "$slug"
+}
+
+active_stream_slugs() {
+  local active="./.platform/work/ACTIVE.md"
+  [[ -f "$active" ]] || return 0
+  stream_rows_from_active "$active" | awk -F'|' '
+    {
+      slug = $1
+      status = $3
+      if (status == "" || status == "done" || status == "archived" || status == "closed") next
+      print slug
+    }
+  '
+}
+
+session_stream_lookup() {
+  local session_id="$1" map_file
+  [[ -n "$session_id" ]] || return 1
+  map_file="$(session_stream_map_file)"
+  [[ -f "$map_file" ]] || return 1
+
+  awk -F'\t' -v session_id="$session_id" '
+    $1 == session_id { print $2; found = 1; exit }
+    END { exit found ? 0 : 1 }
+  ' "$map_file"
+}
+
+remember_session_stream() {
+  local session_id="$1" stream_slug="$2" map_file tmp
+  [[ -n "$session_id" && -n "$stream_slug" ]] || return 1
+
+  map_file="$(session_stream_map_file)"
+  mkdir -p "$(dirname "$map_file")"
+  tmp="$(mktemp)"
+  if [[ -f "$map_file" ]]; then
+    awk -F'\t' -v session_id="$session_id" '$1 != session_id { print }' "$map_file" > "$tmp"
+  fi
+  printf '%s\t%s\n' "$session_id" "$stream_slug" >> "$tmp"
+  mv "$tmp" "$map_file"
+}
+
+stream_exists() {
+  local stream_slug="$1"
+  [[ -n "$stream_slug" && -f "./.platform/work/${stream_slug}.md" ]]
+}
+
+resolve_current_stream() {
+  local explicit_stream="${1:-}" session_id="${2:-}"
+  local stream_slug active_slugs active_count
+
+  if [[ -n "$explicit_stream" ]]; then
+    stream_exists "$explicit_stream" || return 1
+    printf '%s\n' "$explicit_stream"
+    return 0
+  fi
+
+  if [[ -n "${AGENTBOARD_STREAM:-}" ]]; then
+    stream_exists "$AGENTBOARD_STREAM" || return 1
+    printf '%s\n' "$AGENTBOARD_STREAM"
+    return 0
+  fi
+
+  if [[ -n "$session_id" ]]; then
+    stream_slug="$(session_stream_lookup "$session_id" 2>/dev/null || true)"
+    if [[ -n "$stream_slug" ]] && stream_exists "$stream_slug"; then
+      printf '%s\n' "$stream_slug"
+      return 0
+    fi
+  fi
+
+  stream_slug="$(brief_primary_stream_slug 2>/dev/null || true)"
+  if [[ -n "$stream_slug" ]]; then
+    printf '%s\n' "$stream_slug"
+    return 0
+  fi
+
+  active_slugs="$(active_stream_slugs)"
+  active_count="$(printf '%s\n' "$active_slugs" | awk 'NF { count++ } END { print count + 0 }')"
+  if [[ "$active_count" -eq 1 ]]; then
+    printf '%s\n' "$active_slugs"
+    return 0
+  fi
+
+  return 1
+}
+
 stream_resume_field() {
   local stream_file="$1" label="$2"
   awk -v label="$label" '
@@ -471,4 +570,3 @@ $key_files
 EOF
   return 0
 }
-

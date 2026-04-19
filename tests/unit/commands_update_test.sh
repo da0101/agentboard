@@ -63,6 +63,21 @@ test_update_skips_memory_placeholder_when_legacy_root_file_exists() {
   assert_contains "$output" "migrate-layout"
 }
 
+test_update_installs_runtime_gitignore_block() {
+  local dir output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  init_project_fixture "$dir"
+  rm -f "$dir/.gitignore"
+
+  run_cli_capture output "$dir" update
+  assert_status "$RUN_STATUS" 0
+  assert_file_contains "$dir/.gitignore" "# agentboard:runtime-begin"
+  assert_file_contains "$dir/.gitignore" ".platform/events.jsonl"
+  assert_file_contains "$dir/.gitignore" ".platform/.session-streams.tsv"
+}
+
 test_update_dry_run_leaves_files_unchanged
 test_update_replaces_process_files_but_keeps_learnings
 test_update_skips_memory_placeholder_when_legacy_root_file_exists
+test_update_installs_runtime_gitignore_block

@@ -427,6 +427,13 @@ cmd_doctor() {
     fi
   done
 
+  if agentboard_runtime_gitignore_is_current "./.gitignore"; then
+    ok "Runtime artifacts ignored in .gitignore"
+  else
+    warn ".gitignore is missing the agentboard runtime block (.platform/events.jsonl, .daemon-port, .file-locks.json, watcher/session state). Run 'agentboard update' to install it."
+    warnings=$((warnings + 1))
+  fi
+
   say
   if (( errors > 0 )); then
     printf '%s%sDoctor found issues%s\n' "$C_BOLD" "$C_RED" "$C_RESET"
@@ -443,4 +450,3 @@ cmd_doctor() {
     "$C_BOLD" "$warnings" "$C_RESET"
   say
 }
-

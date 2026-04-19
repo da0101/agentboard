@@ -83,7 +83,21 @@ while IFS= read -r row; do
     fi
 
     # Show next action if defined
-    NEXT=$(awk '/^## Next action/{found=1; next} found{if(/^##/) exit; if(/^[^_[:space:]]/) {print; exit}}' "$STREAM_FILE" 2>/dev/null | head -1)
+    if command -v agentboard >/dev/null 2>&1; then
+      NEXT="$(agentboard next-action "$SLUG" --quiet 2>/dev/null || true)"
+    else
+      NEXT="$(awk '
+        /^## Resume state/ { in_resume = 1; next }
+        in_resume && /^## / { in_resume = 0 }
+        in_resume && /^[[:space:]]*-[[:space:]]+\*\*Next action:\*\*[[:space:]]*/ {
+          sub(/^[[:space:]]*-[[:space:]]+\*\*Next action:\*\*[[:space:]]*/, "", $0)
+          if ($0 !~ /^_.*_$/ && $0 != "—" && $0 != "") { print; exit }
+        }
+        /^## Next action/ { in_legacy = 1; next }
+        in_legacy && /^## / { exit }
+        in_legacy && /^[^_[:space:]]/ { print; exit }
+      ' "$STREAM_FILE" 2>/dev/null | head -1)"
+    fi
     [ -n "$NEXT" ] && echo "    next:    $NEXT"
   else
     echo "    ⚠️  stream file missing: $STREAM_FILE"

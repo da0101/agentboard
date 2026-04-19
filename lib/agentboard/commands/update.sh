@@ -168,7 +168,7 @@ cmd_update() {
   # pure protocol, no per-project content. Upgrading them propagates the
   # event-capture / observability improvements to existing projects.
   local wrap_src wrap_dst wname
-  for wname in codex-ab gemini-ab session-track.sh; do
+  for wname in codex-ab gemini-ab session-track.sh aliases.sh; do
     wrap_src="$TEMPLATES_PLATFORM/scripts/$wname"
     wrap_dst="./.platform/scripts/$wname"
     [[ -f "$wrap_src" ]] || continue
@@ -286,6 +286,32 @@ cmd_update() {
     fi
   fi
 
+  local gitignore="./.gitignore"
+  if (( dry_run )); then
+    if agentboard_runtime_gitignore_is_current "$gitignore"; then
+      printf '  %s↷%s %s.gitignore%s  %s(runtime block present)%s\n' \
+        "$C_YELLOW" "$C_RESET" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+      skipped=$((skipped + 1))
+    else
+      printf '  %s+%s .gitignore  %s(would add/update agentboard runtime ignore block)%s\n' \
+        "$C_GREEN" "$C_RESET" "$C_DIM" "$C_RESET"
+      added=$((added + 1))
+    fi
+  else
+    local had_runtime_block=0
+    agentboard_runtime_gitignore_is_current "$gitignore" && had_runtime_block=1
+    ensure_agentboard_runtime_gitignore "$gitignore"
+    if (( had_runtime_block )); then
+      printf '  %s↻%s %s.gitignore%s  %s(runtime block refreshed)%s\n' \
+        "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+      updated=$((updated + 1))
+    else
+      printf '  %s+%s %s.gitignore%s  %s(agentboard runtime block)%s\n' \
+        "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+      added=$((added + 1))
+    fi
+  fi
+
   # -------------------------------------------------------------------------
   # Summary
   # -------------------------------------------------------------------------
@@ -311,4 +337,3 @@ cmd_update() {
   fi
   say
 }
-
