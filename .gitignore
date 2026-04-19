@@ -15,7 +15,6 @@ dist/
 .claude/settings.json
 .claude/settings.json.agentboard-backup-*
 
-
 # agentboard:runtime-begin
 .platform/events.jsonl
 .platform/events-*.jsonl
