@@ -27,18 +27,33 @@ cmd_log_reason() {
   local _provider="${AGENTBOARD_PROVIDER:-claude}"
   local _ts; _ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
 
-  # Escape reason for JSON (handle quotes, backslashes, newlines)
+  # Resolve stream: env var → BRIEF.md feature → single active stream
+  local _stream="${AGENTBOARD_STREAM:-}"
+  if [[ -z "$_stream" && -f ".platform/work/BRIEF.md" ]]; then
+    _stream="$(awk '/^\*\*Feature:\*\*/ { print $2; exit }' ".platform/work/BRIEF.md" 2>/dev/null || true)"
+  fi
+  if [[ -z "$_stream" && -f ".platform/work/ACTIVE.md" ]]; then
+    local _count
+    _count="$(awk -F'|' 'NR>2 && /^\|[[:space:]]*[a-zA-Z]/ { count++ } END { print count+0 }' ".platform/work/ACTIVE.md" 2>/dev/null || echo 0)"
+    if [[ "$_count" -eq 1 ]]; then
+      _stream="$(awk -F'|' 'NR>2 && /^\|[[:space:]]*[a-zA-Z]/ { gsub(/^[[:space:]]+|[[:space:]]+$/,"",$2); print $2; exit }' ".platform/work/ACTIVE.md" 2>/dev/null || true)"
+    fi
+  fi
+
+  # Escape fields for JSON
   local _reason_e
   _reason_e="$(printf '%s' "$_reason" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); gsub(/\n/, "\\n"); printf "%s", $0 }')"
   local _file_e
   _file_e="$(printf '%s' "$_file" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }')"
+  local _stream_e
+  _stream_e="$(printf '%s' "$_stream" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }')"
 
   # Build the event payload
   local _payload
   if [[ -n "$_file" ]]; then
-    _payload="{\"hook_event_name\":\"Reason\",\"ts\":\"$_ts\",\"provider\":\"$_provider\",\"file\":\"$_file_e\",\"reason\":\"$_reason_e\"}"
+    _payload="{\"hook_event_name\":\"Reason\",\"ts\":\"$_ts\",\"provider\":\"$_provider\",\"stream\":\"$_stream_e\",\"file\":\"$_file_e\",\"reason\":\"$_reason_e\"}"
   else
-    _payload="{\"hook_event_name\":\"Reason\",\"ts\":\"$_ts\",\"provider\":\"$_provider\",\"reason\":\"$_reason_e\"}"
+    _payload="{\"hook_event_name\":\"Reason\",\"ts\":\"$_ts\",\"provider\":\"$_provider\",\"stream\":\"$_stream_e\",\"reason\":\"$_reason_e\"}"
   fi
 
   # Try daemon first, fall back to direct JSONL append
