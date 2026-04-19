@@ -20,7 +20,15 @@ _ab_session_event() {
   local kind="$1" session_id="$2" extra="${3:-}"
   [[ -f "$_ab_events_hook" ]] || return 0
   local payload
-  if [[ -n "$extra" ]]; then
+  local stream_extra=""
+  if [[ -n "${AGENTBOARD_STREAM:-}" ]]; then
+    stream_extra="\"stream\":\"$AGENTBOARD_STREAM\""
+  fi
+  if [[ -n "$stream_extra" && -n "$extra" ]]; then
+    payload="{\"hook_event_name\":\"$kind\",\"session_id\":\"$session_id\",${stream_extra},$extra}"
+  elif [[ -n "$stream_extra" ]]; then
+    payload="{\"hook_event_name\":\"$kind\",\"session_id\":\"$session_id\",${stream_extra}}"
+  elif [[ -n "$extra" ]]; then
     payload="{\"hook_event_name\":\"$kind\",\"session_id\":\"$session_id\",$extra}"
   else
     payload="{\"hook_event_name\":\"$kind\",\"session_id\":\"$session_id\"}"
@@ -77,7 +85,9 @@ _ab_start_file_poller() {
     # Subshell — variables are scoped automatically, no `local` needed.
     _hook="$_ab_events_hook"
     _provider_env="$provider"
+    _stream_env="${AGENTBOARD_STREAM:-}"
     _prev_sig="$_baseline_sig"
+    _logged_files=""
 
     while sleep "$interval"; do
       _cur_diff="$(git diff HEAD 2>/dev/null)"
@@ -85,20 +95,30 @@ _ab_start_file_poller() {
       [[ -z "$_cur_sig" ]] && _cur_sig="-"
       [[ "$_cur_sig" == "$_prev_sig" ]] && continue
 
-      # Log every currently-modified tracked file. Safe to over-report: a
-      # duplicate event on a file that was already logged is a no-op for
-      # handoff context, and the diff-content hash guard above keeps this
-      # loop from firing unless actual content changed.
+      # Only log files not yet seen this session — prevents re-emitting all
+      # previously-changed files every time any single file changes.
       _changed="$(git diff --name-only HEAD 2>/dev/null | sort -u)"
+      _new_files=""
       while IFS= read -r _f; do
         [[ -n "$_f" ]] || continue
-        _payload="{\"hook_event_name\":\"FileChange\",\"session_id\":\"$session_id\",\"tool_name\":\"_observed_edit\",\"file_path\":\"$_f\"}"
+        printf '%s\n' "$_logged_files" | grep -qxF "$_f" 2>/dev/null && continue
+        _logged_files="${_logged_files}${_f}"$'\n'
+        _new_files="${_new_files}${_f}"$'\n'
+      done <<< "$_changed"
+      _prev_sig="$_cur_sig"
+      [[ -z "$_new_files" ]] && continue
+
+      while IFS= read -r _f; do
+        [[ -n "$_f" ]] || continue
+        if [[ -n "$_stream_env" ]]; then
+          _payload="{\"hook_event_name\":\"FileChange\",\"session_id\":\"$session_id\",\"stream\":\"$_stream_env\",\"tool_name\":\"_observed_edit\",\"file_path\":\"$_f\"}"
+        else
+          _payload="{\"hook_event_name\":\"FileChange\",\"session_id\":\"$session_id\",\"tool_name\":\"_observed_edit\",\"file_path\":\"$_f\"}"
+        fi
         # AGENTBOARD_PROVIDER must be set for the *hook* process (right side
         # of the pipe) — setting it on the printf is a no-op for the hook.
-        printf '%s' "$_payload" | AGENTBOARD_PROVIDER="$_provider_env" bash "$_hook" 2>/dev/null || true
-      done <<< "$_changed"
-
-      _prev_sig="$_cur_sig"
+        printf '%s' "$_payload" | AGENTBOARD_PROVIDER="$_provider_env" AGENTBOARD_STREAM="$_stream_env" bash "$_hook" 2>/dev/null || true
+      done <<< "$_new_files"
     done
   ) >/dev/null 2>&1 &
   printf '%s' $!
