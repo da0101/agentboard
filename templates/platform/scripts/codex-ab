@@ -33,6 +33,10 @@ if [[ -d ".platform" ]]; then
   fi
   if command -v agentboard >/dev/null 2>&1; then
     agentboard brief 2>/dev/null || true
+    printf '\n\033[1mLock discipline for parallel edits:\033[0m\n'
+    printf '  • Before editing a file from Codex, run: \033[36magentboard lock acquire <file>\033[0m\n'
+    printf '  • After the edit completes, run:        \033[36magentboard lock release <file>\033[0m\n'
+    printf '  • Inspect current holders with:         \033[36magentboard lock list\033[0m\n'
     printf '\n\033[1mRecent tool activity from other providers:\033[0m\n'
     agentboard events tail -n 20 2>/dev/null || true
     printf '\n'

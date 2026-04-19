@@ -331,9 +331,10 @@ resolve_current_stream() {
   fi
 
   if [[ -n "${AGENTBOARD_STREAM:-}" ]]; then
-    stream_exists "$AGENTBOARD_STREAM" || return 1
-    printf '%s\n' "$AGENTBOARD_STREAM"
-    return 0
+    if stream_exists "$AGENTBOARD_STREAM"; then
+      printf '%s\n' "$AGENTBOARD_STREAM"
+      return 0
+    fi
   fi
 
   if [[ -n "$session_id" ]]; then

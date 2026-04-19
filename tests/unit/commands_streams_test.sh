@@ -107,6 +107,31 @@ test_handoff_shows_branch_info() {
   assert_contains "$output" "git checkout"
 }
 
+test_new_stream_refreshes_invalid_brief_reference() {
+  local dir
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  init_project_fixture "$dir"
+
+  local tmp
+  tmp="$(mktemp)"
+  awk '
+    { gsub(/\*\*Feature:\*\* _not yet set — fill this in when you start your first workstream_/, "**Feature:** closed-stream") }
+    { gsub(/\*\*Stream file:\*\* `work\/<slug>\.md`/, "**Stream file:** `work/closed-stream.md`") }
+    { print }
+  ' "$dir/.platform/work/BRIEF.md" > "$tmp"
+  mv "$tmp" "$dir/.platform/work/BRIEF.md"
+
+  (
+    cd "$dir"
+    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/agentboard" new-stream auth-fix --domain auth >/dev/null
+  )
+
+  assert_file_contains "$dir/.platform/work/BRIEF.md" "**Feature:** auth-fix"
+  assert_file_contains "$dir/.platform/work/BRIEF.md" "**Stream file:** \`work/auth-fix.md\`"
+}
+
 test_current_stream_and_next_action_commands() {
   local dir output
   dir="$(mktemp -d)"
@@ -135,6 +160,9 @@ test_current_stream_and_next_action_commands() {
   assert_status "$RUN_STATUS" 0
   assert_contains "$output" "auth-fix"
 
+  assert_file_contains "$dir/.platform/work/ACTIVE.md" "| auth-fix | feature | planning | codex |"
+  assert_file_contains "$dir/.platform/work/ACTIVE.md" "| billing-fix | feature | planning | codex |"
+
   run_cli_capture output "$dir" current-stream --stream billing-fix --session-id sess-99 --remember --quiet
   assert_status "$RUN_STATUS" 0
   assert_contains "$output" "billing-fix"
@@ -153,4 +181,5 @@ test_new_stream_rejects_unknown_domain
 test_new_stream_branch_flags_written_to_frontmatter
 test_new_stream_branch_defaults_when_flags_omitted
 test_handoff_shows_branch_info
+test_new_stream_refreshes_invalid_brief_reference
 test_current_stream_and_next_action_commands

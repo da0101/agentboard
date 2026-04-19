@@ -120,6 +120,20 @@ Whenever the user asks to audit, analyze, or check the state of a stream or its 
 
 This applies even when resuming after context compaction. A compressed context summary is NOT a substitute for reading the protocol spec.
 
+## Commit Gate — Never commit without explicit user request
+
+**Never run `git commit` or `git push` unless the user explicitly asked for it in this conversation turn.**
+
+"Tests pass" is not a request to commit. "Looks good" is not a request to commit. "Done" is not a request to commit.
+
+If you have completed work and believe it is ready: say what you did and ask "Ready to commit?" — then wait. The user decides.
+
+**Enforcement:**
+- **Claude Code** — `bash-guard.sh` PreToolUse hook blocks the commit and shows an approval dialog. If you see the dialog and the user did not ask for a commit, deny it.
+- **Codex / Gemini** — no hook; this instruction is your only guard. Violating it is a hard failure.
+
+---
+
 ## Stream Closure — Human Approval Required
 
 **Only the human/owner declares a stream complete.** You never self-declare completion. You may say "I believe this is done — here is the evidence" and propose closure, but the final decision belongs to the developer. No exceptions.

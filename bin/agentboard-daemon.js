@@ -93,11 +93,20 @@ function rotateLogs() {
 
 // locks: Map<normalizedPath, {holder, session_id, acquired_at, queue: [{provider, session_id}]}>
 const locks = new Map();
-const LOCK_TTL_MS = 5 * 60 * 1000; // 5 minutes — auto-expire to prevent deadlock
+const DEFAULT_LOCK_TTL_MS = 5 * 60 * 1000;
+const LOCK_TTL_MS = (() => {
+  const raw = parseInt(process.env.AGENTBOARD_LOCK_TTL_MS || '', 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_LOCK_TTL_MS;
+})(); // auto-expire to prevent deadlock
 
 function normalizePath(p) {
   // Strip leading ./ and normalize slashes
   return p.replace(/^\.\//, '').replace(/\\/g, '/');
+}
+
+function normalizeSessionId(provider, sessionId) {
+  if (typeof sessionId === 'string' && sessionId.trim()) return sessionId.trim();
+  return `${provider || 'unknown'}-anonymous`;
 }
 
 function expireLocks() {
@@ -228,28 +237,34 @@ function handlePostLock(req, res) {
     try { body = JSON.parse(raw); } catch (_) { send(res, 400, 'invalid JSON'); return; }
     const file = normalizePath(body.file || '');
     const provider = body.provider || 'unknown';
-    const session_id = body.session_id || provider;
+    const session_id = normalizeSessionId(provider, body.session_id);
     if (!file) { send(res, 400, 'file required'); return; }
 
     const existing = locks.get(file);
     if (!existing) {
       locks.set(file, { holder: provider, session_id, acquired_at: Date.now(), queue: [] });
       saveLocks();
-      send(res, 200, { status: 'acquired', file, holder: provider });
-    } else if (existing.holder === provider || existing.session_id === session_id) {
-      // Same provider re-acquiring (idempotent)
-      send(res, 200, { status: 'acquired', file, holder: provider });
+      send(res, 200, { status: 'acquired', file, holder: provider, holder_session_id: session_id });
+    } else if (existing.session_id === session_id) {
+      // Same session re-acquiring (idempotent)
+      send(res, 200, { status: 'acquired', file, holder: existing.holder, holder_session_id: existing.session_id });
     } else {
       // Queued — add if not already in queue
-      const alreadyQueued = existing.queue.some(q => q.provider === provider);
+      const alreadyQueued = existing.queue.some(q => q.session_id === session_id);
       if (!alreadyQueued) existing.queue.push({ provider, session_id });
       saveLocks();
-      send(res, 202, { status: 'queued', file, holder: existing.holder, position: existing.queue.length });
+      send(res, 202, {
+        status: 'queued',
+        file,
+        holder: existing.holder,
+        holder_session_id: existing.session_id,
+        position: existing.queue.findIndex(q => q.session_id === session_id) + 1,
+      });
     }
   }).catch(() => send(res, 500, 'read error'));
 }
 
-// DELETE /lock  body: {file, provider}
+// DELETE /lock  body: {file, provider, session_id?}
 function handleDeleteLock(req, res) {
   expireLocks();
   readBody(req).then(raw => {
@@ -257,10 +272,11 @@ function handleDeleteLock(req, res) {
     try { body = JSON.parse(raw); } catch (_) { send(res, 400, 'invalid JSON'); return; }
     const file = normalizePath(body.file || '');
     const provider = body.provider || 'unknown';
+    const session_id = normalizeSessionId(provider, body.session_id);
     if (!file) { send(res, 400, 'file required'); return; }
 
     const existing = locks.get(file);
-    if (!existing || existing.holder !== provider) {
+    if (!existing || existing.session_id !== session_id) {
       send(res, 200, { status: 'released', file }); // idempotent
       return;
     }
@@ -278,16 +294,19 @@ function handleDeleteLock(req, res) {
 // GET /locks
 function handleGetLocks(_req, res) {
   expireLocks();
-  const result = [];
-  for (const [file, lock] of locks.entries()) {
-    result.push({
-      file,
-      holder: lock.holder,
-      acquired_at: new Date(lock.acquired_at).toISOString(),
-      held_seconds: Math.floor((Date.now() - lock.acquired_at) / 1000),
-      queue: lock.queue.map(q => q.provider),
-    });
-  }
+    const result = [];
+    for (const [file, lock] of locks.entries()) {
+      result.push({
+        file,
+        holder: lock.holder,
+        holder_session_id: lock.session_id,
+        acquired_at: new Date(lock.acquired_at).toISOString(),
+        held_seconds: Math.floor((Date.now() - lock.acquired_at) / 1000),
+        queue: lock.queue.map(q => q.provider),
+        queue_session_ids: lock.queue.map(q => q.session_id),
+        queue_details: lock.queue,
+      });
+    }
   send(res, 200, result);
 }
 

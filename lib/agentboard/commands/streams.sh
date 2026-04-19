@@ -178,13 +178,18 @@ cmd_new_stream() {
     local tmp
     tmp="$(mktemp)"
     awk -v row="$row" '
-      /^---$/ && !inserted { print row; inserted=1 }
+      /^\|---/ { in_table=1; print; next }
+      in_table && /^\|/ { print; next }
+      in_table && !inserted { print row; inserted=1; in_table=0 }
       { print }
+      END {
+        if (!inserted) print row
+      }
     ' "$active" > "$tmp"
     mv "$tmp" "$active"
   fi
 
-  if brief_is_placeholder "$brief"; then
+  if brief_is_placeholder "$brief" || [[ -z "$(brief_primary_stream_slug 2>/dev/null || true)" ]]; then
     write_brief_stub "$brief" "$project_name" "$slug" "$domain_slugs_text" "planning"
     ok "Updated work/BRIEF.md with a starter brief"
   else

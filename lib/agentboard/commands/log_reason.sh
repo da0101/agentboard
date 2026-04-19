@@ -27,17 +27,39 @@ cmd_log_reason() {
   local _provider="${AGENTBOARD_PROVIDER:-claude}"
   local _ts; _ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
 
-  # Resolve stream: env var → BRIEF.md feature → single active stream
-  local _stream="${AGENTBOARD_STREAM:-}"
-  if [[ -z "$_stream" && -f ".platform/work/BRIEF.md" ]]; then
-    _stream="$(awk '/^\*\*Feature:\*\*/ { print $2; exit }' ".platform/work/BRIEF.md" 2>/dev/null || true)"
-  fi
-  if [[ -z "$_stream" && -f ".platform/work/ACTIVE.md" ]]; then
-    local _count
-    _count="$(awk -F'|' 'NR>2 && /^\|[[:space:]]*[a-zA-Z]/ { count++ } END { print count+0 }' ".platform/work/ACTIVE.md" 2>/dev/null || echo 0)"
-    if [[ "$_count" -eq 1 ]]; then
-      _stream="$(awk -F'|' 'NR>2 && /^\|[[:space:]]*[a-zA-Z]/ { gsub(/^[[:space:]]+|[[:space:]]+$/,"",$2); print $2; exit }' ".platform/work/ACTIVE.md" 2>/dev/null || true)"
-    fi
+  _log_reason_stream_from_file() {
+    local file="$1" slug=""
+    [[ -n "$file" ]] || return 1
+
+    case "$file" in
+      .platform/work/*.md)
+        slug="${file#.platform/work/}"
+        ;;
+      */.platform/work/*.md)
+        slug="${file##*/.platform/work/}"
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+
+    slug="${slug%.md}"
+    case "$slug" in
+      ACTIVE|BRIEF|TEMPLATE|"")
+        return 1
+        ;;
+    esac
+
+    stream_exists "$slug" || return 1
+    printf '%s\n' "$slug"
+  }
+
+  # Resolve stream canonically, but prefer an explicit stream file target when
+  # the reason is attached to work/<slug>.md itself.
+  local _stream=""
+  _stream="$(_log_reason_stream_from_file "$_file" 2>/dev/null || true)"
+  if [[ -z "$_stream" ]]; then
+    _stream="$(resolve_current_stream "" "${AGENTBOARD_SESSION_ID:-}" 2>/dev/null || true)"
   fi
 
   # Escape fields for JSON

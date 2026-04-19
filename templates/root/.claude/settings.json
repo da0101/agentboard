@@ -49,6 +49,11 @@
             "type": "command",
             "command": "bash \"./.platform/scripts/hooks/post-tool-use-unlock.sh\"",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash \"./.platform/scripts/hooks/reason-reminder.sh\"",
+            "timeout": 3
           }
         ]
       }

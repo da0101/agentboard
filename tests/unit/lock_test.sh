@@ -46,6 +46,12 @@ _daemon_start_and_wait() {
   [[ -f "$dir/.platform/.daemon-port" ]] || return 1
 }
 
+_daemon_start_and_wait_with_ttl() {
+  local dir="$1" ttl_ms="$2"
+  (cd "$dir"; AGENTBOARD_LOCK_TTL_MS="$ttl_ms" "$TEST_ROOT/bin/agentboard" daemon start >/dev/null 2>&1)
+  [[ -f "$dir/.platform/.daemon-port" ]] || return 1
+}
+
 _daemon_stop() {
   local dir="$1"
   (cd "$dir"; "$TEST_ROOT/bin/agentboard" daemon stop >/dev/null 2>&1) || true
@@ -173,6 +179,69 @@ test_lock_queue_second_provider() {
   _daemon_stop "$dir"
 }
 
+test_lock_queue_same_provider_different_session() {
+  if ! _node_available || ! _curl_available; then
+    printf 'SKIP: test_lock_queue_same_provider_different_session — node or curl not available\n'
+    return 0
+  fi
+
+  local dir port
+  dir="$(mktemp -d)"
+  setup_lock_fixture "$dir"
+  _daemon_start_and_wait "$dir" || fail "daemon did not start"
+  port="$(_daemon_port "$dir")"
+  [[ -n "$port" ]] || fail ".daemon-port is empty"
+
+  local s1
+  s1="$(curl -sf -s -o /dev/null -w '%{http_code}' \
+    -X POST "http://127.0.0.1:${port}/lock" \
+    -H 'Content-Type: application/json' \
+    -d '{"file":"src/auth.ts","provider":"codex","session_id":"codex-a"}')"
+  assert_eq "$s1" "200"
+
+  local s2
+  s2="$(curl -sf -s -o /dev/null -w '%{http_code}' \
+    -X POST "http://127.0.0.1:${port}/lock" \
+    -H 'Content-Type: application/json' \
+    -d '{"file":"src/auth.ts","provider":"codex","session_id":"codex-b"}')"
+  assert_eq "$s2" "202"
+
+  local body
+  body="$(curl -sf "http://127.0.0.1:${port}/locks" 2>/dev/null)"
+  assert_contains "$body" '"holder_session_id":"codex-a"'
+  assert_contains "$body" '"queue_session_ids":["codex-b"]'
+
+  # Wrong session release must not transfer the lock.
+  local wrong_release
+  wrong_release="$(curl -sf -s -o /dev/null -w '%{http_code}' \
+    -X DELETE "http://127.0.0.1:${port}/lock" \
+    -H 'Content-Type: application/json' \
+    -d '{"file":"src/auth.ts","provider":"codex","session_id":"codex-b"}')"
+  assert_eq "$wrong_release" "200"
+
+  body="$(curl -sf "http://127.0.0.1:${port}/locks" 2>/dev/null)"
+  assert_contains "$body" '"holder_session_id":"codex-a"'
+
+  local release_status
+  release_status="$(curl -sf -s -o /dev/null -w '%{http_code}' \
+    -X DELETE "http://127.0.0.1:${port}/lock" \
+    -H 'Content-Type: application/json' \
+    -d '{"file":"src/auth.ts","provider":"codex","session_id":"codex-a"}')"
+  assert_eq "$release_status" "200"
+
+  sleep 0.2
+
+  body="$(curl -sf "http://127.0.0.1:${port}/locks" 2>/dev/null)"
+  assert_contains "$body" '"holder_session_id":"codex-b"'
+
+  curl -sf -s -o /dev/null \
+    -X DELETE "http://127.0.0.1:${port}/lock" \
+    -H 'Content-Type: application/json' \
+    -d '{"file":"src/auth.ts","provider":"codex","session_id":"codex-b"}' || true
+
+  _daemon_stop "$dir"
+}
+
 test_daemon_lock_acquire_endpoint() {
   if ! _node_available || ! _curl_available; then
     printf 'SKIP: test_daemon_lock_acquire_endpoint — node or curl not available\n'
@@ -235,13 +304,42 @@ test_daemon_lock_acquire_endpoint() {
 }
 
 test_daemon_lock_auto_expire() {
-  # Auto-expiry (LOCK_TTL_MS) requires time mocking or patching the daemon
-  # source, which is out of scope for unit tests. This behaviour should be
-  # validated manually by temporarily lowering LOCK_TTL_MS in
-  # bin/agentboard-daemon.js and confirming that held locks are released after
-  # the TTL elapses without a DELETE. Skipping here.
-  printf 'SKIP: test_daemon_lock_auto_expire — requires time mocking (out of scope for unit tests)\n'
-  return 0
+  if ! _node_available || ! _curl_available; then
+    printf 'SKIP: test_daemon_lock_auto_expire — node or curl not available\n'
+    return 0
+  fi
+
+  local dir port status
+  dir="$(mktemp -d)"
+  setup_lock_fixture "$dir"
+  _daemon_start_and_wait_with_ttl "$dir" 100 || fail "daemon did not start"
+  port="$(_daemon_port "$dir")"
+  [[ -n "$port" ]] || fail ".daemon-port is empty"
+
+  status="$(curl -sf -s -o /dev/null -w '%{http_code}' \
+    -X POST "http://127.0.0.1:${port}/lock" \
+    -H 'Content-Type: application/json' \
+    -d '{"file":"src/auth.ts","provider":"claude","session_id":"claude-a"}')"
+  assert_eq "$status" "200"
+
+  sleep 0.2
+
+  status="$(curl -sf -s -o /dev/null -w '%{http_code}' \
+    -X POST "http://127.0.0.1:${port}/lock" \
+    -H 'Content-Type: application/json' \
+    -d '{"file":"src/auth.ts","provider":"codex","session_id":"codex-b"}')"
+  assert_eq "$status" "200"
+
+  local body
+  body="$(curl -sf "http://127.0.0.1:${port}/locks" 2>/dev/null)"
+  assert_contains "$body" '"holder_session_id":"codex-b"'
+
+  curl -sf -s -o /dev/null \
+    -X DELETE "http://127.0.0.1:${port}/lock" \
+    -H 'Content-Type: application/json' \
+    -d '{"file":"src/auth.ts","provider":"codex","session_id":"codex-b"}' || true
+
+  _daemon_stop "$dir"
 }
 
 test_pre_tool_use_lock_exits_zero_when_no_daemon() {
@@ -285,6 +383,13 @@ test_lock_hooks_in_settings_json() {
   assert_file_contains "$settings" "post-tool-use-unlock.sh"
 }
 
+test_lock_guidance_in_wrappers() {
+  assert_file_contains "$TEST_ROOT/templates/platform/scripts/codex-ab" "agentboard lock acquire <file>"
+  assert_file_contains "$TEST_ROOT/templates/platform/scripts/codex-ab" "agentboard lock release <file>"
+  assert_file_contains "$TEST_ROOT/templates/platform/scripts/gemini-ab" "agentboard lock acquire <file>"
+  assert_file_contains "$TEST_ROOT/templates/platform/scripts/gemini-ab" "agentboard lock release <file>"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -293,8 +398,10 @@ test_lock_subcommand_registered
 test_lock_list_no_daemon
 test_lock_acquire_release_cycle
 test_lock_queue_second_provider
+test_lock_queue_same_provider_different_session
 test_daemon_lock_acquire_endpoint
 test_daemon_lock_auto_expire
 test_pre_tool_use_lock_exits_zero_when_no_daemon
 test_post_tool_use_unlock_exits_zero_when_no_daemon
 test_lock_hooks_in_settings_json
+test_lock_guidance_in_wrappers

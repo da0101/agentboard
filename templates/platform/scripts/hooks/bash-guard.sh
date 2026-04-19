@@ -29,7 +29,12 @@ fi
 DESTRUCTIVE_RE='git[[:space:]]+(commit|push|reset[[:space:]]+--hard|checkout[[:space:]]+--|branch[[:space:]]+-D)|rm[[:space:]]+-[rfRF]+|git[[:space:]]+push[[:space:]]+--force'
 
 if printf '%s' "$INPUT" | grep -qE "$DESTRUCTIVE_RE"; then
-  reason='Agentboard guard: destructive command requires user approval.'
+  # Distinguish commit/push (require explicit user request) from other destructive ops.
+  if printf '%s' "$INPUT" | grep -qE 'git[[:space:]]+(commit|push)'; then
+    reason='⚠️ COMMIT/PUSH GATE: Did you explicitly ask the agent to commit? If not, deny this. Agents must never commit unless the user asked for it.'
+  else
+    reason='Agentboard guard: destructive command (reset/rm/branch -D) requires user approval.'
+  fi
   # Emit a compact permission decision. Claude Code shows the approval UI.
   printf '{"permissionDecision":"ask","permissionDecisionReason":"%s"}\n' "$reason"
 fi

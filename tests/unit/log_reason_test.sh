@@ -150,6 +150,60 @@ test_log_reason_provider_tagged() {
   assert_file_contains "$log" '"provider":"codex"'
 }
 
+test_log_reason_ignores_stale_env_and_invalid_brief() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_log_reason_fixture "$dir"
+
+  local tmp
+  tmp="$(mktemp)"
+  awk '
+    { gsub(/\*\*Feature:\*\* login/, "**Feature:** platform-hardening") }
+    { gsub(/\*\*Stream file:\*\* `work\/login\.md`/, "**Stream file:** `work/platform-hardening.md`") }
+    { print }
+  ' "$dir/.platform/work/BRIEF.md" > "$tmp"
+  mv "$tmp" "$dir/.platform/work/BRIEF.md"
+
+  AGENTBOARD_STREAM=platform-hardening run_cli_capture output "$dir" log-reason "Stale stream fallback test"
+  assert_status "$RUN_STATUS" 0
+
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created"
+  assert_file_contains "$log" '"stream":"login"'
+}
+
+test_log_reason_prefers_stream_file_argument() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_log_reason_fixture "$dir"
+
+  (
+    cd "$dir"
+    "$TEST_ROOT/bin/agentboard" new-domain billing >/dev/null
+    "$TEST_ROOT/bin/agentboard" new-stream billing-fix \
+      --domain billing --base-branch main --branch feat/billing >/dev/null
+  )
+
+  local tmp
+  tmp="$(mktemp)"
+  awk '
+    { gsub(/\*\*Feature:\*\* login/, "**Feature:** platform-hardening") }
+    { gsub(/\*\*Stream file:\*\* `work\/login\.md`/, "**Stream file:** `work/platform-hardening.md`") }
+    { print }
+  ' "$dir/.platform/work/BRIEF.md" > "$tmp"
+  mv "$tmp" "$dir/.platform/work/BRIEF.md"
+
+  AGENTBOARD_STREAM=platform-hardening run_cli_capture output "$dir" log-reason \
+    ".platform/work/billing-fix.md" \
+    "Billing audit anchored in stream file"
+  assert_status "$RUN_STATUS" 0
+
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created"
+  assert_file_contains "$log" '"stream":"billing-fix"'
+  assert_file_contains "$log" '"file":".platform/work/billing-fix.md"'
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -161,3 +215,5 @@ test_log_reason_with_daemon
 test_log_reason_empty_reason_fails
 test_log_reason_help
 test_log_reason_provider_tagged
+test_log_reason_ignores_stale_env_and_invalid_brief
+test_log_reason_prefers_stream_file_argument

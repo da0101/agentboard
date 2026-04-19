@@ -114,6 +114,7 @@ The single most important design decision:
 
 ### Hard rules
 
+0. **Never commit or push without explicit user request.** "Tests pass" is not a request. Tell the user what you completed and ask "Ready to commit?" — then wait.
 1. **Never add stack pre-picking to `agentboard init`.** The LLM decides the stack during activation. `init` only asks project name + one-line description.
 2. **Never ship a static `conventions/{stack}.md` file.** The LLM writes those per-project, based on the user's actual code.
 3. **Templates that ship verbatim** (`workflow.md`, `ONBOARDING.md`, `sync-context.sh`, `templates/repo/*`) must be **stack-agnostic**. No React / Django / Unity examples baked in.
