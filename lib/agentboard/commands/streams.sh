@@ -423,7 +423,7 @@ EOF
 cmd_handoff() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
 
-  local requested_slug="" budget_arg="" budget=0
+  local requested_slug="" budget_arg="" budget=0 _show_snippets=1
   if [[ -n "${1:-}" && "${1:0:2}" != "--" ]]; then
     requested_slug="$1"
     shift
@@ -435,13 +435,17 @@ cmd_handoff() {
         budget_arg="$2"
         budget="$(parse_token_budget "$2")" || die "Invalid --budget '$2' (use e.g. 4000 or 4k)"
         shift 2 ;;
+      --no-snippets) _show_snippets=0; shift ;;
       -h|--help)
         cat <<'EOF'
-Usage: agentboard handoff [<stream-slug>] [--budget <N|Nk>]
+Usage: agentboard handoff [<stream-slug>] [--budget <N|Nk>] [--no-snippets]
 
-Prints the load order for the next agent's context pack.
+Prints the load order and context snippets for the next agent's context pack.
+Context snippets are auto-searched from domain files using stream + domain slug
+keywords — so the agent can read targeted excerpts instead of loading full files.
 --budget trims secondary domains when the estimated token total exceeds the
 limit. Estimation uses bytes/4 as a rough heuristic (zero dependencies).
+--no-snippets skips the context snippets section (load-order only).
 EOF
         return 0 ;;
       *) die "Unknown flag for handoff: $1" ;;
@@ -592,6 +596,63 @@ EOF
     say
   fi
 
+  # ── Context snippets from domain files ──────────────────────────────────
+  if (( _show_snippets )); then
+    local -a _kw=()
+    local _sp
+    for _sp in $(printf '%s' "$slug" | tr '-' ' '); do
+      case "$_sp" in a|an|the|and|for|in|on|of|to|is|be|do|it|by|or|at|if|new|add|fix|update|refactor) continue ;; esac
+      _kw+=("$_sp")
+    done
+    local _ds2
+    while IFS= read -r _ds2; do
+      [[ -z "$_ds2" ]] && continue
+      for _sp in $(printf '%s' "$_ds2" | tr '-' ' '); do
+        case "$_sp" in a|an|the|and|for|in|on|of|to|is|be|do|it|by|or|at|if|new|add|fix|update|refactor) continue ;; esac
+        _kw+=("$_sp")
+      done
+    done < <(inline_array_items "$(frontmatter_value "$stream_file" "domain_slugs")")
+
+    local -a _all_dom_entries=()
+    [[ ${#included_domains[@]} -gt 0 ]] && _all_dom_entries+=("${included_domains[@]}")
+    [[ ${#skipped_domains[@]} -gt 0 ]]  && _all_dom_entries+=("${skipped_domains[@]}")
+
+    if (( ${#_kw[@]} > 0 && ${#_all_dom_entries[@]} > 0 )); then
+      local _kw_pat; _kw_pat="$(IFS='|'; printf '%s' "${_kw[*]}")"
+      local _use_rg_s=0; command -v rg >/dev/null 2>&1 && _use_rg_s=1 || true
+      local _snip_found=0 _s_entry _s_slug _s_tok _s_file _s_matches
+
+      printf '%sContext snippets%s %s(keywords: %s)%s\n' \
+        "$C_BOLD" "$C_RESET" "$C_DIM" "${_kw[*]}" "$C_RESET"
+
+      for _s_entry in "${_all_dom_entries[@]}"; do
+        _s_slug="${_s_entry%%|*}"; _s_tok="${_s_entry#*|}"
+        _s_file="./.platform/domains/${_s_slug}.md"
+        [[ -f "$_s_file" ]] || continue
+        if (( _use_rg_s )); then
+          _s_matches="$(rg -i -C 2 --color=never --no-heading --no-context-separator \
+            -e "$_kw_pat" "$_s_file" 2>/dev/null | awk 'NR<=25 && $0 != "--"' || true)"
+        else
+          _s_matches="$(grep -i -E -C 2 --color=never "$_kw_pat" "$_s_file" 2>/dev/null | awk 'NR<=25 && $0 != "--"' || true)"
+        fi
+        [[ -z "$_s_matches" ]] && continue
+        (( _snip_found++ ))
+        printf '\n  %s%s%s %s(~%d tokens full file)%s\n' \
+          "$C_CYAN" "$_s_file" "$C_RESET" "$C_DIM" "$_s_tok" "$C_RESET"
+        printf '%s\n' "$_s_matches" | awk '{ print "  | " $0 }'
+      done
+
+      if (( _snip_found == 0 )); then
+        printf '  %s(no domain file matches — load full files from the list above)%s\n' \
+          "$C_DIM" "$C_RESET"
+      else
+        printf '\n  %sLoad full domain files only if these snippets are insufficient.%s\n' \
+          "$C_DIM" "$C_RESET"
+      fi
+      say
+    fi
+  fi
+
   local repo_scope=""
   repo_scope="$(inline_array_items "$(frontmatter_value "$stream_file" "repo_ids")")"
   while IFS= read -r domain_slug; do
@@ -668,8 +729,8 @@ EOF
   fi
 
   printf '%sFor the agent reading this:%s\n' "$C_BOLD" "$C_RESET"
-  printf '  1. Load the files above in that order. Stop once the job is clear.\n'
-  printf '  2. Read the stream file and its "## Resume state" block first — it is the compact "where we are".\n'
+  printf '  1. Load BRIEF.md + stream file. Check context snippets above — load full domain files only if insufficient.\n'
+  printf '  2. Read the stream file '"'"'s "## Resume state" block first — it is the compact "where we are".\n'
   printf '  3. Confirm you understand Next action, then continue from there.\n'
   printf '  4. Before ending your session or switching providers, run:\n'
   printf '     %sagentboard checkpoint %s --what "..." --next "..."%s\n' "$C_BOLD" "$slug" "$C_RESET"

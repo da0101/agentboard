@@ -121,6 +121,8 @@ When the user gives a task not already tracked in `ACTIVE.md`, **stop and comple
 
 **Loading rule: only load files listed in `work/BRIEF.md` § "Relevant context".** Do not auto-load the full pack. Never read `work/archive/*` unless explicitly asked. **Never load `BACKLOG.md` or `learnings.md` at session start** — read them only when the user asks, or when appending.
 
+**Finding relevant context:** before loading any domain or convention file in full, run `agentboard search <keywords>` to retrieve the most relevant snippets from `.platform/`. Load the full file only if the snippets are insufficient.
+
 - `.platform/workflow.md` — the 6-stage inline workflow **← read this before running any multi-step protocol**
 - `.platform/ONBOARDING.md` — 7-step onboarding path for future sessions
 - `.platform/memory/learnings.md` — bug post-mortems + hard-won patterns (L-NNN); **grep here first before diagnosing non-obvious bugs**

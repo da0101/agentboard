@@ -127,6 +127,8 @@ See `.platform/agents/work-tracking.md` for the full protocol.
 
 **Loading rule: only load files listed in `work/BRIEF.md` § "Relevant context".** Do not auto-load the full pack. Load only what the current feature actually touches. Never read `work/archive/*` unless explicitly asked.
 
+**Finding relevant context:** before loading any domain or convention file in full, run `agentboard search <keywords>` to retrieve the most relevant snippets from `.platform/`. Load the full file only if the snippets are insufficient.
+
 - `.platform/ACTIVATE.md` — the activation protocol (read this when the user says "activate")
 - `.platform/workflow.md` — the 6-stage inline workflow for non-trivial tasks
 - `.platform/ONBOARDING.md` — the 7-step onboarding path for future sessions

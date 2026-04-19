@@ -130,6 +130,15 @@ COMMANDS
                              --base <branch>   override recorded base branch
                              --note "<text>"   one-line note to attach
                              --dry-run         print block instead of writing
+  search <query terms...>    Search .platform/ context files for relevant
+                             snippets. Each term is OR-matched (case-insensitive).
+                             Shows file path + surrounding context + full-file
+                             token estimate. Use before loading full files.
+                             -C N, --context N   context lines (default 3)
+                             -q, --quiet         file paths only
+                             --domains           domains/ only
+                             --memory            memory/ only
+                             --conventions       conventions/ only
   status                     Print .platform/STATUS.md to stdout
   add-repo <path>            Copy per-repo entry file templates to a new repo
                              Refuses to overwrite existing entry files.
