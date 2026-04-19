@@ -278,15 +278,23 @@ _events_pretty_print() {
       hook = extract("hook_event_name")
       reason = extract("reason")
       file = extract("file")
+      cmd = extract("cmd")
+      query = extract("query")
 
       if (hook == "Reason") {
         label = (file != "" ? "→ " file ": " : "→ ") reason
       } else if (tool != "") {
-        label = tool
+        if (file != "")       label = tool "  " file
+        else if (cmd != "")   label = tool "  " substr(cmd, 1, 80)
+        else if (query != "") label = tool "  " substr(query, 1, 80)
+        else                  label = tool
+      } else if (hook != "") {
+        file_path = extract("file_path")
+        label = hook (file_path != "" ? "  " file_path : "")
       } else {
         label = "(non-tool event)"
       }
-      printf "  %s  %-7s  %-18s  %s\n", ts, provider, (stream == "" ? "—" : stream), label
+      printf "  %s  %-7s  %-20s  %s\n", ts, provider, (stream == "" ? "—" : stream), label
     }'
   say
 }
