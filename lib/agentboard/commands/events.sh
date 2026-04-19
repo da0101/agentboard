@@ -275,7 +275,18 @@ _events_pretty_print() {
       provider = extract("provider")
       stream = extract("stream")
       tool = extract("tool")
-      printf "  %s  %-7s  %-18s  %s\n", ts, provider, (stream == "" ? "—" : stream), (tool == "" ? "(non-tool event)" : tool)
+      hook = extract("hook_event_name")
+      reason = extract("reason")
+      file = extract("file")
+
+      if (hook == "Reason") {
+        label = (file != "" ? "→ " file ": " : "→ ") reason
+      } else if (tool != "") {
+        label = tool
+      } else {
+        label = "(non-tool event)"
+      }
+      printf "  %s  %-7s  %-18s  %s\n", ts, provider, (stream == "" ? "—" : stream), label
     }'
   say
 }

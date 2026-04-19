@@ -79,6 +79,14 @@ State a 5–10 bullet plan **inline in chat**. Include:
 
 Write the code. Max ~300 lines per file. For specialist work, delegate to the appropriate skill from `repos.md`.
 
+**After every non-trivial Write or Edit**, log the reason so the next agent understands WHY, not just what changed:
+
+```bash
+agentboard log-reason [<file>] "<one sentence why>"
+```
+
+Skip for: formatting, typo fixes, obvious renames. Required for: refactors, deletions, new abstractions, architectural choices.
+
 > **⛔ Do NOT commit during Stage 5.** Code is written but never committed until Stage 6 passes and the user explicitly approves.
 
 **When dispatching implementation sub-agents:** never include `git add` or `git commit` in the agent's task prompt. Agents write code and report back. The commit is the main agent's responsibility after Stage 6 clears and the human approves.
