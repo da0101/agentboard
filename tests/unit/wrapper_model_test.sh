@@ -51,9 +51,30 @@ test_sessionstart_includes_model_gemini() {
     || fail "gemini-ab SessionStart event does not include model"
 }
 
+test_codex_exports_agentboard_model() {
+  local codex="$TEST_ROOT/templates/platform/scripts/codex-ab"
+  grep -q 'AGENTBOARD_MODEL' "$codex" \
+    || fail "codex-ab does not export AGENTBOARD_MODEL"
+  grep -q 'gpt-5.4' "$codex" \
+    || fail "codex-ab does not encode model name in AGENTBOARD_MODEL"
+  grep -q '_ab_effort' "$codex" | grep -q 'AGENTBOARD_MODEL' 2>/dev/null || \
+  grep 'AGENTBOARD_MODEL' "$codex" | grep -q '_ab_effort' \
+    || fail "codex-ab does not encode effort in AGENTBOARD_MODEL"
+}
+
+test_gemini_exports_agentboard_model() {
+  local gemini="$TEST_ROOT/templates/platform/scripts/gemini-ab"
+  grep -q 'AGENTBOARD_MODEL' "$gemini" \
+    || fail "gemini-ab does not export AGENTBOARD_MODEL"
+  grep 'AGENTBOARD_MODEL' "$gemini" | grep -q '_ab_model' \
+    || fail "gemini-ab does not assign _ab_model to AGENTBOARD_MODEL"
+}
+
 test_codex_wrapper_has_effort_selection
 test_gemini_wrapper_has_model_selection
 test_codex_defaults_to_medium_non_tty
 test_gemini_defaults_to_flash_non_tty
 test_sessionstart_includes_effort_codex
 test_sessionstart_includes_model_gemini
+test_codex_exports_agentboard_model
+test_gemini_exports_agentboard_model

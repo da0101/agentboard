@@ -16,6 +16,13 @@
 AGENTBOARD_PROVIDER="gemini"
 AGENTBOARD_SESSION_ID="gemini-$$-$(date +%s 2>/dev/null || printf 'unknown')"
 export AGENTBOARD_PROVIDER AGENTBOARD_SESSION_ID
+if [[ -d ".platform" ]] && command -v agentboard >/dev/null 2>&1; then
+  _ab_stream="$(agentboard current-stream --session-id "$AGENTBOARD_SESSION_ID" --remember --quiet 2>/dev/null || true)"
+  if [[ -n "$_ab_stream" ]]; then
+    AGENTBOARD_STREAM="$_ab_stream"
+    export AGENTBOARD_STREAM
+  fi
+fi
 
 # ── Session bootstrap ────────────────────────────────────────────────────────
 _ab_poller_pid=0
@@ -45,6 +52,8 @@ if [[ -t 0 ]]; then
     *) _ab_model="gemini-2.5-flash" ;;
   esac
 fi
+AGENTBOARD_MODEL="$_ab_model"
+export AGENTBOARD_MODEL
 
 # ── Log SessionStart (after model is known) + start file poller ──────────────
 if [[ -d ".platform" ]] && declare -f _ab_session_event >/dev/null 2>&1; then
@@ -73,31 +82,18 @@ fi
 # Fires only when: .platform exists, exactly one active stream, and the stream
 # file has not been touched in the last 10 min (no recent manual checkpoint).
 if [[ -d ".platform" ]] && command -v agentboard >/dev/null 2>&1; then
-  _ab_active=".platform/work/ACTIVE.md"
-  if [[ -f "$_ab_active" ]]; then
-    _ab_slugs="$(grep -E '^\|[[:space:]]*[a-zA-Z]' "$_ab_active" \
-      | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$2); print $2}' \
-      | grep -vE '^(Stream|[-_]+)$' \
-      | grep -E '^[a-zA-Z][a-zA-Z0-9_-]*$')"
-    _ab_count="$(printf '%s\n' "$_ab_slugs" | grep -c '[a-zA-Z]' 2>/dev/null || echo 0)"
+  _ab_slug="${AGENTBOARD_STREAM:-$(agentboard current-stream --session-id "$AGENTBOARD_SESSION_ID" --quiet 2>/dev/null || true)}"
+  if [[ -n "$_ab_slug" ]]; then
+    _ab_sf=".platform/work/${_ab_slug}.md"
+    if [[ -f "$_ab_sf" ]] && ! find "$_ab_sf" -mmin -10 -type f 2>/dev/null | grep -q .; then
+      _ab_next="$(agentboard next-action "$_ab_slug" --quiet 2>/dev/null || true)"
+      [[ -z "$_ab_next" ]] && _ab_next="Review recent changes and continue"
 
-    if [[ "$_ab_count" -eq 1 ]]; then
-      _ab_slug="$(printf '%s\n' "$_ab_slugs" | command head -1)"
-      _ab_sf=".platform/work/${_ab_slug}.md"
-
-      # Skip if stream file was touched in the last 10 min (recent manual checkpoint)
-      if [[ -f "$_ab_sf" ]] && ! find "$_ab_sf" -mmin -10 -type f 2>/dev/null | grep -q .; then
-        _ab_next="$(grep -m1 '\*\*Next action:\*\*' "$_ab_sf" 2>/dev/null \
-          | sed 's/.*\*\*Next action:\*\*[[:space:]]*//' \
-          | sed 's/[[:space:]]*$//')"
-        [[ -z "$_ab_next" ]] && _ab_next="Review recent changes and continue"
-
-        agentboard checkpoint "$_ab_slug" \
-          --what "auto-checkpoint: Gemini session ended without manual checkpoint" \
-          --next "$_ab_next" \
-          --provider gemini 2>/dev/null && \
-          printf '\n(auto-checkpointed stream %s on exit)\n' "$_ab_slug" >&2 || true
-      fi
+      agentboard checkpoint "$_ab_slug" \
+        --what "auto-checkpoint: Gemini session ended without manual checkpoint" \
+        --next "$_ab_next" \
+        --provider gemini 2>/dev/null && \
+        printf '\n(auto-checkpointed stream %s on exit)\n' "$_ab_slug" >&2 || true
     fi
   fi
 fi
