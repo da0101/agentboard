@@ -82,7 +82,7 @@ Write the code. Max ~300 lines per file. For specialist work, delegate to the ap
 **After every non-trivial Write or Edit**, log the reason so the next agent understands WHY, not just what changed:
 
 ```bash
-agentboard log-reason [<file>] "<one sentence why>"
+ab log-reason [<file>] "<one sentence why>"
 ```
 
 Skip for: formatting, typo fixes, obvious renames. Required for: refactors, deletions, new abstractions, architectural choices.
@@ -188,7 +188,7 @@ Run this checklist **every time a stream reaches done** — before archiving the
 5. **Update architecture.md** — if the stream changed system topology (new endpoints, new data flows, auth changes), update the relevant section.
 6. **Unblock downstream streams** — flip any `pending (blocked on this)` stream in `ACTIVE.md` to `ready-to-plan`.
 7. **Archive the stream file** — first check: does the stream file have `closure_approved: true`? If not, **STOP**. Do not archive. Ask the owner to set it. Only when `closure_approved: true` is present: move `work/<slug>.md` → `work/archive/<slug>.md`, remove from `ACTIVE.md`, reset `BRIEF.md`. **Remove the closed stream from `BRIEF.md` entirely — do NOT add a "Previously completed" section.** Completed work belongs in `log.md` only. `BRIEF.md` must only ever list active streams.
-8. **Log token usage** — run `agentboard usage log` to record the total token investment for this stream (aggregate from session reports).
+8. **Log token usage** — run `ab usage log` to record the total token investment for this stream (aggregate from session reports).
 9. **Append to log.md** — one line: `YYYY-MM-DD — <stream> — <outcome> — <takeaway>`.
 10. **Learnings check** — any non-obvious bugs surfaced? Confirm they are in `learnings.md`. Add if missing.
 

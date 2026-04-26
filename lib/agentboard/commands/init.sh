@@ -1,7 +1,7 @@
 cmd_init() {
   require_templates
 
-  printf '\n%s%sagentboard init%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '\n%s%sab init%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   printf '%sScaffolds a %s.platform/%s%s context pack + activation prompt.%s\n' \
     "$C_DIM" "$C_RESET$C_CYAN$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
 
@@ -18,7 +18,7 @@ cmd_init() {
   # -------------------------------------------------------------------------
   # Empty-folder / hub detection
   #
-  # If the folder looks empty for agentboard purposes (no code, no manifests,
+  # If the folder looks empty for ab purposes (no code, no manifests,
   # no source dirs), ask the user whether this is a "platform brains hub"
   # coordinating sibling repos rather than a single project. If the folder
   # contains only sibling repos (each with its own .git/ or manifest), treat
@@ -134,7 +134,7 @@ cmd_init() {
   # of .platform/ACTIVATE.md) by prepending its section and preserving the
   # original content underneath.
   head "Root entry files (CLAUDE.md / AGENTS.md / GEMINI.md)"
-  printf '  %sagentboard %snever%s%s touches existing root entry files during init.%s\n' \
+  printf '  %sab %snever%s%s touches existing root entry files during init.%s\n' \
     "$C_DIM" "$C_BOLD" "$C_RESET$C_DIM" "$C_DIM" "$C_RESET"
   printf '  %sIf you already have one, the LLM will prepend its section during activation,%s\n' \
     "$C_DIM" "$C_RESET"
@@ -153,17 +153,17 @@ cmd_init() {
 
   if [[ -f "$target/CLAUDE.md" ]]; then
     # Prepend a minimal activation notice so the AI reading CLAUDE.md knows
-    # agentboard is installed and what to do. Purely additive — original content
+    # ab is installed and what to do. Purely additive — original content
     # is preserved in full below the notice. Skip if notice already present
     # (idempotent re-runs).
-    if grep -q "<!-- agentboard installed" "$target/CLAUDE.md" 2>/dev/null; then
+    if grep -q "<!-- ab installed" "$target/CLAUDE.md" 2>/dev/null; then
       printf '  %s↷%s Activation notice already present in %s%s/CLAUDE.md%s — skipping\n' \
         "$C_YELLOW" "$C_RESET" "$C_CYAN" "$target" "$C_RESET"
     else
       local ab_notice
       ab_notice="$(cat <<NOTICE
-<!-- agentboard installed $(today) -->
-> **agentboard is installed** in \`.platform/\`. When the user says "activate this project" (or "fill in the platform pack", "run agentboard activation"), read \`.platform/ACTIVATE.md\` and follow its 6-step protocol. It covers scanning the project, interviewing the user, filling \`.platform/\`, and prepending a steady-state section to this file (without deleting any existing content).
+<!-- ab installed $(today) -->
+> **ab is installed** in \`.platform/\`. When the user says "activate this project" (or "fill in the platform pack", "run ab activation"), read \`.platform/ACTIVATE.md\` and follow its 6-step protocol. It covers scanning the project, interviewing the user, filling \`.platform/\`, and prepending a steady-state section to this file (without deleting any existing content).
 
 ---
 
@@ -244,7 +244,7 @@ NOTICE
     [[ -f "$target/.platform/scripts/$_w" ]] && chmod +x "$target/.platform/scripts/$_w"
   done
   ensure_agentboard_runtime_gitignore "$target/.gitignore"
-  ok "Updated → $C_CYAN$target/.gitignore$C_RESET (ignored agentboard runtime artifacts)"
+  ok "Updated → $C_CYAN$target/.gitignore$C_RESET (ignored ab runtime artifacts)"
   say
 
   # Install skills additively — never overwrite existing skills
@@ -313,7 +313,7 @@ NOTICE
     printf '%s%s━━━ Platform brains hub initialized ━━━%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
     printf '  1. Edit %s.platform/repos.md%s and list each sibling repo %s(path, stack, deep-reference file)%s.\n' \
       "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
-    printf '     %sOr run %sagentboard add-repo <path>%s%s from this hub for each sibling to scaffold its entry files.%s\n' \
+    printf '     %sOr run %sab add-repo <path>%s%s from this hub for each sibling to scaffold its entry files.%s\n' \
       "$C_DIM" "$C_BOLD" "$C_RESET$C_DIM" "$C_DIM" "$C_RESET"
     printf '  2. Open this hub in your AI CLI %s(Claude Code / Codex CLI / Gemini CLI)%s\n' "$C_DIM" "$C_RESET"
     printf '  3. Say: %s%s"activate this project"%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"

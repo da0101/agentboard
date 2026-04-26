@@ -1,10 +1,10 @@
 # Usage monitoring — SQLite-backed token tracking across all projects
 
-_usage_db="$HOME/.agentboard/usage.db"
+_usage_db="$HOME/.ab/usage.db"
 
 _init_usage_db() {
   if [[ ! -f "$_usage_db" ]]; then
-    mkdir -p "$HOME/.agentboard"
+    mkdir -p "$HOME/.ab"
     sqlite3 "$_usage_db" "CREATE TABLE IF NOT EXISTS usage (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -214,7 +214,7 @@ cmd_usage() {
           *) shift ;;
         esac
       done
-      [[ -n "$provider" ]] || die "Usage: agentboard usage log --provider <name> (--input <N> --output <N> | --cumulative-in <N> --cumulative-out <N>) [--model <M>] [--stream <S>] [--session-key <K>] [--repo <R>] [--type <T>] [--complexity <C>] [--note <text>]"
+      [[ -n "$provider" ]] || die "Usage: ab usage log --provider <name> (--input <N> --output <N> | --cumulative-in <N> --cumulative-out <N>) [--model <M>] [--stream <S>] [--session-key <K>] [--repo <R>] [--type <T>] [--complexity <C>] [--note <text>]"
 
       # Cumulative mode: Claude/Codex/Gemini report running session totals, not
       # per-segment deltas. Compute delta = cumulative - sum-logged-so-far for
@@ -268,7 +268,7 @@ cmd_usage() {
 
     stream)
       local target_stream="${1:-}"
-      [[ -n "$target_stream" ]] || die "Usage: agentboard usage stream <stream-slug>"
+      [[ -n "$target_stream" ]] || die "Usage: ab usage stream <stream-slug>"
       local complexity_select_stream="task_complexity AS Complexity"
       local complexity_group_stream="COALESCE(task_complexity,'—') AS Complexity"
       local complexity_group_by_stream="task_complexity"
@@ -431,7 +431,7 @@ cmd_usage() {
       if [[ "$total_rows" -lt 5 ]]; then
         warn "Not enough data yet ($total_rows segments logged). Need at least 5 to generate learnings."
         say
-        printf '%sKeep logging with: agentboard usage log --provider ... --input ... --output ...%s\n' "$C_DIM" "$C_RESET"
+        printf '%sKeep logging with: ab usage log --provider ... --input ... --output ...%s\n' "$C_DIM" "$C_RESET"
         return 0
       fi
 

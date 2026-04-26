@@ -16,9 +16,9 @@ setup_brief_fixture() {
   (
     cd "$dir"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth --base-branch main --branch feat/login >/dev/null
   )
 }
@@ -87,7 +87,7 @@ test_brief_help() {
   setup_brief_fixture "$dir"
   run_cli_capture output "$dir" brief --help
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "Usage: agentboard brief"
+  assert_contains "$output" "Usage: ab brief"
 }
 
 test_brief_warns_about_generic_usage_labels() {
@@ -98,8 +98,8 @@ test_brief_warns_about_generic_usage_labels() {
   local dir output status
   dir="$(mktemp -d)"
   setup_brief_fixture "$dir"
-  mkdir -p "$dir/.agentboard"
-  sqlite3 "$dir/.agentboard/usage.db" "
+  mkdir -p "$dir/.ab"
+  sqlite3 "$dir/.ab/usage.db" "
     CREATE TABLE usage (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -116,14 +116,14 @@ test_brief_warns_about_generic_usage_labels() {
       session_id TEXT
     );
     INSERT INTO usage (agent_provider, model, stream_slug, repo, task_type, input_tokens, output_tokens, total_tokens, estimated_cost, note, session_id) VALUES
-      ('claude','claude-opus-4-7','watch-install','agentboard','normal',100000,20000,120000,0,'','a'),
-      ('claude','claude-opus-4-7','watch-install','agentboard','heavy',40000,10000,50000,0,'','b'),
-      ('codex','gpt-5.4','other','agentboard','debug',3000,1000,4000,0,'','c'),
-      ('codex','gpt-5.4','other','agentboard','audit',2000,1000,3000,0,'','d'),
-      ('codex','gpt-5.4','other','agentboard','research',2500,1200,3700,0,'','e');
+      ('claude','claude-opus-4-7','watch-install','ab','normal',100000,20000,120000,0,'','a'),
+      ('claude','claude-opus-4-7','watch-install','ab','heavy',40000,10000,50000,0,'','b'),
+      ('codex','gpt-5.4','other','ab','debug',3000,1000,4000,0,'','c'),
+      ('codex','gpt-5.4','other','ab','audit',2000,1000,3000,0,'','d'),
+      ('codex','gpt-5.4','other','ab','research',2500,1200,3700,0,'','e');
   "
   set +e
-  output="$(cd "$dir" && env HOME="$dir" "$TEST_ROOT/bin/agentboard" brief 2>&1)"
+  output="$(cd "$dir" && env HOME="$dir" "$TEST_ROOT/bin/ab" brief 2>&1)"
   status=$?
   set -e
   RUN_STATUS="$status"

@@ -13,8 +13,8 @@ test_new_domain_new_stream_resolve_and_handoff() {
 
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-domain auth backend --repo frontend >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream auth-fix --domain auth --type bug --agent codex --repo backend --repo frontend >/dev/null
+    "$TEST_ROOT/bin/ab" new-domain auth backend --repo frontend >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream auth-fix --domain auth --type bug --agent codex --repo backend --repo frontend >/dev/null
   )
 
   assert_file_contains "$dir/.platform/domains/auth.md" "repo_ids: [backend, frontend]"
@@ -54,8 +54,8 @@ test_new_stream_branch_flags_written_to_frontmatter() {
 
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-domain api >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream api-v2 \
+    "$TEST_ROOT/bin/ab" new-domain api >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream api-v2 \
       --domain api \
       --base-branch develop \
       --branch feature/api-v2 >/dev/null
@@ -75,9 +75,9 @@ test_new_stream_branch_defaults_when_flags_omitted() {
 
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-domain api >/dev/null
+    "$TEST_ROOT/bin/ab" new-domain api >/dev/null
     # No --base-branch / --branch: non-interactive fallback uses current branch
-    "$TEST_ROOT/bin/agentboard" new-stream api-v3 --domain api >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream api-v3 --domain api >/dev/null
   )
 
   assert_file_contains "$dir/.platform/work/api-v3.md" "base_branch:"
@@ -94,8 +94,8 @@ test_handoff_shows_branch_info() {
 
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-domain api >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream api-v2 \
+    "$TEST_ROOT/bin/ab" new-domain api >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream api-v2 \
       --domain api \
       --base-branch develop \
       --branch feature/api-v2 >/dev/null
@@ -124,8 +124,8 @@ test_new_stream_refreshes_invalid_brief_reference() {
 
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream auth-fix --domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream auth-fix --domain auth >/dev/null
   )
 
   assert_file_contains "$dir/.platform/work/BRIEF.md" "**Feature:** auth-fix"
@@ -140,10 +140,10 @@ test_current_stream_and_next_action_commands() {
 
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-domain billing >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream auth-fix --domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream billing-fix --domain billing >/dev/null
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-domain billing >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream auth-fix --domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream billing-fix --domain billing >/dev/null
     tmp="$(mktemp)"
     awk '
       /^\- \*\*Next action:\*\* _not set_$/ && !done {

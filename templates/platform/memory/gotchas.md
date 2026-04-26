@@ -1,9 +1,9 @@
 # Gotchas
 
-_Landmines found in this codebase. Each line = one thing a fresh agent should know before touching the related area. Appended automatically during `agentboard close <slug>` harvest._
+_Landmines found in this codebase. Each line = one thing a fresh agent should know before touching the related area. Appended automatically during `ab close <slug>` harvest._
 
 **Severity tiers** (use the emoji prefix):
-- 🔴 **never-forget** — breaks prod, loses data, or wastes hours. Always surfaced in `agentboard brief`.
+- 🔴 **never-forget** — breaks prod, loses data, or wastes hours. Always surfaced in `ab brief`.
 - 🟡 **usually-matters** — trips up most new work in the area. Surfaced when relevant domains are active.
 - 🟢 **minor** — worth mentioning, not worth interrupting flow.
 

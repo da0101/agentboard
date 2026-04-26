@@ -111,7 +111,7 @@ Logins are failing for staff users.
 Verify the patched login flow against staging data.
 EOF
 
-  rendered="$(render_brief_from_stream "agentboard" "auth-fix" "active" "$stream" "$repos")"
+  rendered="$(render_brief_from_stream "ab" "auth-fix" "active" "$stream" "$repos")"
   assert_contains "$rendered" 'Fix auth failures in the admin API.'
   assert_contains "$rendered" 'Verify the patched login flow against staging data.'
   assert_contains "$rendered" '.platform/backend.md'

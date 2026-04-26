@@ -34,7 +34,7 @@ test_update_replaces_process_files_but_keeps_learnings() {
 
 test_update_skips_memory_placeholder_when_legacy_root_file_exists() {
   # Guard: if a user has legacy .platform/learnings.md at root (pre-migration),
-  # `agentboard update` should NOT create an empty memory/learnings.md
+  # `ab update` should NOT create an empty memory/learnings.md
   # placeholder — that would create a conflict for migrate-layout later.
   local dir output
   dir="$(mktemp -d)"

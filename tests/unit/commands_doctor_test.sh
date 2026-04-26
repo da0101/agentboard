@@ -58,8 +58,8 @@ test_doctor_passes_for_valid_streams() {
 
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream auth-fix --domain auth --type bug --agent codex >/dev/null
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream auth-fix --domain auth --type bug --agent codex >/dev/null
   )
 
   run_cli_capture output "$dir" doctor

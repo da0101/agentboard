@@ -1,8 +1,8 @@
-cmd_version() { say "agentboard $VERSION"; }
+cmd_version() { say "ab $VERSION"; }
 
 cmd_help() {
   cat <<'EOF'
-agentboard — shared work-state for multi-provider AI workflows
+ab — shared work-state for multi-provider AI workflows
 
 Scaffolds a .platform/ pack plus provider-neutral entry files (CLAUDE.md,
 AGENTS.md, GEMINI.md) so Claude Code, Codex CLI, and Gemini CLI each load
@@ -11,16 +11,16 @@ Agentboard does NOT move chat history between providers — it shares files,
 not conversations.
 
 USAGE
-  agentboard <command> [args]
+  ab <command> [args]
 
 COMMANDS
-  install [--dir ...]        Install agentboard onto your PATH via a symlink
+  install [--dir ...]        Install ab onto your PATH via a symlink
   init                       Scaffold a .platform/ pack in the current directory.
                              After init, open the project in an AI CLI and say
                              "activate this project" — the LLM scans your code
                              and fills in the context pack based on what it finds.
 
-  update [--dry-run]         Update process files to the latest agentboard version.
+  update [--dry-run]         Update process files to the latest ab version.
                              Replaces: workflow.md, ONBOARDING.md, ACTIVATE.md,
                                conventions/*.md, domains/TEMPLATE.md,
                                scripts/sync-context.sh

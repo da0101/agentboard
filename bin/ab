@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# agentboard — shared work-state and project-truth for multi-provider AI workflows
+# Scaffolds a .platform/ pack plus provider-neutral entry files (CLAUDE.md,
+# AGENTS.md, GEMINI.md) so Claude Code, Codex CLI, and Gemini CLI each load the
+# same project truth and can resume the same workstreams across sessions.
+
+set -euo pipefail
+
+# Resolve symlinks so AGENTBOARD_ROOT points to the real repo, not /usr/local
+_SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$_SOURCE" ]; do
+  _DIR="$(cd -P "$(dirname "$_SOURCE")" && pwd)"
+  _SOURCE="$(readlink "$_SOURCE")"
+  [[ $_SOURCE != /* ]] && _SOURCE="$_DIR/$_SOURCE"
+done
+SCRIPT_PATH="$(cd -P "$(dirname "$_SOURCE")" && pwd)"
+unset _SOURCE _DIR
+
+AGENTBOARD_ROOT="$(cd "$SCRIPT_PATH/.." && pwd)"
+TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
+TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
+TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
+
+VERSION="1.6.1"
+
+
+source "$AGENTBOARD_ROOT/lib/agentboard/core.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/init.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/bootstrap.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/migration.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/migrate_layout.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/session.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/doctor.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/progress.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/checkpoint.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/recover.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/events.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/daemon.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/lock.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/log_reason.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/search.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/install_hooks.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/system_setup.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/update.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/help.sh"
+
+# -----------------------------------------------------------------------------
+# Banner
+# -----------------------------------------------------------------------------
+
+print_banner() {
+  [[ -z "$C_YELLOW" ]] && return 0  # skip if NO_COLOR or non-TTY
+
+  # Show the full banner only once per terminal session.
+  # PPID is the parent shell PID — stable for the lifetime of a terminal window.
+  local _marker="${TMPDIR:-/tmp}/ab-banner-${PPID}"
+  if [[ -f "$_marker" ]]; then
+    printf '\n%s  ▸ ab v%s%s\n\n' "$C_DIM" "$VERSION" "$C_RESET"
+    return
+  fi
+  touch "$_marker" 2>/dev/null || true
+
+  # Block-pixel art — Gemini-style scanlines
+  # Each pixel = ▀ (upper-half block, foreground=letter color, background=terminal dark)
+  # The dark bottom-half of every ▀ creates continuous horizontal scanlines across the full word.
+  # 5×5 font, left→right gradient, stippled diagonal shadow.
+  local A_PX="01110 10001 11111 10001 10001"
+  local G_PX="01111 10000 10011 10001 01111"
+  local E_PX="11111 10000 11100 10000 11111"
+  local N_PX="10001 11001 10101 10011 10001"
+  local T_PX="11111 00100 00100 00100 00100"
+  local B_PX="11110 10001 11110 10001 11110"
+  local O_PX="01110 10001 10001 10001 01110"
+  local R_PX="11110 10001 11110 10010 10001"
+  local D_PX="11110 10001 10001 10001 11110"
+
+  local -a _letters=("$A_PX" "$G_PX" "$E_PX" "$N_PX" "$T_PX" "$B_PX" "$O_PX" "$A_PX" "$R_PX" "$D_PX")
+  local -a _colors=(116 117 123 147 153 183 177 219 213 218)
+  local SHADOW=238
+
+  local row li col main_px shad_px sc sr _clr
+  local -a _rows
+
+  printf '\n'
+  for (( row=0; row<=5; row++ )); do
+    printf '  '
+    for (( li=0; li<10; li++ )); do
+      _clr="${_colors[$li]}"
+      read -ra _rows <<< "${_letters[$li]}"
+      for (( col=0; col<6; col++ )); do
+        main_px=0
+        [[ $row -lt 5 && $col -lt 5 ]] && main_px="${_rows[$row]:$col:1}"
+        shad_px=0; sr=$(( row-1 )); sc=$(( col-1 ))
+        [[ $sr -ge 0 && $sr -lt 5 && $sc -ge 0 && $sc -lt 5 ]] && shad_px="${_rows[$sr]:$sc:1}"
+        if   [[ "$main_px" == "1" ]]; then printf '\033[38;5;%dm▀\033[0m' "$_clr"
+        elif [[ "$shad_px" == "1" ]]; then printf '\033[38;5;%dm░\033[0m' "$SHADOW"
+        else printf ' '; fi
+      done
+      printf ' '
+    done
+    printf '\n'
+  done
+
+  printf '\n%s  Shared work-state for multi-provider AI workflows — v%s%s\n\n' "$C_DIM" "$VERSION" "$C_RESET"
+}
+
+# -----------------------------------------------------------------------------
+# Dispatch
+# -----------------------------------------------------------------------------
+
+main() {
+  local cmd="${1:-help}"
+  print_banner
+  shift || true
+  case "$cmd" in
+    install)     cmd_install "$@" ;;
+    init)        cmd_init "$@" ;;
+    update)      cmd_update "$@" ;;
+    sync)        cmd_sync "$@" ;;
+    bootstrap)   cmd_bootstrap "$@" ;;
+    migrate)     cmd_migrate "$@" ;;
+    migrate-layout) cmd_migrate_layout "$@" ;;
+    brief-upgrade) cmd_brief_upgrade "$@" ;;
+    doctor)      cmd_doctor "$@" ;;
+    new-domain)  cmd_new_domain "$@" ;;
+    new-stream)  cmd_new_stream "$@" ;;
+    resolve)     cmd_resolve "$@" ;;
+    current-stream) cmd_current_stream "$@" ;;
+    next-action) cmd_next_action "$@" ;;
+    handoff)     cmd_handoff "$@" ;;
+    progress)    cmd_progress "$@" ;;
+    checkpoint)  cmd_checkpoint "$@" ;;
+    recover)     cmd_recover "$@" ;;
+    events)      cmd_events "$@" ;;
+    daemon)      cmd_daemon "$@" ;;
+    lock)        cmd_lock "$@" ;;
+    log-reason)  cmd_log_reason "$@" ;;
+    search)      cmd_search "$@" ;;
+    close)       cmd_close "$@" ;;
+    brief)       cmd_brief "$@" ;;
+    watch)       cmd_watch "$@" ;;
+    install-hooks) cmd_install_hooks "$@" ;;
+    status)      cmd_status "$@" ;;
+    add-repo)    cmd_add_repo "$@" ;;
+    usage)       cmd_usage "$@" ;;
+    version|-v|--version) cmd_version ;;
+    help|-h|--help) cmd_help ;;
+    *) die "Unknown command: $cmd. Run 'agentboard help'." ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

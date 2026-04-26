@@ -16,9 +16,9 @@ setup_close_fixture() {
   (
     cd "$dir"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth --base-branch main --branch feat/login >/dev/null
   )
 }
@@ -127,7 +127,7 @@ test_close_help() {
   setup_close_fixture "$dir"
   run_cli_capture output "$dir" close --help
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "Usage: agentboard close"
+  assert_contains "$output" "Usage: ab close"
 }
 
 test_close_without_confirm_prints_harvest_checklist

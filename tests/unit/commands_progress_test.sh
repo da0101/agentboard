@@ -14,9 +14,9 @@ setup_stream_with_branch() {
   (
     cd "$dir"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream "$slug" \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream "$slug" \
       --domain auth \
       --base-branch main \
       --branch "feat/${slug}" >/dev/null
@@ -116,7 +116,7 @@ test_progress_requires_slug() {
 
   run_cli_capture output "$dir" progress
   assert_status "$RUN_STATUS" 1
-  assert_contains "$output" "Usage: agentboard progress"
+  assert_contains "$output" "Usage: ab progress"
 }
 
 test_progress_appends_diff_stat_to_stream_file

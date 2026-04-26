@@ -1,5 +1,5 @@
 cmd_events() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local sub="${1:-tail}"
   shift || true
@@ -14,7 +14,7 @@ cmd_events() {
     archive)     _events_archive ;;
     path)        printf '%s\n' "$(_events_log_path)" ;;
     -h|--help)   _events_print_help ;;
-    *)           die "Unknown events subcommand: $sub (see 'agentboard events --help')" ;;
+    *)           die "Unknown events subcommand: $sub (see 'ab events --help')" ;;
   esac
 }
 
@@ -46,13 +46,13 @@ _events_tail() {
     return 0
   fi
 
-  printf '\n%s%sagentboard events (last %s)%s\n\n' "$C_BOLD" "$C_CYAN" "$n" "$C_RESET"
+  printf '\n%s%sab events (last %s)%s\n\n' "$C_BOLD" "$C_CYAN" "$n" "$C_RESET"
   _events_pretty_print "$(command tail -n "$n" "$log")"
 }
 
 _events_since() {
   local ts="${1:-}" json=0
-  [[ -n "$ts" ]] || die "Usage: agentboard events since <ISO-timestamp> [--json]"
+  [[ -n "$ts" ]] || die "Usage: ab events since <ISO-timestamp> [--json]"
   shift
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -80,13 +80,13 @@ _events_since() {
     return 0
   fi
 
-  printf '\n%s%sagentboard events since %s%s\n\n' "$C_BOLD" "$C_CYAN" "$ts" "$C_RESET"
+  printf '\n%s%sab events since %s%s\n\n' "$C_BOLD" "$C_CYAN" "$ts" "$C_RESET"
   _events_pretty_print "$filtered"
 }
 
 _events_stream() {
   local slug="${1:-}" json=0
-  [[ -n "$slug" ]] || die "Usage: agentboard events stream <slug> [--json]"
+  [[ -n "$slug" ]] || die "Usage: ab events stream <slug> [--json]"
   shift
   [[ "$slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Stream slug must be kebab-case."
   while [[ $# -gt 0 ]]; do
@@ -115,7 +115,7 @@ _events_stream() {
     return 0
   fi
 
-  printf '\n%s%sagentboard events for stream %s%s\n\n' "$C_BOLD" "$C_CYAN" "$slug" "$C_RESET"
+  printf '\n%s%sab events for stream %s%s\n\n' "$C_BOLD" "$C_CYAN" "$slug" "$C_RESET"
   _events_pretty_print "$filtered"
 }
 
@@ -169,7 +169,7 @@ _events_clear() {
 
   local size; size="$(awk 'END { print NR }' "$log")"
   if (( ! confirm )); then
-    printf '\n%s%sagentboard events clear (preview)%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+    printf '\n%s%sab events clear (preview)%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
     printf '  would archive: %s (%s events)\n' "$log" "$size"
     printf '  archive path:  %s.archive-<ts>\n\n' "$log"
     printf '%sPreview only. Re-run with --confirm to archive.%s\n' "$C_DIM" "$C_RESET"
@@ -301,7 +301,7 @@ _events_pretty_print() {
 
 _events_print_help() {
   cat <<'EOF'
-Usage: agentboard events <subcommand> [flags]
+Usage: ab events <subcommand> [flags]
 
 Subcommands:
   tail [-n N] [--json]          Last N events (default 20). --json = raw JSONL.
@@ -320,10 +320,10 @@ agent B reads the tail for context.
 
 Example handoff flow:
   # Agent A session ends
-  agentboard checkpoint login --what "..." --next "..."
+  ab checkpoint login --what "..." --next "..."
 
   # Agent B session starts
-  agentboard events stream login --json | tail -20
+  ab events stream login --json | tail -20
   # ^ paste into Agent B's prompt for full tool-call history
 EOF
 }

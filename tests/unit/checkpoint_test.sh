@@ -16,9 +16,9 @@ setup_checkpoint_fixture() {
   (
     cd "$dir"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth \
       --base-branch main --branch feat/login >/dev/null
   )
@@ -67,7 +67,7 @@ test_checkpoint_requires_slug() {
   setup_checkpoint_fixture "$dir"
   run_cli_capture output "$dir" checkpoint --what "x" --next "y"
   assert_status "$RUN_STATUS" 1
-  assert_contains "$output" "Usage: agentboard checkpoint"
+  assert_contains "$output" "Usage: ab checkpoint"
 }
 
 test_checkpoint_rejects_missing_stream() {
@@ -201,7 +201,7 @@ test_checkpoint_help() {
   setup_checkpoint_fixture "$dir"
   run_cli_capture output "$dir" checkpoint --help
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "Usage: agentboard checkpoint"
+  assert_contains "$output" "Usage: ab checkpoint"
   assert_contains "$output" "--what"
   assert_contains "$output" "--next"
 }

@@ -20,9 +20,9 @@ setup_daemon_fixture() {
   (
     cd "$dir"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth --base-branch main --branch feat/login >/dev/null
   )
 }
@@ -32,13 +32,13 @@ setup_daemon_fixture() {
 # inside one; set via file to cross subshell boundaries).
 _daemon_start_and_wait() {
   local dir="$1"
-  (cd "$dir"; "$TEST_ROOT/bin/agentboard" daemon start >/dev/null 2>&1)
+  (cd "$dir"; "$TEST_ROOT/bin/ab" daemon start >/dev/null 2>&1)
   [[ -f "$dir/.platform/.daemon-port" ]] || return 1
 }
 
 _daemon_stop() {
   local dir="$1"
-  (cd "$dir"; "$TEST_ROOT/bin/agentboard" daemon stop >/dev/null 2>&1) || true
+  (cd "$dir"; "$TEST_ROOT/bin/ab" daemon stop >/dev/null 2>&1) || true
 }
 
 _daemon_port() {
@@ -63,12 +63,12 @@ _curl_available() {
 # ---------------------------------------------------------------------------
 
 test_daemon_subcommand_registered() {
-  # Verify bin/agentboard sources daemon.sh
-  grep -q "daemon.sh" "$TEST_ROOT/bin/agentboard" \
-    || fail "bin/agentboard does not source daemon.sh"
+  # Verify bin/ab sources daemon.sh
+  grep -q "daemon.sh" "$TEST_ROOT/bin/ab" \
+    || fail "bin/ab does not source daemon.sh"
   # Verify the dispatch case is wired
-  grep -q 'daemon)' "$TEST_ROOT/bin/agentboard" \
-    || fail "bin/agentboard has no 'daemon)' dispatch case"
+  grep -q 'daemon)' "$TEST_ROOT/bin/ab" \
+    || fail "bin/ab has no 'daemon)' dispatch case"
 }
 
 test_daemon_start_requires_platform() {
@@ -272,9 +272,9 @@ test_event_logger_fallback_when_no_daemon() {
 }
 
 test_daemon_binary_path_from_update_help() {
-  local daemon_js="$TEST_ROOT/bin/agentboard-daemon.js"
+  local daemon_js="$TEST_ROOT/bin/ab-daemon.js"
   [[ -f "$daemon_js" ]] \
-    || fail "bin/agentboard-daemon.js not found in agentboard repo at $daemon_js"
+    || fail "bin/ab-daemon.js not found in ab repo at $daemon_js"
 }
 
 # ---------------------------------------------------------------------------

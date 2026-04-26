@@ -10,7 +10,7 @@ test_project_init_writes_single_repo_pack() {
   dir="$(mktemp -d)"
   printf '{}\n' > "$dir/package.json"
 
-  run_and_capture output bash -lc "cd '$dir' && printf '\n\n' | '$TEST_ROOT/bin/agentboard' init"
+  run_and_capture output bash -lc "cd '$dir' && printf '\n\n' | '$TEST_ROOT/bin/ab' init"
   assert_file_contains "$dir/CLAUDE.md" "activate this project"
   [[ -f "$dir/.platform/ACTIVATE.md" ]] || fail "expected ACTIVATE.md in single-repo init"
   [[ ! -f "$dir/.platform/ACTIVATE-HUB.md" ]] || fail "did not expect ACTIVATE-HUB.md in single-repo init"
@@ -26,7 +26,7 @@ test_hub_init_writes_hub_pack() {
   printf '{}\n' > "$dir/backend/package.json"
   printf '{}\n' > "$dir/frontend/package.json"
 
-  run_and_capture output bash -lc "cd '$dir' && printf '\n\n\n' | '$TEST_ROOT/bin/agentboard' init"
+  run_and_capture output bash -lc "cd '$dir' && printf '\n\n\n' | '$TEST_ROOT/bin/ab' init"
   [[ -f "$dir/.platform/ACTIVATE-HUB.md" ]] || fail "expected ACTIVATE-HUB.md in hub init"
   [[ ! -f "$dir/.platform/ACTIVATE.md" ]] || fail "did not expect ACTIVATE.md in hub init"
   assert_file_contains "$dir/CLAUDE.md" "PLATFORM BRAINS HUB"

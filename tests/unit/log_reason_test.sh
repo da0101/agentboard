@@ -20,9 +20,9 @@ setup_log_reason_fixture() {
   (
     cd "$dir"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth --base-branch main --branch feat/login >/dev/null
   )
 }
@@ -42,13 +42,13 @@ _curl_available() {
 # Helper: start daemon in dir, assert it started.
 _daemon_start_and_wait() {
   local dir="$1"
-  (cd "$dir"; "$TEST_ROOT/bin/agentboard" daemon start >/dev/null 2>&1)
+  (cd "$dir"; "$TEST_ROOT/bin/ab" daemon start >/dev/null 2>&1)
   [[ -f "$dir/.platform/.daemon-port" ]] || return 1
 }
 
 _daemon_stop() {
   local dir="$1"
-  (cd "$dir"; "$TEST_ROOT/bin/agentboard" daemon stop >/dev/null 2>&1) || true
+  (cd "$dir"; "$TEST_ROOT/bin/ab" daemon stop >/dev/null 2>&1) || true
 }
 
 # ---------------------------------------------------------------------------
@@ -56,12 +56,12 @@ _daemon_stop() {
 # ---------------------------------------------------------------------------
 
 test_log_reason_subcommand_registered() {
-  # Verify bin/agentboard sources log_reason.sh
-  grep -q "log_reason.sh" "$TEST_ROOT/bin/agentboard" \
-    || fail "bin/agentboard does not source log_reason.sh"
+  # Verify bin/ab sources log_reason.sh
+  grep -q "log_reason.sh" "$TEST_ROOT/bin/ab" \
+    || fail "bin/ab does not source log_reason.sh"
   # Verify the dispatch case is wired
-  grep -q 'log-reason)' "$TEST_ROOT/bin/agentboard" \
-    || fail "bin/agentboard has no 'log-reason)' dispatch case"
+  grep -q 'log-reason)' "$TEST_ROOT/bin/ab" \
+    || fail "bin/ab has no 'log-reason)' dispatch case"
 }
 
 test_log_reason_writes_event_no_daemon() {
@@ -179,8 +179,8 @@ test_log_reason_prefers_stream_file_argument() {
 
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-domain billing >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream billing-fix \
+    "$TEST_ROOT/bin/ab" new-domain billing >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream billing-fix \
       --domain billing --base-branch main --branch feat/billing >/dev/null
   )
 

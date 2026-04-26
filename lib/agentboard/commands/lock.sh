@@ -1,5 +1,5 @@
 cmd_lock() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
   local sub="${1:-list}"
   shift || true
   case "$sub" in
@@ -13,9 +13,9 @@ cmd_lock() {
 
 _lock_port() {
   local _port_file=".platform/.daemon-port"
-  [[ -f "$_port_file" ]] || die "Daemon not running. Start it with: agentboard daemon start"
+  [[ -f "$_port_file" ]] || die "Daemon not running. Start it with: ab daemon start"
   local _port; _port="$(cat "$_port_file" 2>/dev/null || true)"
-  [[ "$_port" =~ ^[0-9]+$ ]] || die "Daemon not running. Start it with: agentboard daemon start"
+  [[ "$_port" =~ ^[0-9]+$ ]] || die "Daemon not running. Start it with: ab daemon start"
   printf '%s' "$_port"
 }
 
@@ -30,10 +30,10 @@ _lock_session_id() {
 
 _lock_acquire() {
   local _file="${1:-}"
-  [[ -n "$_file" ]] || die "Usage: agentboard lock acquire <file>"
+  [[ -n "$_file" ]] || die "Usage: ab lock acquire <file>"
   _file="${_file#./}"  # normalize: strip leading ./
 
-  command -v curl >/dev/null 2>&1 || die "curl is required for 'agentboard lock acquire'."
+  command -v curl >/dev/null 2>&1 || die "curl is required for 'ab lock acquire'."
   local _port; _port="$(_lock_port)"
   local _provider="${AGENTBOARD_PROVIDER:-codex}"
   local _session_id; _session_id="$(_lock_session_id "$_provider")"
@@ -74,7 +74,7 @@ _lock_acquire() {
 
 _lock_release() {
   local _file="${1:-}"
-  [[ -n "$_file" ]] || die "Usage: agentboard lock release <file>"
+  [[ -n "$_file" ]] || die "Usage: ab lock release <file>"
   _file="${_file#./}"
 
   command -v curl >/dev/null 2>&1 || return 0
@@ -158,7 +158,7 @@ _lock_list() {
 
 _lock_help() {
   cat <<'EOF'
-agentboard lock <subcommand>
+ab lock <subcommand>
 
   acquire <file>   Acquire exclusive write lock on a file (blocks until granted)
   release <file>   Release a held lock

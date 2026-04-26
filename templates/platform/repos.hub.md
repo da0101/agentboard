@@ -10,7 +10,7 @@ This folder is a **platform brains hub** — it coordinates context across multi
 
 ## Repos
 
-Fill one row per sibling repo. Paths are relative to this hub folder (e.g. `../my-backend`) or absolute. The **Deep reference** column points at a per-repo reference file under `.platform/` (you'll create these during activation or as each repo is onboarded via `agentboard add-repo`).
+Fill one row per sibling repo. Paths are relative to this hub folder (e.g. `../my-backend`) or absolute. The **Deep reference** column points at a per-repo reference file under `.platform/` (you'll create these during activation or as each repo is onboarded via `ab add-repo`).
 
 | Repo ID | Path | Role / stack hint | Deep reference |
 |---|---|---|---|
@@ -58,7 +58,7 @@ Fill this table once with the skills you actually use. Delete rows for tech you 
 
 ## Onboarding a new sibling repo
 
-Run `agentboard add-repo <path-to-sibling>` from this hub folder. That copies per-repo entry file templates (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) into the sibling so its AI CLI sessions point back at this hub's `.platform/` pack.
+Run `ab add-repo <path-to-sibling>` from this hub folder. That copies per-repo entry file templates (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) into the sibling so its AI CLI sessions point back at this hub's `.platform/` pack.
 
 Then:
 1. Add a row to the **Repos** table above.

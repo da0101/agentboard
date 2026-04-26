@@ -40,7 +40,7 @@ _ab_session_event() {
 # Sets _ab_daemon_was_started=1 so the caller can stop it on exit.
 _ab_daemon_was_started=0
 _ab_ensure_daemon() {
-  command -v agentboard >/dev/null 2>&1 || return 0
+  command -v ab >/dev/null 2>&1 || return 0
   command -v node >/dev/null 2>&1 || return 0
   [[ -d ".platform" ]] || return 0
   local _pf=".platform/.daemon-port"
@@ -50,14 +50,14 @@ _ab_ensure_daemon() {
       return 0  # already running
     fi
   fi
-  agentboard daemon start >/dev/null 2>&1 || return 0
+  ab daemon start >/dev/null 2>&1 || return 0
   _ab_daemon_was_started=1
 }
 
 _ab_stop_daemon() {
   [[ "$_ab_daemon_was_started" -eq 1 ]] || return 0
-  command -v agentboard >/dev/null 2>&1 || return 0
-  agentboard daemon stop >/dev/null 2>&1 || true
+  command -v ab >/dev/null 2>&1 || return 0
+  ab daemon stop >/dev/null 2>&1 || true
   _ab_daemon_was_started=0
 }
 

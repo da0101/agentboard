@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-AGENTBOARD="$ROOT/bin/agentboard"
+AGENTBOARD="$ROOT/bin/ab"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -128,7 +128,7 @@ init_project() {
     git config user.email test@example.com
     git config user.name "Agentboard Test"
     git add .
-    git commit -m "agentboard init" >/dev/null 2>&1
+    git commit -m "ab init" >/dev/null 2>&1
   )
 }
 
@@ -141,7 +141,7 @@ init_hub() {
     git config user.email test@example.com
     git config user.name "Agentboard Test"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
+    git commit -m "ab init" >/dev/null 2>&1
   )
 }
 
@@ -162,7 +162,7 @@ test_single_repo_branch_inference() {
   assert_contains "$output" "billing -> repos [repo-primary]"
   assert_contains "$output" "auth-session"
   assert_contains "$output" "confidence: medium"
-  assert_contains "$output" "agentboard new-stream auth-session --domain auth --type feature --repo repo-primary"
+  assert_contains "$output" "ab new-stream auth-session --domain auth --type feature --repo repo-primary"
 }
 
 test_apply_domains_creates_stubs() {
@@ -198,7 +198,7 @@ test_default_branch_dirty_worktree_inference() {
   assert_contains "$output" "auth-errors-fix"
   assert_contains "$output" "branch: main"
   assert_contains "$output" "confidence: high"
-  assert_contains "$output" "agentboard new-stream auth-errors-fix --domain auth --type bug --repo repo-primary"
+  assert_contains "$output" "ab new-stream auth-errors-fix --domain auth --type bug --repo repo-primary"
 }
 
 test_hub_bootstrap_references_and_high_confidence_streams() {
@@ -217,7 +217,7 @@ test_hub_bootstrap_references_and_high_confidence_streams() {
   assert_contains "$output" "auth-hardening"
   assert_contains "$output" "confidence: high"
   assert_contains "$output" "billing-bug"
-  assert_contains "$output" "agentboard new-stream billing-bug --domain billing --type bug --repo frontend"
+  assert_contains "$output" "ab new-stream billing-bug --domain billing --type bug --repo frontend"
 
   assert_file_contains "$dir/.platform/backend.md" 'Repo role: backend'
   assert_file_contains "$dir/.platform/backend.md" 'Stack hint: django'

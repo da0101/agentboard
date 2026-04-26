@@ -1,5 +1,5 @@
 cmd_checkpoint() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   # --auto mode: auto-detect active stream + pull --what from latest git commit.
   # Fail-open (returns 0 on any skip condition). Designed to be called from the
@@ -15,7 +15,7 @@ cmd_checkpoint() {
     if [[ "$slug" == "-h" || "$slug" == "--help" ]]; then
       slug=""
     else
-      die "Usage: agentboard checkpoint <stream-slug> --what \"...\" --next \"...\" [--blocker \"...\"] [--focus \"...\"] [--diff] [--dry-run]"
+      die "Usage: ab checkpoint <stream-slug> --what \"...\" --next \"...\" [--blocker \"...\"] [--focus \"...\"] [--diff] [--dry-run]"
     fi
   else
     shift
@@ -70,7 +70,7 @@ cmd_checkpoint() {
         task_type="$2"; shift 2 ;;
       -h|--help)
         cat <<'EOF'
-Usage: agentboard checkpoint <stream-slug> --what "..." --next "..." [flags]
+Usage: ab checkpoint <stream-slug> --what "..." --next "..." [flags]
 
 Overwrites the stream file's `## Resume state` block so the next agent has
 compact, current context. Also prepends a dated entry to `## Progress log`
@@ -103,7 +103,7 @@ Usage tracking (auto-log a token segment when provider + tokens given):
   Use --tokens-in/out OR --cumulative-in/out, not both.
 
 After running, the next agent (Claude/Codex/Gemini) can resume by running
-`agentboard handoff <stream-slug>` and reading Resume state first.
+`ab handoff <stream-slug>` and reading Resume state first.
 EOF
         return 0 ;;
       *) die "Unknown flag for checkpoint: $1" ;;
@@ -118,8 +118,8 @@ EOF
   [[ -n "$next_action" ]] || die "checkpoint requires --next \"<one sentence>\""
 
   local stream_file="./.platform/work/${slug}.md"
-  [[ -f "$stream_file" ]] || die "$stream_file not found. Create the stream first (agentboard new-stream)."
-  has_frontmatter "$stream_file" || die "$stream_file has no v1 frontmatter. Run 'agentboard migrate --apply' first."
+  [[ -f "$stream_file" ]] || die "$stream_file not found. Create the stream first (ab new-stream)."
+  has_frontmatter "$stream_file" || die "$stream_file has no v1 frontmatter. Run 'ab migrate --apply' first."
 
   local today_str ts agent
   today_str="$(today)"
@@ -139,7 +139,7 @@ EOF
   local resume_block
   resume_block="$(cat <<EOF
 ## Resume state
-_Overwritten by \`agentboard checkpoint\` — the compact payload the next agent reads first. Keep this block under ~10 lines._
+_Overwritten by \`ab checkpoint\` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
 - **Last updated:** ${today_str} by ${agent}
 - **What just happened:** ${what}
@@ -188,7 +188,7 @@ EOF
 
   ok "Checkpoint saved to $stream_file"
   say "  ${C_DIM}next:${C_RESET} ${next_action}"
-  say "  ${C_DIM}Ready for handoff — run: agentboard handoff ${slug}${C_RESET}"
+  say "  ${C_DIM}Ready for handoff — run: ab handoff ${slug}${C_RESET}"
 
   _checkpoint_auto_log_usage "$slug" "$tokens_in" "$tokens_out" "$cum_in" "$cum_out" "$provider" "$model" "$complexity" "$task_type" "$what"
 }
@@ -262,7 +262,7 @@ _checkpoint_auto_mode() {
   local resume_block
   resume_block="$(cat <<EOF
 ## Resume state
-_Overwritten by \`agentboard checkpoint\` — the compact payload the next agent reads first. Keep this block under ~10 lines._
+_Overwritten by \`ab checkpoint\` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
 - **Last updated:** ${today_str} by ${agent} (auto)
 - **What just happened:** ${what}
@@ -411,7 +411,7 @@ _checkpoint_prepend_progress_entry() {
   if ! grep -q '^## Progress log[[:space:]]*$' "$file"; then
     {
       cat "$file"
-      printf '\n## Progress log\n_Append-only. Auto-trimmed by `agentboard checkpoint` to last 10 entries._\n\n'
+      printf '\n## Progress log\n_Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._\n\n'
       cat "$entry_file"
       printf '\n'
     } > "$tmp"

@@ -1,5 +1,5 @@
 cmd_close() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local slug="${1:-}"
   if [[ -z "$slug" || "${slug:0:2}" == "--" || "$slug" == "-h" ]]; then
@@ -7,7 +7,7 @@ cmd_close() {
       _close_print_help
       return 0
     else
-      die "Usage: agentboard close <stream-slug> [--confirm] [--dry-run]"
+      die "Usage: ab close <stream-slug> [--confirm] [--dry-run]"
     fi
   fi
   shift
@@ -25,7 +25,7 @@ cmd_close() {
 
   local stream_file="./.platform/work/${slug}.md"
   [[ -f "$stream_file" ]] || die "$stream_file not found."
-  has_frontmatter "$stream_file" || die "$stream_file has no v1 frontmatter. Run 'agentboard migrate --apply' first."
+  has_frontmatter "$stream_file" || die "$stream_file has no v1 frontmatter. Run 'ab migrate --apply' first."
 
   if (( ! confirm )); then
     _close_print_harvest_prompt "$slug" "$stream_file"
@@ -37,7 +37,7 @@ cmd_close() {
     if [[ "$_approved" != "true" ]]; then
       die "closure_approved is not set to true in $stream_file.
   Complete the harvest checklist first:
-    agentboard close $slug
+    ab close $slug
   Then set  closure_approved: true  in the stream file and re-run --confirm."
     fi
   fi
@@ -78,7 +78,7 @@ cmd_close() {
 
 _close_print_help() {
   cat <<'EOF'
-Usage: agentboard close <stream-slug> [--confirm] [--dry-run]
+Usage: ab close <stream-slug> [--confirm] [--dry-run]
 
 Two-step stream closure. Default run prints the harvest checklist so the
 agent can distill this stream's contribution into project memory. Then
@@ -101,7 +101,7 @@ Flags:
   --dry-run   Preview archive actions without writing.
 
 This is the compounding ritual: each close adds durable knowledge to the
-project's memory files so the next agent inherits it via `agentboard brief`.
+project's memory files so the next agent inherits it via `ab brief`.
 EOF
 }
 
@@ -147,7 +147,7 @@ ${C_BOLD}5. LEARNINGS${C_RESET} — non-obvious bug root-cause or hard-won patte
 
 When the harvest is done:
   1. Set  closure_approved: true  in ${stream_file}
-  2. Run  ${C_BOLD}agentboard close ${slug} --confirm${C_RESET}
+  2. Run  ${C_BOLD}ab close ${slug} --confirm${C_RESET}
 
 Step 1 is required — --confirm will refuse to run without it.
 Skipping harvest is fine if the stream produced nothing durable — but once

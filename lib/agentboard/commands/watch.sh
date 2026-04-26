@@ -1,5 +1,5 @@
 cmd_watch() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local interval=10 threshold=1 stream="" stop=0 once=0 quiet=0
   local install=0 uninstall=0 status_mode=0
@@ -54,7 +54,7 @@ cmd_watch() {
       [[ -n "$_slug" ]] && streams+=("$_slug")
     done < <(_watch_active_slugs)
     if (( ${#streams[@]} == 0 )); then
-      printf '  \033[31m✖\033[0m  Could not auto-detect an active stream. Run '\''agentboard migrate --apply'\''\n     if streams lack frontmatter, or pass --stream <slug> explicitly.\n' >&2
+      printf '  \033[31m✖\033[0m  Could not auto-detect an active stream. Run '\''ab migrate --apply'\''\n     if streams lack frontmatter, or pass --stream <slug> explicitly.\n' >&2
       return 1
     fi
   fi
@@ -63,8 +63,8 @@ cmd_watch() {
   for s in "${streams[@]}"; do
     [[ "$s" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Stream slug must be kebab-case: $s"
     sf="./.platform/work/${s}.md"
-    [[ -f "$sf" ]] || die "$sf not found. Create the stream first (agentboard new-stream)."
-    has_frontmatter "$sf" || die "$sf has no v1 frontmatter. Run 'agentboard migrate --apply' first."
+    [[ -f "$sf" ]] || die "$sf not found. Create the stream first (ab new-stream)."
+    has_frontmatter "$sf" || die "$sf has no v1 frontmatter. Run 'ab migrate --apply' first."
   done
 
   if (( once )); then
@@ -78,7 +78,7 @@ cmd_watch() {
   if [[ -f "$pid_file" ]]; then
     local existing_pid; existing_pid="$(cat "$pid_file" 2>/dev/null || echo "")"
     if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
-      die "A watch is already running (PID $existing_pid). Stop it first with: agentboard watch --stop"
+      die "A watch is already running (PID $existing_pid). Stop it first with: ab watch --stop"
     fi
     rm -f "$pid_file"
   fi
@@ -91,7 +91,7 @@ cmd_watch() {
     say "${C_BOLD}Watching${C_RESET} ${#streams[@]} streams: ${C_CYAN}${streams_label}${C_RESET} interval=${interval}min threshold=${threshold}"
   fi
   say "${C_DIM}Auto-checkpoints will fire when ≥ ${threshold} tracked file(s) changed since last poll.${C_RESET}"
-  say "${C_DIM}Stop with:  agentboard watch --stop   (or Ctrl+C in this terminal)${C_RESET}"
+  say "${C_DIM}Stop with:  ab watch --stop   (or Ctrl+C in this terminal)${C_RESET}"
 
   echo $$ > "$pid_file"
   trap "rm -f '$pid_file'; exit 0" INT TERM EXIT
@@ -106,7 +106,7 @@ cmd_watch() {
 
 _watch_print_help() {
   cat <<'EOF'
-Usage: agentboard watch [--interval MIN] [--threshold N] [--stream SLUG] [--once] [--stop]
+Usage: ab watch [--interval MIN] [--threshold N] [--stream SLUG] [--once] [--stop]
 
 Periodically polls `git status`. When ≥ threshold tracked files have changed
 since the last poll, writes a mechanical checkpoint to each active stream so
@@ -130,12 +130,12 @@ Flags:
   --status            Report install / active state + log file size + last-run.
 
 Typical usage:
-  agentboard watch --install      # once per project — auto-poll every 10 min
-  agentboard watch --status       # check it's running
-  agentboard watch &               # or: run in foreground for this shell
-  agentboard watch --once          # manual sync right before switching CLIs
-  agentboard watch --stop          # stop a foreground watcher
-  agentboard watch --uninstall     # remove the scheduler
+  ab watch --install      # once per project — auto-poll every 10 min
+  ab watch --status       # check it's running
+  ab watch &               # or: run in foreground for this shell
+  ab watch --once          # manual sync right before switching CLIs
+  ab watch --stop          # stop a foreground watcher
+  ab watch --uninstall     # remove the scheduler
 
 Environment:
   AGENTBOARD_WATCH_HOME  Override the HOME-rooted scheduler/log destination.
@@ -435,7 +435,7 @@ _watch_scheduler() {
 }
 
 # Kebab-case slug derived from the project directory name. Used as a unique
-# per-project label for the launchd/systemd unit so multiple agentboard
+# per-project label for the launchd/systemd unit so multiple ab
 # projects can coexist on one machine without colliding.
 _watch_project_slug() {
   local name
@@ -446,16 +446,16 @@ _watch_project_slug() {
     | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
 }
 
-# Resolve the absolute path to the agentboard binary so scheduled jobs don't
+# Resolve the absolute path to the ab binary so scheduled jobs don't
 # depend on PATH. Walks up from the sourced script location.
-_watch_agentboard_bin() {
+_watch_ab_bin() {
   local bin
-  if [[ -n "${AGENTBOARD_ROOT:-}" && -x "$AGENTBOARD_ROOT/bin/agentboard" ]]; then
-    bin="$AGENTBOARD_ROOT/bin/agentboard"
-  elif command -v agentboard >/dev/null 2>&1; then
-    bin="$(command -v agentboard)"
+  if [[ -n "${AGENTBOARD_ROOT:-}" && -x "$AGENTBOARD_ROOT/bin/ab" ]]; then
+    bin="$AGENTBOARD_ROOT/bin/ab"
+  elif command -v ab >/dev/null 2>&1; then
+    bin="$(command -v ab)"
   else
-    die "Cannot resolve absolute path to agentboard binary"
+    die "Cannot resolve absolute path to ab binary"
   fi
   printf '%s' "$bin"
 }
@@ -492,7 +492,7 @@ _watch_launchd_target() {
 
 _watch_log_path() {
   local slug="$1"
-  printf '%s/.agentboard/watch-%s.log' "$(_watch_home)" "$slug"
+  printf '%s/.ab/watch-%s.log' "$(_watch_home)" "$slug"
 }
 
 _watch_install() {
@@ -502,11 +502,11 @@ _watch_install() {
 
   local slug; slug="$(_watch_project_slug)"
   [[ -n "$slug" ]] || die "Could not derive a project slug from PWD ($PWD). Rename the directory to contain at least one alphanumeric character."
-  local bin; bin="$(_watch_agentboard_bin)"
+  local bin; bin="$(_watch_ab_bin)"
   local project_dir; project_dir="$(pwd)"
   local log_file; log_file="$(_watch_log_path "$slug")"
 
-  mkdir -p "$(_watch_home)/.agentboard"
+  mkdir -p "$(_watch_home)/.ab"
 
   if [[ "$sched" == "launchd" ]]; then
     _watch_install_launchd "$slug" "$bin" "$project_dir" "$log_file" "$interval" "$threshold"
@@ -581,7 +581,7 @@ EOF
   ok "Installed launchd agent ${C_BOLD}${label}${C_RESET}"
   say "  ${C_DIM}plist:${C_RESET} $plist"
   say "  ${C_DIM}interval:${C_RESET} every ${interval} min  ${C_DIM}log:${C_RESET} $log_file"
-  say "  ${C_DIM}check:${C_RESET} agentboard watch --status"
+  say "  ${C_DIM}check:${C_RESET} ab watch --status"
 }
 
 _watch_install_systemd() {
@@ -631,7 +631,7 @@ EOF
   say "  ${C_DIM}service:${C_RESET} $service"
   say "  ${C_DIM}timer:${C_RESET}   $timer"
   say "  ${C_DIM}interval:${C_RESET} every ${interval} min  ${C_DIM}log:${C_RESET} $log_file"
-  say "  ${C_DIM}check:${C_RESET} agentboard watch --status"
+  say "  ${C_DIM}check:${C_RESET} ab watch --status"
 }
 
 _watch_uninstall() {
@@ -655,7 +655,7 @@ _watch_uninstall() {
     if (( removed )); then
       _watch_rmdir_if_empty "$(_watch_home)/Library/LaunchAgents"
       _watch_rmdir_if_empty "$(_watch_home)/Library"
-      _watch_rmdir_if_empty "$(_watch_home)/.agentboard"
+      _watch_rmdir_if_empty "$(_watch_home)/.ab"
       ok "Uninstalled launchd agent ${C_BOLD}${label}${C_RESET}"
     else
       say "${C_DIM}No launchd agent found for this project (slug=${slug}).${C_RESET}"
@@ -675,7 +675,7 @@ _watch_uninstall() {
       _watch_rmdir_if_empty "$(_watch_home)/.config/systemd/user"
       _watch_rmdir_if_empty "$(_watch_home)/.config/systemd"
       _watch_rmdir_if_empty "$(_watch_home)/.config"
-      _watch_rmdir_if_empty "$(_watch_home)/.agentboard"
+      _watch_rmdir_if_empty "$(_watch_home)/.ab"
       ok "Uninstalled systemd timer ${C_BOLD}${unit}.timer${C_RESET}"
     else
       say "${C_DIM}No systemd units found for this project (slug=${slug}).${C_RESET}"
@@ -712,7 +712,7 @@ _watch_status() {
       printf '  %sInstalled:%s no — but service is still loaded (orphan). Run: launchctl bootout gui/$(id -u)/%s\n' \
         "$C_DIM" "$C_RESET" "$label"
     else
-      printf '  %sInstalled:%s no — run: agentboard watch --install\n' "$C_DIM" "$C_RESET"
+      printf '  %sInstalled:%s no — run: ab watch --install\n' "$C_DIM" "$C_RESET"
     fi
   else
     local unit="agentboard-${slug}"
@@ -740,7 +740,7 @@ _watch_status() {
       printf '  %sInstalled:%s no — but service is still loaded (orphan). Run: systemctl --user disable --now %s.timer\n' \
         "$C_DIM" "$C_RESET" "$unit"
     else
-      printf '  %sInstalled:%s no — run: agentboard watch --install\n' "$C_DIM" "$C_RESET"
+      printf '  %sInstalled:%s no — run: ab watch --install\n' "$C_DIM" "$C_RESET"
     fi
   fi
 

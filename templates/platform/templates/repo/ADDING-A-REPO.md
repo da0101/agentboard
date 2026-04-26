@@ -69,7 +69,7 @@ Set up the baseline: language toolchain, dependency file (`package.json`, `pypro
 
 ## Step 2 — Drop in the repo entry files
 
-> `agentboard add-repo <path>` now refuses to overwrite existing `CLAUDE.md`, `AGENTS.md`, or `GEMINI.md`. If the target repo already has any of them, stop and follow the prepend-don't-delete activation rules instead of clobbering user content.
+> `ab add-repo <path>` now refuses to overwrite existing `CLAUDE.md`, `AGENTS.md`, or `GEMINI.md`. If the target repo already has any of them, stop and follow the prepend-don't-delete activation rules instead of clobbering user content.
 
 Copy these three template files into the new repo's root and fill in the placeholders:
 

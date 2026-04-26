@@ -1,5 +1,5 @@
 cmd_search() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local _context=3 _quiet=0 _scope="all"
   local -a _query_words=()
@@ -12,12 +12,12 @@ cmd_search() {
       --domains)      _scope="domains"; shift ;;
       --memory)       _scope="memory"; shift ;;
       --conventions)  _scope="conventions"; shift ;;
-      --*)            die "Unknown flag: $1. Run 'agentboard search --help'." ;;
+      --*)            die "Unknown flag: $1. Run 'ab search --help'." ;;
       *)              _query_words+=("$1"); shift ;;
     esac
   done
 
-  (( ${#_query_words[@]} > 0 )) || die "Usage: agentboard search <query terms>"
+  (( ${#_query_words[@]} > 0 )) || die "Usage: ab search <query terms>"
 
   # OR-join all query words into a single regex pattern
   local _pattern
@@ -86,7 +86,7 @@ cmd_search() {
 
 _search_help() {
   cat <<'EOF'
-agentboard search <query terms...> [flags]
+ab search <query terms...> [flags]
 
 Search .platform/ context files for relevant snippets before loading full files.
 Each term is OR-matched (case-insensitive). Results show file path + surrounding
@@ -104,10 +104,10 @@ OPTIONS
   -h, --help          Show this help
 
 EXAMPLES
-  agentboard search "event deduplication"
-  agentboard search auth token session --domains
-  agentboard search migration --memory -C 5
-  agentboard search "file watcher" -q
+  ab search "event deduplication"
+  ab search auth token session --domains
+  ab search migration --memory -C 5
+  ab search "file watcher" -q
 
 SCOPE (default: all)
   All:          architecture.md + STATUS.md + BRIEF.md + domains/ + conventions/ + memory/

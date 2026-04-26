@@ -7,15 +7,15 @@ cmd_daemon() {
     stop)         _daemon_stop ;;
     status)       _daemon_status ;;
     -h|--help)    _daemon_help ;;
-    *)            die "Unknown daemon subcommand: $sub (see 'agentboard daemon --help')" ;;
+    *)            die "Unknown daemon subcommand: $sub (see 'ab daemon --help')" ;;
   esac
 }
 
 _daemon_start() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
-  local _daemon_js="$AGENTBOARD_ROOT/bin/agentboard-daemon.js"
-  [[ -f "$_daemon_js" ]] || die "agentboard-daemon.js not found at $_daemon_js"
+  local _daemon_js="$AGENTBOARD_ROOT/bin/ab-daemon.js"
+  [[ -f "$_daemon_js" ]] || die "ab-daemon.js not found at $_daemon_js"
 
   # Already running?
   if [[ -f ".platform/.daemon-port" ]]; then
@@ -28,7 +28,7 @@ _daemon_start() {
     rm -f ".platform/.daemon-port"
   fi
 
-  command -v node >/dev/null 2>&1 || die "node is required for 'agentboard daemon'. Install Node.js 18+."
+  command -v node >/dev/null 2>&1 || die "node is required for 'ab daemon'. Install Node.js 18+."
 
   node "$_daemon_js" \
     "$(pwd)/.platform/events.jsonl" \
@@ -94,13 +94,13 @@ _daemon_status() {
     say "Daemon: ${C_GREEN}running${C_RESET} on port ${_port} — ${_events:-0} events logged"
   else
     warn "Stale port file at .platform/.daemon-port (port ${_port} not responding)"
-    say "  Run: ${C_BOLD}agentboard daemon start${C_RESET}"
+    say "  Run: ${C_BOLD}ab daemon start${C_RESET}"
   fi
 }
 
 _daemon_help() {
   cat <<'EOF'
-agentboard daemon <subcommand>
+ab daemon <subcommand>
 
   start     Start the event daemon (requires node 18+)
   stop      Stop the running daemon

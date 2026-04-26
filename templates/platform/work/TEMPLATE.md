@@ -32,7 +32,7 @@ _Metadata rules: `stream_id` must be `stream-<slug>`, `slug` must match the file
 _Append-only. Format: `YYYY-MM-DD — <decision> — <rationale>`_
 
 ## Resume state
-_Overwritten by `agentboard checkpoint` — the compact payload the next agent reads first. Keep this block under ~10 lines._
+_Overwritten by `ab checkpoint` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
 - **Last updated:** — by —
 - **What just happened:** _not set_
@@ -41,7 +41,7 @@ _Overwritten by `agentboard checkpoint` — the compact payload the next agent r
 - **Blockers:** none
 
 ## Progress log
-_Append-only. `agentboard checkpoint` prepends a dated line and auto-trims to the last 10 entries. Format: `YYYY-MM-DD HH:MM — <what happened>`._
+_Append-only. `ab checkpoint` prepends a dated line and auto-trims to the last 10 entries. Format: `YYYY-MM-DD HH:MM — <what happened>`._
 
 ## Open questions
 _Things blocked on user input. Remove when resolved._

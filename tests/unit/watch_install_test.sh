@@ -70,7 +70,7 @@ _run_watch_fn_capture() {
 set -euo pipefail
 
 export PATH="$WATCH_STUB_BIN:$PATH"
-source "$TEST_ROOT/bin/agentboard"
+source "$TEST_ROOT/bin/ab"
 
 _watch_scheduler() {
   printf '%s\n' "${WATCH_TEST_SCHEDULER:-launchd}"
@@ -78,9 +78,9 @@ _watch_scheduler() {
 
 _watch_agentboard_bin() {
   if [[ "${WATCH_TEST_BIN_MODE:-ok}" == "missing" ]]; then
-    die "Cannot resolve absolute path to agentboard binary"
+    die "Cannot resolve absolute path to ab binary"
   fi
-  printf '%s' "${WATCH_TEST_BIN:-/tmp/agentboard-bin}"
+  printf '%s' "${WATCH_TEST_BIN:-/tmp/ab-bin}"
 }
 
 cd "$WATCH_TEST_CWD"
@@ -164,18 +164,18 @@ test_watch_install_launchd_happy_path() {
 
   export AGENTBOARD_WATCH_HOME="$home"
   export WATCH_TEST_SCHEDULER="launchd"
-  export WATCH_TEST_BIN="/opt/agentboard/bin/agentboard"
+  export WATCH_TEST_BIN="/opt/ab/bin/ab"
   export WATCH_TEST_LAUNCHCTL_PRINT="1"
 
   _run_watch_fn_capture output "$dir" _watch_install 2 3
   assert_status "$RUN_STATUS" 0
   assert_contains "$output" "Installed launchd agent"
   [[ -f "$plist" ]] || fail "expected plist at $plist"
-  assert_file_contains "$plist" "<string>/opt/agentboard/bin/agentboard</string>"
+  assert_file_contains "$plist" "<string>/opt/ab/bin/ab</string>"
   assert_file_contains "$plist" "<key>WorkingDirectory</key>"
   assert_file_contains "$plist" "<string>$dir</string>"
   assert_file_contains "$plist" "<integer>120</integer>"
-  assert_file_contains "$plist" "$home/.agentboard/watch-${slug}.log"
+  assert_file_contains "$plist" "$home/.ab/watch-${slug}.log"
 }
 
 test_watch_install_systemd_happy_path() {
@@ -184,12 +184,12 @@ test_watch_install_systemd_happy_path() {
   dir="$(mktemp -d)"
   home="$(mktemp -d)"
   slug="$(printf '%s' "$(basename "$dir")" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')"
-  service="$home/.config/systemd/user/agentboard-${slug}.service"
-  timer="$home/.config/systemd/user/agentboard-${slug}.timer"
+  service="$home/.config/systemd/user/ab-${slug}.service"
+  timer="$home/.config/systemd/user/ab-${slug}.timer"
 
   export AGENTBOARD_WATCH_HOME="$home"
   export WATCH_TEST_SCHEDULER="systemd"
-  export WATCH_TEST_BIN="/opt/Agent Board/bin/agentboard"
+  export WATCH_TEST_BIN="/opt/Agent Board/bin/ab"
 
   _run_watch_fn_capture output "$dir" _watch_install 7 4
   assert_status "$RUN_STATUS" 0
@@ -197,7 +197,7 @@ test_watch_install_systemd_happy_path() {
   [[ -f "$service" ]] || fail "expected service at $service"
   [[ -f "$timer" ]] || fail "expected timer at $timer"
   assert_file_contains "$service" "WorkingDirectory=$dir"
-  assert_file_contains "$service" "ExecStart=\"/opt/Agent Board/bin/agentboard\" watch --once --quiet --threshold 4"
+  assert_file_contains "$service" "ExecStart=\"/opt/Agent Board/bin/ab\" watch --once --quiet --threshold 4"
   assert_file_contains "$timer" "OnUnitActiveSec=7min"
 }
 
@@ -211,7 +211,7 @@ test_watch_install_reinstall_is_idempotent() {
 
   export AGENTBOARD_WATCH_HOME="$home"
   export WATCH_TEST_SCHEDULER="launchd"
-  export WATCH_TEST_BIN="/opt/agentboard/bin/agentboard"
+  export WATCH_TEST_BIN="/opt/ab/bin/ab"
   export WATCH_TEST_LAUNCHCTL_PRINT="1"
 
   _run_watch_fn_capture output "$dir" _watch_install 5 1
@@ -231,7 +231,7 @@ test_watch_uninstall_restores_temp_home() {
 
   export AGENTBOARD_WATCH_HOME="$home"
   export WATCH_TEST_SCHEDULER="launchd"
-  export WATCH_TEST_BIN="/opt/agentboard/bin/agentboard"
+  export WATCH_TEST_BIN="/opt/ab/bin/ab"
   export WATCH_TEST_LAUNCHCTL_PRINT="1"
 
   before="$(_snapshot_tree "$home")"
@@ -300,7 +300,7 @@ test_watch_install_rejects_missing_bin() {
 
   _run_watch_fn_capture output "$dir" _watch_install 10 1
   assert_status "$RUN_STATUS" 1
-  assert_contains "$output" "Cannot resolve absolute path to agentboard binary"
+  assert_contains "$output" "Cannot resolve absolute path to ab binary"
 }
 
 test_watch_status_distinguishes_states() {
@@ -317,7 +317,7 @@ test_watch_status_distinguishes_states() {
 
   _run_watch_fn_capture output "$dir" _watch_status
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "Installed: no — run: agentboard watch --install"
+  assert_contains "$output" "Installed: no — run: ab watch --install"
 
   mkdir -p "$(dirname "$plist")"
   printf '%s\n' '<plist />' > "$plist"
@@ -349,13 +349,13 @@ test_watch_install_escapes_xml_paths() {
 
   export AGENTBOARD_WATCH_HOME="$home"
   export WATCH_TEST_SCHEDULER="launchd"
-  export WATCH_TEST_BIN="/tmp/Agent&Board/bin/agentboard"
+  export WATCH_TEST_BIN="/tmp/Agent&Board/bin/ab"
   export WATCH_TEST_LAUNCHCTL_PRINT="1"
 
   _run_watch_fn_capture output "$dir" _watch_install 10 1
   assert_status "$RUN_STATUS" 0
   assert_file_contains "$plist" "Proj&lt;One&gt;&amp;Two"
-  assert_file_contains "$plist" "/tmp/Agent&amp;Board/bin/agentboard"
+  assert_file_contains "$plist" "/tmp/Agent&amp;Board/bin/ab"
 
   if command -v plutil >/dev/null 2>&1; then
     run_and_capture output plutil -lint "$plist"

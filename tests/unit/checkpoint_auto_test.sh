@@ -16,9 +16,9 @@ setup_auto_fixture() {
   (
     cd "$dir"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth --base-branch main --branch feat/login >/dev/null
     git add .platform
     git commit -m "new stream" >/dev/null 2>&1
@@ -72,7 +72,7 @@ test_auto_mode_silent_when_multiple_active_streams() {
   (
     cd "$dir"
     git checkout -q main
-    "$TEST_ROOT/bin/agentboard" new-stream payments \
+    "$TEST_ROOT/bin/ab" new-stream payments \
       --domain auth --base-branch main --branch feat/payments >/dev/null
     git add .platform
     git commit -m "second stream" >/dev/null 2>&1
@@ -93,7 +93,7 @@ test_auto_mode_accepts_explicit_slug() {
   (
     cd "$dir"
     git checkout -q main
-    "$TEST_ROOT/bin/agentboard" new-stream payments \
+    "$TEST_ROOT/bin/ab" new-stream payments \
       --domain auth --base-branch main --branch feat/payments >/dev/null
     git add .platform
     git commit -m "picked target commit" >/dev/null 2>&1
@@ -109,8 +109,8 @@ test_auto_mode_accepts_explicit_slug() {
 test_post_commit_hook_template_calls_auto() {
   local hook="$TEST_ROOT/templates/platform/scripts/hooks/post-commit"
   [[ -f "$hook" ]] || fail "post-commit template missing"
-  grep -q "agentboard checkpoint --auto" "$hook" \
-    || fail "post-commit template does not call 'agentboard checkpoint --auto'"
+  grep -q "ab checkpoint --auto" "$hook" \
+    || fail "post-commit template does not call 'ab checkpoint --auto'"
 }
 
 test_auto_mode_writes_checkpoint_from_commit_message

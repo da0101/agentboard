@@ -16,7 +16,7 @@ _ab_install_git_hook() {
 
   local hook_src="${project_dir}/${platform_script}"
   local hook_dst="${project_dir}/.git/hooks/${hook_name}"
-  local marker="agentboard"
+  local marker="ab"
 
   [[ -d "${project_dir}/.git" ]] || return 0
 
@@ -28,7 +28,7 @@ _ab_install_git_hook() {
   # Stub delegates to the platform script (kept in .platform/, git-trackable).
   # Single-quoted string keeps $? literal in the written file.
   local stub='#!/usr/bin/env bash
-# agentboard — '"$hook_name"'
+# ab — '"$hook_name"'
 [[ -f "'"$platform_script"'" ]] && bash "'"$platform_script"'" || exit $?'
 
   if (( dry_run )); then
@@ -36,12 +36,12 @@ _ab_install_git_hook() {
       printf '  %s+%s would write %s  %s(new — %s)%s\n' \
         "$C_CYAN" "$C_RESET" "$hook_dst" "$C_DIM" "$hook_name" "$C_RESET"
     elif grep -q "$marker" "$hook_dst" 2>/dev/null; then
-      printf '  %s↷%s %s  %s(agentboard %s already present — no change)%s\n' \
+      printf '  %s↷%s %s  %s(ab %s already present — no change)%s\n' \
         "$C_YELLOW" "$C_RESET" "$hook_dst" "$C_DIM" "$hook_name" "$C_RESET"
     elif (( force )); then
       printf '  %s+%s would back up %s and overwrite\n' "$C_CYAN" "$C_RESET" "$hook_dst"
     else
-      printf '  %s!%s %s exists without agentboard — re-run with --force to overwrite\n' \
+      printf '  %s!%s %s exists without ab — re-run with --force to overwrite\n' \
         "$C_YELLOW" "$C_RESET" "$hook_dst"
     fi
     return 0
@@ -54,7 +54,7 @@ _ab_install_git_hook() {
     printf '  %s✓%s %s  %s(new — %s installed)%s\n' \
       "$C_GREEN" "$C_RESET" "$hook_dst" "$C_DIM" "$hook_name" "$C_RESET"
   elif grep -q "$marker" "$hook_dst" 2>/dev/null; then
-    printf '  %s↷%s %s  %s(agentboard %s already present — no change)%s\n' \
+    printf '  %s↷%s %s  %s(ab %s already present — no change)%s\n' \
       "$C_YELLOW" "$C_RESET" "$hook_dst" "$C_DIM" "$hook_name" "$C_RESET"
   elif (( force )); then
     local ts; ts="$(date +%s)"
@@ -65,10 +65,10 @@ _ab_install_git_hook() {
     printf '  %s✓%s %s  %s(overwrote — backup at %s)%s\n' \
       "$C_GREEN" "$C_RESET" "$hook_dst" "$C_DIM" "$backup" "$C_RESET"
   else
-    warn "$hook_dst exists and does NOT reference agentboard."
+    warn "$hook_dst exists and does NOT reference ab."
     say "  ${C_DIM}Options: --force to overwrite, or append manually:${C_RESET}"
     printf '\n'
-    printf '      # agentboard %s\n' "$hook_name"
+    printf '      # ab %s\n' "$hook_name"
     printf '      [[ -f "%s" ]] && bash "%s" || exit $?\n' \
       "$platform_script" "$platform_script"
     printf '\n'
@@ -94,7 +94,7 @@ _ab_install_aliases() {
         printf '  %s↺%s %s  %s(removed old block — re-appending)%s\n' \
           "$C_YELLOW" "$C_RESET" "$rc" "$C_DIM" "$C_RESET"
       else
-        printf '  %s↷%s %s  %s(agentboard aliases already present — use --force to update)%s\n' \
+        printf '  %s↷%s %s  %s(ab aliases already present — use --force to update)%s\n' \
           "$C_YELLOW" "$C_RESET" "$rc" "$C_DIM" "$C_RESET"
         continue
       fi
@@ -113,7 +113,7 @@ gemini() {
 }
 # agentboard:aliases:end
 SHELL
-    printf '  %s✓%s %s  %s(agentboard shell functions appended)%s\n' \
+    printf '  %s✓%s %s  %s(ab shell functions appended)%s\n' \
       "$C_GREEN" "$C_RESET" "$rc" "$C_DIM" "$C_RESET"
     did_write=1
   done
@@ -126,7 +126,7 @@ SHELL
 }
 
 cmd_install_hooks() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local force=0 dry_run=0 aliases_only=0
   while [[ $# -gt 0 ]]; do
@@ -255,15 +255,15 @@ JSON
     "$C_CYAN" '$(git rev-parse --show-toplevel 2>/dev/null || pwd)' "$C_RESET"
   printf '    alias gemini=%s"bash \"%s/.platform/scripts/gemini-ab\""%s\n' \
     "$C_CYAN" '$(git rev-parse --show-toplevel 2>/dev/null || pwd)' "$C_RESET"
-  say "  ${C_DIM}These wrappers run \`agentboard brief\` before each session — same as Claude Code's session hook.${C_RESET}"
+  say "  ${C_DIM}These wrappers run \`ab brief\` before each session — same as Claude Code's session hook.${C_RESET}"
 }
 
 _install_hooks_print_help() {
   cat <<'EOF'
-Usage: agentboard install-hooks [--force] [--dry-run]
-       agentboard install-hooks --aliases [--force]
+Usage: ab install-hooks [--force] [--dry-run]
+       ab install-hooks --aliases [--force]
 
-Installs the full agentboard hook stack for all providers.
+Installs the full ab hook stack for all providers.
 
 What gets installed:
   .platform/scripts/hooks/bash-guard.sh         [Claude Code only]
@@ -283,7 +283,7 @@ What gets installed:
 
   .platform/scripts/codex-ab                     [Codex CLI]
   .platform/scripts/gemini-ab                    [Gemini CLI]
-      Provider wrappers — run `agentboard brief` before launch so agents
+      Provider wrappers — run `ab brief` before launch so agents
       start every session with full project context.
 
 Flags:
@@ -297,8 +297,8 @@ Flags:
   --dry-run   Print what would change without writing anything.
 
 Notes:
-  - Fresh `agentboard init` already installs everything. This command is
-    for existing projects, re-install, or upgrading hooks after agentboard update.
+  - Fresh `ab init` already installs everything. This command is
+    for existing projects, re-install, or upgrading hooks after ab update.
   - All hooks are fail-open: errors allow through rather than block.
   - --aliases is the only step that modifies files outside the project dir.
 EOF

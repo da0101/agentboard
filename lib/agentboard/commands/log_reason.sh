@@ -1,16 +1,16 @@
 cmd_log_reason() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   # Parse args: optional file path, then reason string
   # Signatures:
-  #   agentboard log-reason "reason text"           (no file)
-  #   agentboard log-reason src/auth.ts "reason"    (with file)
-  #   agentboard log-reason --help
+  #   ab log-reason "reason text"           (no file)
+  #   ab log-reason src/auth.ts "reason"    (with file)
+  #   ab log-reason --help
 
   local _file="" _reason=""
   case "${1:-}" in
     -h|--help) _log_reason_help; return 0 ;;
-    "")        die "Usage: agentboard log-reason [<file>] \"<reason>\"" ;;
+    "")        die "Usage: ab log-reason [<file>] \"<reason>\"" ;;
   esac
 
   # If 2 args: first is file, second is reason
@@ -110,15 +110,15 @@ cmd_log_reason() {
 
 _log_reason_help() {
   cat <<'EOF'
-agentboard log-reason [<file>] "<reason>"
+ab log-reason [<file>] "<reason>"
 
 Log a one-sentence explanation of WHY a change was made.
 Written to .platform/events.jsonl so the next agent understands
 the reasoning behind every significant edit.
 
 Examples:
-  agentboard log-reason src/auth.ts "Extracted token validation into middleware so Codex can call it without duplicating logic"
-  agentboard log-reason "Removed legacy polling loop — replaced by daemon push events"
+  ab log-reason src/auth.ts "Extracted token validation into middleware so Codex can call it without duplicating logic"
+  ab log-reason "Removed legacy polling loop — replaced by daemon push events"
 
 When to call it (after Write/Edit):
   - Refactors and extractions

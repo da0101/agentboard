@@ -174,7 +174,7 @@ test_install_hooks_help() {
   _fresh_project "$dir"
   run_cli_capture output "$dir" install-hooks --help
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "Usage: agentboard install-hooks"
+  assert_contains "$output" "Usage: ab install-hooks"
   assert_contains "$output" "bash-guard.sh"
 }
 

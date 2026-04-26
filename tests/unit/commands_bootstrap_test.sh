@@ -13,7 +13,7 @@ test_bootstrap_rejects_unknown_flag() {
 
   run_cli_capture output "$dir" bootstrap --bad-flag
   assert_status "$RUN_STATUS" 1
-  assert_contains "$output" "Usage: agentboard bootstrap [--apply-domains]"
+  assert_contains "$output" "Usage: ab bootstrap [--apply-domains]"
 }
 
 test_bootstrap_seeds_placeholder_brief_from_single_stream() {

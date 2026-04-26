@@ -1,9 +1,9 @@
 cmd_progress() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local slug="${1:-}"
   shift || true
-  [[ -n "$slug" ]] || die "Usage: agentboard progress <stream-slug> [--base <branch>] [--note \"<text>\"] [--dry-run]"
+  [[ -n "$slug" ]] || die "Usage: ab progress <stream-slug> [--base <branch>] [--note \"<text>\"] [--dry-run]"
   [[ "$slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Stream slug must be kebab-case."
 
   local base_override="" note="" dry_run=0
@@ -21,9 +21,9 @@ cmd_progress() {
   done
 
   local stream_file="./.platform/work/${slug}.md"
-  [[ -f "$stream_file" ]] || die "$stream_file not found. Create the stream first (agentboard new-stream)."
+  [[ -f "$stream_file" ]] || die "$stream_file not found. Create the stream first (ab new-stream)."
 
-  git rev-parse --git-dir >/dev/null 2>&1 || die "Not inside a git repository. 'agentboard progress' needs git to compute the diff."
+  git rev-parse --git-dir >/dev/null 2>&1 || die "Not inside a git repository. 'ab progress' needs git to compute the diff."
 
   local base_branch
   if [[ -n "$base_override" ]]; then

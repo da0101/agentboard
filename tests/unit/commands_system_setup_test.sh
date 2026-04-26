@@ -12,7 +12,7 @@ test_install_dry_run_does_not_write() {
 
   run_cli_capture output "$dir" install --dry-run --dir "$bin_dir"
   assert_contains "$output" "Dry-run mode"
-  [[ ! -e "$bin_dir/agentboard" ]] || fail "dry-run install should not create a symlink"
+  [[ ! -e "$bin_dir/ab" ]] || fail "dry-run install should not create a symlink"
 }
 
 test_add_repo_refuses_to_overwrite_entry_files() {

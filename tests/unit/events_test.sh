@@ -16,9 +16,9 @@ setup_events_fixture() {
   (
     cd "$dir"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth --base-branch main --branch feat/login >/dev/null
   )
 }
@@ -84,10 +84,10 @@ test_event_logger_prefers_session_mapping_over_first_stream() {
   setup_events_fixture "$dir"
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-domain billing >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream billing-fix \
+    "$TEST_ROOT/bin/ab" new-domain billing >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream billing-fix \
       --domain billing --base-branch main --branch feat/billing >/dev/null
-    "$TEST_ROOT/bin/agentboard" current-stream --stream billing-fix --session-id sess-42 --remember --quiet >/dev/null
+    "$TEST_ROOT/bin/ab" current-stream --stream billing-fix --session-id sess-42 --remember --quiet >/dev/null
   )
   _fire_event "$dir" '{"session_id":"sess-42","tool_name":"Write","file_path":"src/billing.ts"}'
   assert_file_contains "$dir/.platform/events.jsonl" '"stream":"billing-fix"'
@@ -216,7 +216,7 @@ test_events_help_output() {
   setup_events_fixture "$dir"
   run_cli_capture output "$dir" events --help
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "Usage: agentboard events"
+  assert_contains "$output" "Usage: ab events"
   assert_contains "$output" "tail"
   assert_contains "$output" "stream"
 }

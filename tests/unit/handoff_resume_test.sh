@@ -16,9 +16,9 @@ setup_handoff_fixture() {
   (
     cd "$dir"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth \
       --base-branch main --branch feat/login >/dev/null
   )
@@ -32,7 +32,7 @@ test_handoff_includes_footer_for_next_agent() {
   run_cli_capture output "$dir" handoff login
   assert_status "$RUN_STATUS" 0
   assert_contains "$output" "For the agent reading this"
-  assert_contains "$output" "agentboard checkpoint login"
+  assert_contains "$output" "ab checkpoint login"
 }
 
 test_handoff_shows_resume_state_after_checkpoint() {
@@ -42,7 +42,7 @@ test_handoff_shows_resume_state_after_checkpoint() {
 
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" checkpoint login \
+    "$TEST_ROOT/bin/ab" checkpoint login \
       --what "added webhook handler in src/api/webhook.ts" \
       --next "write the integration test for the happy path" \
       --focus "src/api/webhook.ts:88" >/dev/null
@@ -94,7 +94,7 @@ test_handoff_resume_state_overrides_brief_excerpts() {
 
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" checkpoint login \
+    "$TEST_ROOT/bin/ab" checkpoint login \
       --what "did thing" --next "do next thing" >/dev/null
   )
 

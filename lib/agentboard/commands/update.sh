@@ -4,10 +4,10 @@ cmd_update() {
     [[ "$arg" == "--dry-run" ]] && dry_run=1
   done
 
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
   require_templates
 
-  printf '\n%s%sagentboard update%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '\n%s%sab update%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   if (( dry_run )); then
     printf '%s  Dry-run mode — no files will be changed.%s\n' "$C_DIM" "$C_RESET"
   fi
@@ -241,7 +241,7 @@ cmd_update() {
       local basename="${af#memory/}"
       local legacy="./.platform/$basename"
       if [[ -f "$legacy" && ! -f "$dst" ]]; then
-        printf '  %s↷%s %s%s%s  %s(legacy %s present at root — run `agentboard migrate-layout --apply` first)%s\n' \
+        printf '  %s↷%s %s%s%s  %s(legacy %s present at root — run `ab migrate-layout --apply` first)%s\n' \
           "$C_YELLOW" "$C_RESET" "$C_CYAN" "$af" "$C_RESET" "$C_DIM" "$basename" "$C_RESET"
         skipped=$((skipped + 1))
         continue
@@ -293,7 +293,7 @@ cmd_update() {
         "$C_YELLOW" "$C_RESET" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
       skipped=$((skipped + 1))
     else
-      printf '  %s+%s .gitignore  %s(would add/update agentboard runtime ignore block)%s\n' \
+      printf '  %s+%s .gitignore  %s(would add/update ab runtime ignore block)%s\n' \
         "$C_GREEN" "$C_RESET" "$C_DIM" "$C_RESET"
       added=$((added + 1))
     fi
@@ -306,7 +306,7 @@ cmd_update() {
         "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
       updated=$((updated + 1))
     else
-      printf '  %s+%s %s.gitignore%s  %s(agentboard runtime block)%s\n' \
+      printf '  %s+%s %s.gitignore%s  %s(ab runtime block)%s\n' \
         "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
       added=$((added + 1))
     fi

@@ -55,9 +55,9 @@ This keeps context windows lean and prevents agents from being briefed on work t
 If you want a fast, valid bootstrap instead of hand-editing, use:
 
 ```bash
-agentboard new-domain <domain-slug> [repo-id ...] [--repo <repo-id>]
-agentboard new-stream <stream-slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]
-agentboard resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>
+ab new-domain <domain-slug> [repo-id ...] [--repo <repo-id>]
+ab new-stream <stream-slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]
+ab resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>
 ```
 
 Stream slug: short-kebab-case, e.g. `stripe-webhook-retry` or `menu-banner-bug`.

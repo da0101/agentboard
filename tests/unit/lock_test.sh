@@ -20,9 +20,9 @@ setup_lock_fixture() {
   (
     cd "$dir"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth --base-branch main --branch feat/login >/dev/null
   )
 }
@@ -42,19 +42,19 @@ _curl_available() {
 # Helper: start daemon in dir, assert it started.
 _daemon_start_and_wait() {
   local dir="$1"
-  (cd "$dir"; "$TEST_ROOT/bin/agentboard" daemon start >/dev/null 2>&1)
+  (cd "$dir"; "$TEST_ROOT/bin/ab" daemon start >/dev/null 2>&1)
   [[ -f "$dir/.platform/.daemon-port" ]] || return 1
 }
 
 _daemon_start_and_wait_with_ttl() {
   local dir="$1" ttl_ms="$2"
-  (cd "$dir"; AGENTBOARD_LOCK_TTL_MS="$ttl_ms" "$TEST_ROOT/bin/agentboard" daemon start >/dev/null 2>&1)
+  (cd "$dir"; AGENTBOARD_LOCK_TTL_MS="$ttl_ms" "$TEST_ROOT/bin/ab" daemon start >/dev/null 2>&1)
   [[ -f "$dir/.platform/.daemon-port" ]] || return 1
 }
 
 _daemon_stop() {
   local dir="$1"
-  (cd "$dir"; "$TEST_ROOT/bin/agentboard" daemon stop >/dev/null 2>&1) || true
+  (cd "$dir"; "$TEST_ROOT/bin/ab" daemon stop >/dev/null 2>&1) || true
 }
 
 _daemon_port() {
@@ -67,12 +67,12 @@ _daemon_port() {
 # ---------------------------------------------------------------------------
 
 test_lock_subcommand_registered() {
-  # Verify bin/agentboard sources lock.sh
-  grep -q "lock.sh" "$TEST_ROOT/bin/agentboard" \
-    || fail "bin/agentboard does not source lock.sh"
+  # Verify bin/ab sources lock.sh
+  grep -q "lock.sh" "$TEST_ROOT/bin/ab" \
+    || fail "bin/ab does not source lock.sh"
   # Verify the dispatch case is wired
-  grep -q 'lock)' "$TEST_ROOT/bin/agentboard" \
-    || fail "bin/agentboard has no 'lock)' dispatch case"
+  grep -q 'lock)' "$TEST_ROOT/bin/ab" \
+    || fail "bin/ab has no 'lock)' dispatch case"
 }
 
 test_lock_list_no_daemon() {
@@ -384,10 +384,10 @@ test_lock_hooks_in_settings_json() {
 }
 
 test_lock_guidance_in_wrappers() {
-  assert_file_contains "$TEST_ROOT/templates/platform/scripts/codex-ab" "agentboard lock acquire <file>"
-  assert_file_contains "$TEST_ROOT/templates/platform/scripts/codex-ab" "agentboard lock release <file>"
-  assert_file_contains "$TEST_ROOT/templates/platform/scripts/gemini-ab" "agentboard lock acquire <file>"
-  assert_file_contains "$TEST_ROOT/templates/platform/scripts/gemini-ab" "agentboard lock release <file>"
+  assert_file_contains "$TEST_ROOT/templates/platform/scripts/codex-ab" "ab lock acquire <file>"
+  assert_file_contains "$TEST_ROOT/templates/platform/scripts/codex-ab" "ab lock release <file>"
+  assert_file_contains "$TEST_ROOT/templates/platform/scripts/gemini-ab" "ab lock acquire <file>"
+  assert_file_contains "$TEST_ROOT/templates/platform/scripts/gemini-ab" "ab lock release <file>"
 }
 
 # ---------------------------------------------------------------------------

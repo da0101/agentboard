@@ -1,8 +1,8 @@
 cmd_new_domain() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
   local slug="${1:-}"
   shift || true
-  [[ -n "$slug" ]] || die "Usage: agentboard new-domain <domain-slug> [repo-id ...] [--repo <repo-id>]"
+  [[ -n "$slug" ]] || die "Usage: ab new-domain <domain-slug> [repo-id ...] [--repo <repo-id>]"
   [[ "$slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Domain slug must be kebab-case."
 
   local -a repo_ids=()
@@ -32,7 +32,7 @@ cmd_new_domain() {
   local template="./.platform/domains/TEMPLATE.md"
   local target="./.platform/domains/${slug}.md"
 
-  [[ -f "$template" ]] || die "$template not found. Update agentboard templates first."
+  [[ -f "$template" ]] || die "$template not found. Update ab templates first."
   [[ ! -e "$target" ]] || die "$target already exists."
 
   mkdir -p "./.platform/domains"
@@ -46,11 +46,11 @@ cmd_new_domain() {
 }
 
 cmd_new_stream() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local slug="${1:-}"
   shift || true
-  [[ -n "$slug" ]] || die "Usage: agentboard new-stream <stream-slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]"
+  [[ -n "$slug" ]] || die "Usage: ab new-stream <stream-slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]"
   [[ "$slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Stream slug must be kebab-case."
 
   local -a domain_slugs=()
@@ -201,10 +201,10 @@ cmd_new_stream() {
 }
 
 cmd_resolve() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local target="${1:-}"
-  [[ -n "$target" ]] || die "Usage: agentboard resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>"
+  [[ -n "$target" ]] || die "Usage: ab resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>"
 
   local repos_file="./.platform/repos.md"
   local repo_rows=""
@@ -225,7 +225,7 @@ cmd_resolve() {
     repo_ids="$(frontmatter_value "$stream_file" "repo_ids")"
     domain_slugs="$(frontmatter_value "$stream_file" "domain_slugs")"
 
-    printf '\n%s%sagentboard resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+    printf '\n%s%sab resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
     printf '  type: %s\n' "stream"
     printf '  id:   %s\n' "${stream_id:-$(canonical_stream_id "$slug")}"
     printf '  slug: %s\n' "$slug"
@@ -254,7 +254,7 @@ cmd_resolve() {
     domain_id="$(frontmatter_value "$domain_file" "domain_id")"
     repo_ids="$(frontmatter_value "$domain_file" "repo_ids")"
 
-    printf '\n%s%sagentboard resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+    printf '\n%s%sab resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
     printf '  type: %s\n' "domain"
     printf '  id:   %s\n' "${domain_id:-$(canonical_domain_id "$slug")}"
     printf '  slug: %s\n' "$slug"
@@ -272,7 +272,7 @@ cmd_resolve() {
     local repo_name repo_path repo_stack repo_ref
     IFS='|' read -r repo_name repo_path repo_stack repo_ref <<< "$repo_row"
 
-    printf '\n%s%sagentboard resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+    printf '\n%s%sab resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
     printf '  type: %s\n' "repo"
     printf '  id:   %s\n' "$repo_name"
     printf '  path: %s\n' "${repo_path:-unknown}"
@@ -285,7 +285,7 @@ cmd_resolve() {
   fi
 
   if [[ "$target" == "repo-primary" ]]; then
-    printf '\n%s%sagentboard resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+    printf '\n%s%sab resolve%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
     printf '  type: %s\n' "repo"
     printf '  id:   %s\n' "repo-primary"
     printf '  path: %s\n' "."
@@ -298,7 +298,7 @@ cmd_resolve() {
 }
 
 cmd_current_stream() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local explicit_stream="" session_id="" remember=0 quiet=0
   while [[ $# -gt 0 ]]; do
@@ -323,7 +323,7 @@ cmd_current_stream() {
         ;;
       -h|--help)
         cat <<'EOF'
-Usage: agentboard current-stream [--stream <slug>] [--session-id <id>] [--remember] [--quiet]
+Usage: ab current-stream [--stream <slug>] [--session-id <id>] [--remember] [--quiet]
 
 Resolve the canonical current stream slug using this order:
   1. explicit --stream
@@ -353,7 +353,7 @@ EOF
   if (( quiet )); then
     printf '%s\n' "$stream_slug"
   else
-    printf '\n%s%sagentboard current-stream%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+    printf '\n%s%sab current-stream%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
     printf '  stream: %s\n' "$stream_slug"
     if [[ -n "$session_id" ]]; then
       printf '  session: %s\n' "$session_id"
@@ -363,7 +363,7 @@ EOF
 }
 
 cmd_next_action() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local stream_slug="${1:-}" session_id="" quiet=0
   if [[ -n "$stream_slug" && "${stream_slug:0:2}" == "--" ]]; then
@@ -385,7 +385,7 @@ cmd_next_action() {
         ;;
       -h|--help)
         cat <<'EOF'
-Usage: agentboard next-action [stream-slug] [--session-id <id>] [--quiet]
+Usage: ab next-action [stream-slug] [--session-id <id>] [--quiet]
 
 Print the canonical next action from the stream's Resume state, falling back to
 the legacy ## Next action section when needed.
@@ -413,7 +413,7 @@ EOF
   if (( quiet )); then
     printf '%s\n' "$next_action"
   else
-    printf '\n%s%sagentboard next-action%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+    printf '\n%s%sab next-action%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
     printf '  stream: %s\n' "$stream_slug"
     printf '  next:   %s\n' "$next_action"
     say
@@ -421,7 +421,7 @@ EOF
 }
 
 cmd_handoff() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local requested_slug="" budget_arg="" budget=0 _show_snippets=1
   if [[ -n "${1:-}" && "${1:0:2}" != "--" ]]; then
@@ -438,7 +438,7 @@ cmd_handoff() {
       --no-snippets) _show_snippets=0; shift ;;
       -h|--help)
         cat <<'EOF'
-Usage: agentboard handoff [<stream-slug>] [--budget <N|Nk>] [--no-snippets]
+Usage: ab handoff [<stream-slug>] [--budget <N|Nk>] [--no-snippets]
 
 Prints the load order and context snippets for the next agent's context pack.
 Context snippets are auto-searched from domain files using stream + domain slug
@@ -482,11 +482,11 @@ EOF
     local count=0
     [[ -n "$rows" ]] && count="$(printf '%s\n' "$rows" | awk 'NF { c++ } END { print c + 0 }')"
     if (( count == 0 )); then
-      die "No active streams found. Use 'agentboard new-stream ...' or update .platform/work/ACTIVE.md first."
+      die "No active streams found. Use 'ab new-stream ...' or update .platform/work/ACTIVE.md first."
     elif (( count > 1 )); then
       warn "Multiple active streams found:"
       printf '%s\n' "$rows" | awk -F'|' '{ printf "  - %s (%s, %s)\n", $1, $2, $3 }' >&2
-      die "Usage: agentboard handoff <stream-slug>"
+      die "Usage: ab handoff <stream-slug>"
     else
       IFS='|' read -r slug type status agent updated <<< "$rows"
     fi
@@ -505,7 +505,7 @@ EOF
   do_not_load="$(sed -n 's/^\*\*Do not load:\*\* //p' "$brief")"
   do_not_load="${do_not_load%%$'\n'*}"
 
-  printf '\n%s%sagentboard handoff%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '\n%s%sab handoff%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   printf '  stream: %s%s%s\n' "$C_BOLD" "$slug" "$C_RESET"
   printf '  id:     %s\n' "$(frontmatter_value "$stream_file" "stream_id")"
   printf '  type:   %s\n' "${type:-unknown}"
@@ -733,6 +733,6 @@ EOF
   printf '  2. Read the stream file '"'"'s "## Resume state" block first — it is the compact "where we are".\n'
   printf '  3. Confirm you understand Next action, then continue from there.\n'
   printf '  4. Before ending your session or switching providers, run:\n'
-  printf '     %sagentboard checkpoint %s --what "..." --next "..."%s\n' "$C_BOLD" "$slug" "$C_RESET"
+  printf '     %sab checkpoint %s --what "..." --next "..."%s\n' "$C_BOLD" "$slug" "$C_RESET"
   say
 }

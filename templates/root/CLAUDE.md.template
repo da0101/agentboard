@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}} — NOT YET ACTIVATED
 
-**Status:** This project was scaffolded by `agentboard init` on {{TODAY}} but is **not yet activated**. The `.platform/` context pack is present but the project-specific content is empty.
+**Status:** This project was scaffolded by `ab init` on {{TODAY}} but is **not yet activated**. The `.platform/` context pack is present but the project-specific content is empty.
 
 > {{DESCRIPTION}}
 
@@ -10,11 +10,11 @@
 
 Claude Code, Codex CLI, Gemini CLI, or any other AI tool — this file is auto-loaded when you open this project. You were pointed here because it lives at the project root.
 
-**When the user says "activate this project"** (or similar — "fill in the platform pack", "onboard this project", "run agentboard activation"), read `.platform/ACTIVATE.md` and follow its 6-step protocol. That file contains the full activation instructions.
+**When the user says "activate this project"** (or similar — "fill in the platform pack", "onboard this project", "run ab activation"), read `.platform/ACTIVATE.md` and follow its 6-step protocol. That file contains the full activation instructions.
 
 **Until activation**, answer the user's question normally. If relevant, mention that the project has not been activated yet and they can say "activate this project" to run the setup.
 
-**Important:** `.platform/ACTIVATE.md` contains rules for how to handle existing `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` files at the root — **never delete user content**, always prepend your agentboard section to the top and preserve the original below.
+**Important:** `.platform/ACTIVATE.md` contains rules for how to handle existing `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` files at the root — **never delete user content**, always prepend your ab section to the top and preserve the original below.
 
 ---
 
@@ -22,12 +22,12 @@ Claude Code, Codex CLI, Gemini CLI, or any other AI tool — this file is auto-l
 
 ### Session start (every session — mandatory)
 
-1. **Run `agentboard brief`** first — compact "state of the project" view: active streams, recent gotchas (landmines the 20-year-employee would warn you about), open questions, latest usage pattern. This is your institutional memory; read it before touching code.
+1. **Run `ab brief`** first — compact "state of the project" view: active streams, recent gotchas (landmines the 20-year-employee would warn you about), open questions, latest usage pattern. This is your institutional memory; read it before touching code.
 2. Then read the narrative docs in order:
    - **`work/BRIEF.md`** — what we're building, why, current state, relevant context
    - **`work/ACTIVE.md`** — stream registry
 
-If there is an active stream you're resuming, **run `agentboard handoff <slug>`** before anything else — it prints the exact load order and the Resume state (what just happened, current focus, next action) left by the previous agent. This is how context is shared between Claude, Codex, and Gemini without re-explaining.
+If there is an active stream you're resuming, **run `ab handoff <slug>`** before anything else — it prints the exact load order and the Resume state (what just happened, current focus, next action) left by the previous agent. This is how context is shared between Claude, Codex, and Gemini without re-explaining.
 
 Report to user: 1 stream → "Resuming **\<stream\>** — next: \<action\>. Continue?" / 2+ streams → ask which / 0 → ask what to work on.
 
@@ -36,20 +36,20 @@ Report to user: 1 stream → "Resuming **\<stream\>** — next: \<action\>. Cont
 When context is running low, you're ending the session, or you're about to hand off to another CLI (Claude → Codex, Codex → Gemini, etc.), **run**:
 
 ```bash
-agentboard checkpoint <stream-slug> --what "<1-2 lines of what just happened>" --next "<one sentence: what to do next>" \
+ab checkpoint <stream-slug> --what "<1-2 lines of what just happened>" --next "<one sentence: what to do next>" \
   --cumulative-in <N> --cumulative-out <N> --provider claude --model <model-id> [--complexity trivial|normal|heavy]
 ```
 
 For `--cumulative-in` / `--cumulative-out` pass Claude Code's **current session totals** (the running counters, not per-segment deltas). Agentboard subtracts what was already logged for this stream+provider+day so mid-session logging never double-counts. Omit the token fields if you don't know the counts; the checkpoint itself still works.
 
-This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `agentboard handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
+This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `ab handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
 
 ### Reasoning annotation — after significant edits (mandatory)
 
 After every Write or Edit that another agent will need to understand, run:
 
 ```bash
-agentboard log-reason [<file>] "<one sentence why>"
+ab log-reason [<file>] "<one sentence why>"
 ```
 
 **When to call it:**
@@ -62,8 +62,8 @@ agentboard log-reason [<file>] "<one sentence why>"
 
 Examples:
 ```bash
-agentboard log-reason src/auth.ts "Extracted token validation into middleware so Codex can call it from the algorithm layer without duplicating logic"
-agentboard log-reason "Removed legacy polling loop — replaced by daemon push model"
+ab log-reason src/auth.ts "Extracted token validation into middleware so Codex can call it from the algorithm layer without duplicating logic"
+ab log-reason "Removed legacy polling loop — replaced by daemon push model"
 ```
 
 This is what makes cross-provider handoff accurate. Without it, the next provider sees *what* changed but not *why*.
@@ -74,7 +74,7 @@ When a stream is done, **do not just archive the file**. Run the two-step close 
 
 ```bash
 # Step 1 — print the harvest checklist
-agentboard close <stream-slug>
+ab close <stream-slug>
 ```
 
 Then, following the checklist it prints, distill and append to these files (only where applicable — skip categories with nothing to add):
@@ -86,18 +86,18 @@ Then, following the checklist it prints, distill and append to these files (only
 
 ```bash
 # Step 2 — after harvest, archive the stream
-agentboard close <stream-slug> --confirm
+ab close <stream-slug> --confirm
 ```
 
-This is the compounding ritual. Each close adds durable knowledge so the next agent running `agentboard brief` inherits what you learned, without you being there to explain it.
+This is the compounding ritual. Each close adds durable knowledge so the next agent running `ab brief` inherits what you learned, without you being there to explain it.
 
-### Long session fallback — `agentboard watch` (optional)
+### Long session fallback — `ab watch` (optional)
 
 For heavy sessions where you may forget to checkpoint, the user can start a
 background watcher:
 
 ```bash
-agentboard watch &
+ab watch &
 ```
 
 It polls `git status` every 10 min and auto-checkpoints the active stream
@@ -105,7 +105,7 @@ whenever ≥1 tracked file has changed since the last poll. The auto-content is
 mechanical (file list + carried-over Next action) — always prefer your own
 checkpoints with specific `--what` / `--next`. The watcher skips ticks when
 it sees a manual checkpoint happened in the last 5 minutes, so it never
-clobbers fresh state. Stop with `agentboard watch --stop`.
+clobbers fresh state. Stop with `ab watch --stop`.
 
 ### New task bootstrap (before any non-trivial task — mandatory)
 
@@ -127,7 +127,7 @@ See `.platform/agents/work-tracking.md` for the full protocol.
 
 **Loading rule: only load files listed in `work/BRIEF.md` § "Relevant context".** Do not auto-load the full pack. Load only what the current feature actually touches. Never read `work/archive/*` unless explicitly asked.
 
-**Finding relevant context:** before loading any domain or convention file in full, run `agentboard search <keywords>` to retrieve the most relevant snippets from `.platform/`. Load the full file only if the snippets are insufficient.
+**Finding relevant context:** before loading any domain or convention file in full, run `ab search <keywords>` to retrieve the most relevant snippets from `.platform/`. Load the full file only if the snippets are insufficient.
 
 - `.platform/ACTIVATE.md` — the activation protocol (read this when the user says "activate")
 - `.platform/workflow.md` — the 6-stage inline workflow for non-trivial tasks
@@ -179,7 +179,7 @@ Name agents with a persona — e.g., "Max the Mapper", "Kai the Coder". Full rul
 
 ## Skills available to you
 
-Installed additively into `.claude/skills/` by `agentboard init`. Prefixed `ab-` so they never collide with gstack / pre-existing skills.
+Installed additively into `.claude/skills/` by `ab init`. Prefixed `ab-` so they never collide with gstack / pre-existing skills.
 
 `ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-review`, `ab-debug`
 
@@ -187,4 +187,4 @@ Read each skill's `SKILL.md` on first use to understand its protocol.
 
 ---
 
-_Generated by agentboard on {{TODAY}}. After activation, this file will be replaced with the steady-state version (or, if you had an existing `CLAUDE.md` before init, the steady-state content will be prepended to the top of your file)._
+_Generated by ab on {{TODAY}}. After activation, this file will be replaced with the steady-state version (or, if you had an existing `CLAUDE.md` before init, the steady-state content will be prepended to the top of your file)._

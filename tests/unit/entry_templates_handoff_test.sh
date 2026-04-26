@@ -12,14 +12,14 @@ GEMINI_TMPL="$TEST_ROOT/templates/root/GEMINI.md.template"
 test_all_entry_templates_reference_handoff_on_session_start() {
   for t in "$CLAUDE_TMPL" "$AGENTS_TMPL" "$GEMINI_TMPL"; do
     [[ -f "$t" ]] || fail "$t missing"
-    assert_file_contains "$t" "agentboard handoff <slug>"
+    assert_file_contains "$t" "ab handoff <slug>"
   done
 }
 
 test_all_entry_templates_reference_checkpoint_before_handoff() {
   for t in "$CLAUDE_TMPL" "$AGENTS_TMPL" "$GEMINI_TMPL"; do
     [[ -f "$t" ]] || fail "$t missing"
-    assert_file_contains "$t" "agentboard checkpoint"
+    assert_file_contains "$t" "ab checkpoint"
     assert_file_contains "$t" "--what"
     assert_file_contains "$t" "--next"
   done

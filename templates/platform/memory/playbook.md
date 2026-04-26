@@ -1,6 +1,6 @@
 # Playbook
 
-_How work actually gets done in this project. Shortcuts, commands, dev rituals that a 20-year employee would know. Appended during `agentboard close <slug>` harvest._
+_How work actually gets done in this project. Shortcuts, commands, dev rituals that a 20-year employee would know. Appended during `ab close <slug>` harvest._
 
 Format: `- **[area]** — one-line practice (why/when)`
 

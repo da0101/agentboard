@@ -2,7 +2,7 @@
 
 > {{DESCRIPTION}}
 
-**Status:** This project was scaffolded by `agentboard init` on {{TODAY}}. If not yet activated, say "activate this project" and the agent will read `.platform/ACTIVATE.md`.
+**Status:** This project was scaffolded by `ab init` on {{TODAY}}. If not yet activated, say "activate this project" and the agent will read `.platform/ACTIVATE.md`.
 
 ---
 
@@ -16,12 +16,12 @@ This file is auto-loaded when you open this project in Gemini CLI. All mandatory
 
 ### Session start (every session — mandatory)
 
-1. **Run `agentboard brief`** first — compact "state of the project" view: active streams, recent gotchas (landmines the 20-year-employee would warn you about), open questions, latest usage pattern. This is your institutional memory; read it before touching code.
+1. **Run `ab brief`** first — compact "state of the project" view: active streams, recent gotchas (landmines the 20-year-employee would warn you about), open questions, latest usage pattern. This is your institutional memory; read it before touching code.
 2. Then read the narrative docs in order:
    - **`work/BRIEF.md`** — what we're building, why, current state, relevant context
    - **`work/ACTIVE.md`** — stream registry
 
-If there is an active stream you're resuming, **run `agentboard handoff <slug>`** before anything else — it prints the exact load order and the Resume state (what just happened, current focus, next action) left by the previous agent. This is how context is shared between Claude, Codex, and Gemini without re-explaining.
+If there is an active stream you're resuming, **run `ab handoff <slug>`** before anything else — it prints the exact load order and the Resume state (what just happened, current focus, next action) left by the previous agent. This is how context is shared between Claude, Codex, and Gemini without re-explaining.
 
 Report to user: 1 stream → "Resuming **\<stream\>** — next: \<action\>. Continue?" / 2+ streams → ask which / 0 → ask what to work on.
 
@@ -30,20 +30,20 @@ Report to user: 1 stream → "Resuming **\<stream\>** — next: \<action\>. Cont
 When context is running low, you're ending the session, or you're about to hand off to another CLI (Claude → Codex, Codex → Gemini, etc.), **run**:
 
 ```bash
-agentboard checkpoint <stream-slug> --what "<1-2 lines of what just happened>" --next "<one sentence: what to do next>" \
+ab checkpoint <stream-slug> --what "<1-2 lines of what just happened>" --next "<one sentence: what to do next>" \
   --cumulative-in <N> --cumulative-out <N> --provider gemini --model <model-id> [--complexity trivial|normal|heavy]
 ```
 
 For `--cumulative-in` / `--cumulative-out` pass your **current session totals** (running counters, not per-segment deltas). Agentboard subtracts what was already logged for this stream+provider+day so mid-session logging never double-counts. Omit the token fields if you don't know the counts; the checkpoint itself still works.
 
-This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `agentboard handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
+This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `ab handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
 
 ### Reasoning annotation — after significant edits (mandatory)
 
 After every Write or Edit that another agent will need to understand, run:
 
 ```bash
-agentboard log-reason [<file>] "<one sentence why>"
+ab log-reason [<file>] "<one sentence why>"
 ```
 
 **When to call it:**
@@ -56,8 +56,8 @@ agentboard log-reason [<file>] "<one sentence why>"
 
 Examples:
 ```bash
-agentboard log-reason src/auth.ts "Extracted token validation into middleware so Codex can call it from the algorithm layer without duplicating logic"
-agentboard log-reason "Removed legacy polling loop — replaced by daemon push model"
+ab log-reason src/auth.ts "Extracted token validation into middleware so Codex can call it from the algorithm layer without duplicating logic"
+ab log-reason "Removed legacy polling loop — replaced by daemon push model"
 ```
 
 This is what makes cross-provider handoff accurate. Without it, the next provider sees *what* changed but not *why*.
@@ -68,7 +68,7 @@ When a stream is done, **do not just archive the file**. Run the two-step close 
 
 ```bash
 # Step 1 — print the harvest checklist
-agentboard close <stream-slug>
+ab close <stream-slug>
 ```
 
 Then, following the checklist it prints, distill and append to these files (only where applicable — skip categories with nothing to add):
@@ -80,17 +80,17 @@ Then, following the checklist it prints, distill and append to these files (only
 
 ```bash
 # Step 2 — after harvest, archive the stream
-agentboard close <stream-slug> --confirm
+ab close <stream-slug> --confirm
 ```
 
-This is the compounding ritual. Each close adds durable knowledge so the next agent running `agentboard brief` inherits what you learned, without you being there to explain it.
+This is the compounding ritual. Each close adds durable knowledge so the next agent running `ab brief` inherits what you learned, without you being there to explain it.
 
-### Long session fallback — `agentboard watch` (recommended for Gemini sessions)
+### Long session fallback — `ab watch` (recommended for Gemini sessions)
 
 For sessions where checkpoints may be forgotten, start a background watcher:
 
 ```bash
-agentboard watch &
+ab watch &
 ```
 
 It polls `git status` every 10 min and auto-checkpoints the active stream
@@ -98,9 +98,9 @@ whenever ≥1 tracked file has changed since the last poll. The auto-content is
 mechanical (file list + carried-over Next action) — always prefer your own
 explicit checkpoints with specific `--what` / `--next`. The watcher skips
 ticks when it sees a manual checkpoint happened in the last 5 minutes, so it
-never clobbers fresh state. Stop with `agentboard watch --stop`.
+never clobbers fresh state. Stop with `ab watch --stop`.
 
-> **Gemini / Codex:** start `agentboard watch &` at the beginning of every
+> **Gemini / Codex:** start `ab watch &` at the beginning of every
 > session — it's the closest equivalent to Claude Code's auto-checkpoint hooks.
 
 ### New task bootstrap (before any non-trivial task — mandatory)
@@ -121,7 +121,7 @@ When the user gives a task not already tracked in `ACTIVE.md`, **stop and comple
 
 **Loading rule: only load files listed in `work/BRIEF.md` § "Relevant context".** Do not auto-load the full pack. Never read `work/archive/*` unless explicitly asked. **Never load `BACKLOG.md` or `learnings.md` at session start** — read them only when the user asks, or when appending.
 
-**Finding relevant context:** before loading any domain or convention file in full, run `agentboard search <keywords>` to retrieve the most relevant snippets from `.platform/`. Load the full file only if the snippets are insufficient.
+**Finding relevant context:** before loading any domain or convention file in full, run `ab search <keywords>` to retrieve the most relevant snippets from `.platform/`. Load the full file only if the snippets are insufficient.
 
 - `.platform/workflow.md` — the 6-stage inline workflow **← read this before running any multi-step protocol**
 - `.platform/ONBOARDING.md` — 7-step onboarding path for future sessions
@@ -154,7 +154,7 @@ Full protocol: `.platform/workflow.md` → "Stream Closure Protocol".
 
 ## Skills available to you
 
-Installed into `.agents/skills/` by `agentboard init`.
+Installed into `.agents/skills/` by `ab init`.
 
 `ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-review`, `ab-debug`
 
@@ -162,4 +162,4 @@ Read each skill's `SKILL.md` on first use to understand its protocol.
 
 ---
 
-_Generated by agentboard on {{TODAY}}. After activation, this file will be updated with project-specific content by sync-context.sh._
+_Generated by ab on {{TODAY}}. After activation, this file will be updated with project-specific content by sync-context.sh._

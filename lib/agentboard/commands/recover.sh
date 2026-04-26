@@ -1,5 +1,5 @@
 cmd_recover() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local slug="${1:-}"
   if [[ -z "$slug" || "${slug:0:2}" == "--" ]]; then
@@ -7,7 +7,7 @@ cmd_recover() {
       _recover_print_help
       return 0
     fi
-    die "Usage: agentboard recover <stream-slug> [--confirm] [--since <ref>]"
+    die "Usage: ab recover <stream-slug> [--confirm] [--since <ref>]"
   fi
   shift
   [[ "$slug" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Stream slug must be kebab-case."
@@ -27,10 +27,10 @@ cmd_recover() {
   local stream_file="./.platform/work/${slug}.md"
   [[ -f "$stream_file" ]] || die "$stream_file not found."
   has_frontmatter "$stream_file" \
-    || die "$stream_file has no v1 frontmatter. Run 'agentboard migrate --apply' first."
+    || die "$stream_file has no v1 frontmatter. Run 'ab migrate --apply' first."
 
   git rev-parse --git-dir >/dev/null 2>&1 \
-    || die "Not inside a git repository. 'agentboard recover' needs git log."
+    || die "Not inside a git repository. 'ab recover' needs git log."
 
   local updated_at head_branch
   updated_at="$(frontmatter_value "$stream_file" "updated_at")"
@@ -52,7 +52,7 @@ cmd_recover() {
 
   if [[ -z "$(printf '%s' "$commits" | tr -d ' \t\n')" ]]; then
     ok "No new commits since last checkpoint (${updated_at:-unknown}). Nothing to recover."
-    say "  ${C_DIM}If context was lost mid-session, run 'agentboard checkpoint ${slug} --what ... --next ...' manually.${C_RESET}"
+    say "  ${C_DIM}If context was lost mid-session, run 'ab checkpoint ${slug} --what ... --next ...' manually.${C_RESET}"
     return 0
   fi
 
@@ -65,7 +65,7 @@ cmd_recover() {
   what="recovered ${commit_count} commit(s) since ${updated_at:-start} on ${head_branch} — latest: ${first_hash}: ${first_msg}"
   next="review git log --oneline ${since_arg:---10} and set a concrete next action"
 
-  printf '\n%s%sagentboard recover%s\n\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '\n%s%sab recover%s\n\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   printf '  stream: %s%s%s\n' "$C_BOLD" "$slug" "$C_RESET"
   printf '  branch: %s\n' "$head_branch"
   printf '  since:  %s\n' "${updated_at:-(no recorded checkpoint)}"
@@ -88,14 +88,14 @@ cmd_recover() {
 
 _recover_print_help() {
   cat <<'EOF'
-Usage: agentboard recover <stream-slug> [--confirm] [--since <ref>]
+Usage: ab recover <stream-slug> [--confirm] [--since <ref>]
 
 Reconstruct a checkpoint from git commit history when context was lost
 without a manual checkpoint. Scans commits on the current branch since the
 stream's last `updated_at` and writes a recovery entry summarizing them.
 
 This is the self-healing step for the "agent lost context and didn't
-checkpoint" scenario. Use it when `agentboard brief` shows a stream as
+checkpoint" scenario. Use it when `ab brief` shows a stream as
 stale but git has new commits.
 
 Flags:

@@ -1,6 +1,6 @@
 # Open questions
 
-_Live hypotheses and unresolved questions. Appended during `agentboard close <slug>` when a stream surfaced something that couldn't be answered. Moved to Resolved when a later stream answers them._
+_Live hypotheses and unresolved questions. Appended during `ab close <slug>` when a stream surfaced something that couldn't be answered. Moved to Resolved when a later stream answers them._
 
 ---
 

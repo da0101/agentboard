@@ -1,5 +1,5 @@
 cmd_brief() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local show_all=0
   while [[ $# -gt 0 ]]; do
@@ -7,7 +7,7 @@ cmd_brief() {
       --all) show_all=1; shift ;;
       -h|--help)
         cat <<'EOF'
-Usage: agentboard brief [--all]
+Usage: ab brief [--all]
 
 Prints a compact project-state view for a fresh agent. Two screens max:
   - Active streams + next actions
@@ -58,7 +58,7 @@ _brief_active_streams() {
       "$C_BOLD" "$slug" "$C_RESET" "${status:-?}" "${agent:-?}" "$next")")
     if [[ -n "$updated" ]] && ! is_placeholder_value "$updated" \
         && [[ "$updated" != "$_today_brief" ]]; then
-      rows+=("$(printf '   %s⚠  checkpoint stale (last: %s) — run: agentboard checkpoint %s%s' \
+      rows+=("$(printf '   %s⚠  checkpoint stale (last: %s) — run: ab checkpoint %s%s' \
         "$C_YELLOW" "$updated" "$slug" "$C_RESET")")
     fi
     count=$((count + 1))
@@ -66,7 +66,7 @@ _brief_active_streams() {
 
   printf '%s🔥 Active streams (%d)%s\n' "$C_BOLD" "$count" "$C_RESET"
   if (( count == 0 )); then
-    printf '%s   (none — run `agentboard new-stream` to start)%s\n\n' "$C_DIM" "$C_RESET"
+    printf '%s   (none — run `ab new-stream` to start)%s\n\n' "$C_DIM" "$C_RESET"
     return 0
   fi
   if (( ${#rows[@]} > 0 )); then
@@ -82,7 +82,7 @@ _brief_gotchas() {
 
   printf '%s⚠️  Gotchas%s\n' "$C_BOLD" "$C_RESET"
   if [[ ! -f "$file" ]]; then
-    printf '%s   (no gotchas.md yet — agentboard update will add it)%s\n\n' "$C_DIM" "$C_RESET"
+    printf '%s   (no gotchas.md yet — ab update will add it)%s\n\n' "$C_DIM" "$C_RESET"
     return 0
   fi
 
@@ -100,7 +100,7 @@ _brief_gotchas() {
 
   local total=$(( ${#red[@]} + ${#yellow[@]} + ${#green[@]} ))
   if (( total == 0 )); then
-    printf '%s   (none yet — gotchas accumulate as streams close via `agentboard close`)%s\n\n' "$C_DIM" "$C_RESET"
+    printf '%s   (none yet — gotchas accumulate as streams close via `ab close`)%s\n\n' "$C_DIM" "$C_RESET"
     return 0
   fi
 
@@ -120,7 +120,7 @@ _brief_gotchas() {
     done
   fi
   if (( printed < total )); then
-    printf '%s   ... %d more — `agentboard brief --all` to see them%s\n' \
+    printf '%s   ... %d more — `ab brief --all` to see them%s\n' \
       "$C_DIM" $(( total - printed )) "$C_RESET"
   fi
   printf '\n'
@@ -132,7 +132,7 @@ _brief_open_questions() {
 
   printf '%s❓ Open questions%s\n' "$C_BOLD" "$C_RESET"
   if [[ ! -f "$file" ]]; then
-    printf '%s   (no open-questions.md yet — agentboard update will add it)%s\n\n' "$C_DIM" "$C_RESET"
+    printf '%s   (no open-questions.md yet — ab update will add it)%s\n\n' "$C_DIM" "$C_RESET"
     return 0
   fi
 
@@ -164,10 +164,10 @@ _brief_open_questions() {
 }
 
 _brief_usage_insight() {
-  local db="${AGENTBOARD_USAGE_DB:-$HOME/.agentboard/usage.db}"
+  local db="${AGENTBOARD_USAGE_DB:-$HOME/.ab/usage.db}"
   printf '%s💡 Usage pattern%s\n' "$C_BOLD" "$C_RESET"
   if ! command -v sqlite3 >/dev/null 2>&1 || [[ ! -f "$db" ]]; then
-    printf '%s   (no usage data yet — run `agentboard usage learn` once data accumulates)%s\n\n' \
+    printf '%s   (no usage data yet — run `ab usage learn` once data accumulates)%s\n\n' \
       "$C_DIM" "$C_RESET"
     return 0
   fi
@@ -189,15 +189,15 @@ _brief_usage_insight() {
     "SELECT COUNT(*) FROM usage WHERE lower(COALESCE(task_type,'')) IN ('normal','heavy','trivial','small','medium','large','xl');" \
     2>/dev/null || echo 0)"
   if [[ -n "$generic_count" && "$generic_count" -gt 0 ]]; then
-    printf '   %s%d usage row(s) still use generic labels like normal/heavy — run `agentboard usage learn` and checkpoint with `--type`%s\n\n' \
+    printf '   %s%d usage row(s) still use generic labels like normal/heavy — run `ab usage learn` and checkpoint with `--type`%s\n\n' \
       "$C_DIM" "$generic_count" "$C_RESET"
     return 0
   fi
   if [[ -n "$top_model" && -n "$top_type" ]]; then
-    printf '   Most tokens spent: %s%s%s on %s%s%s tasks (run `agentboard usage learn` for details)\n\n' \
+    printf '   Most tokens spent: %s%s%s on %s%s%s tasks (run `ab usage learn` for details)\n\n' \
       "$C_BOLD" "$top_model" "$C_RESET" "$C_BOLD" "$top_type" "$C_RESET"
   else
-    printf '%s   (data present — run `agentboard usage learn` for findings)%s\n\n' \
+    printf '%s   (data present — run `ab usage learn` for findings)%s\n\n' \
       "$C_DIM" "$C_RESET"
   fi
 }

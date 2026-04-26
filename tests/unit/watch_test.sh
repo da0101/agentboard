@@ -20,9 +20,9 @@ setup_watch_fixture() {
   (
     cd "$dir"
     git add -A
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth --base-branch main --branch feat/login >/dev/null
     git add -A
     git commit -m "new stream" >/dev/null 2>&1
@@ -47,7 +47,7 @@ test_watch_help() {
   setup_watch_fixture "$dir"
   run_cli_capture output "$dir" watch --help
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "Usage: agentboard watch"
+  assert_contains "$output" "Usage: ab watch"
   assert_contains "$output" "--interval"
   assert_contains "$output" "--threshold"
   assert_contains "$output" "--stop"
@@ -165,7 +165,7 @@ test_watch_once_all_active_streams() {
   # Create a second active stream
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-stream payments \
+    "$TEST_ROOT/bin/ab" new-stream payments \
       --domain auth --base-branch main --branch feat/payments >/dev/null
     git add -A
     git commit -m "new stream payments" >/dev/null 2>&1
@@ -268,7 +268,7 @@ test_watch_fails_when_no_active_stream() {
   awk '/^closure_approved:/ { print "closure_approved: true"; next } { print }' "$_sf" > "$_tmp" && mv "$_tmp" "$_sf"
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" close login --confirm >/dev/null
+    "$TEST_ROOT/bin/ab" close login --confirm >/dev/null
   )
   run_cli_capture output "$dir" watch --once
   assert_status "$RUN_STATUS" 1
