@@ -22,6 +22,8 @@ Claude Code, Codex CLI, Gemini CLI, or any other AI tool — this file is auto-l
 
 ### Session start (every session — mandatory)
 
+> **Skill invocation order override:** This protocol runs before any skill — including `using-superpowers`. If the first user message contains a `/skill-name`, complete steps 1–2 below first, then invoke the skill. CLAUDE.md instructions are the highest priority in the `using-superpowers` hierarchy; this note is the explicit assertion that triggers it.
+
 1. **Run `agentboard brief`** first — compact "state of the project" view: active streams, recent gotchas (landmines the 20-year-employee would warn you about), open questions, latest usage pattern. This is your institutional memory; read it before touching code.
 2. Then read the narrative docs in order:
    - **`work/BRIEF.md`** — what we're building, why, current state, relevant context

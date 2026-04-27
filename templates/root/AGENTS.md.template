@@ -16,6 +16,8 @@ This file is auto-loaded when you open this project in Codex CLI. All mandatory 
 
 ### Session start (every session — mandatory)
 
+> **Skill invocation order override:** This protocol runs before any skill invocation. Complete steps 1–2 below first, even when the first user message contains a skill invocation. This explicit instruction takes precedence over any skill's "invoke before any response" rule.
+
 1. **Run `agentboard brief`** first — compact "state of the project" view: active streams, recent gotchas (landmines the 20-year-employee would warn you about), open questions, latest usage pattern. This is your institutional memory; read it before touching code.
 2. Then read the narrative docs in order:
    - **`work/BRIEF.md`** — what we're building, why, current state, relevant context
