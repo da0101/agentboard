@@ -420,6 +420,53 @@ EOF
   fi
 }
 
+# Print last N Reason events for a stream from events.jsonl.
+# Used by cmd_handoff to show the next agent what was done and why.
+_handoff_render_reasons() {
+  local slug="$1" max="${2:-5}" log="./.platform/events.jsonl"
+  [[ -f "$log" ]] || return 0
+  awk -v target="$slug" -v max="$max" '
+    function extract(s, key,    re, val) {
+      re = "\"" key "\"[[:space:]]*:[[:space:]]*\"[^\"]*\""
+      if (match(s, re)) {
+        val = substr(s, RSTART, RLENGTH)
+        sub("^\"" key "\"[[:space:]]*:[[:space:]]*\"", "", val)
+        sub("\"$", "", val)
+        return val
+      }
+      return ""
+    }
+    {
+      hook   = extract($0, "hook_event_name")
+      stream = extract($0, "stream")
+      if (hook == "Reason" && (stream == target || stream == "")) {
+        lines[++n] = $0
+      }
+    }
+    END {
+      if (n == 0) exit
+      start = (n > max) ? n - max + 1 : 1
+      for (i = start; i <= n; i++) {
+        prov   = extract(lines[i], "provider")
+        ts     = extract(lines[i], "ts")
+        file   = extract(lines[i], "file")
+        reason = extract(lines[i], "reason")
+        date   = substr(ts, 1, 10)
+        if (file != "")
+          printf "  [%s %s] %s: %s\n", prov, date, file, reason
+        else
+          printf "  [%s %s] %s\n", prov, date, reason
+      }
+    }
+  ' "$log"
+}
+
+# Return YYYY-MM-DD of the last git commit that touched a file, or "".
+# Returns exit 0 always — safe to call without || true in set -e contexts.
+_handoff_domain_git_date() {
+  git log -1 --format="%ai" -- "$1" 2>/dev/null | awk '{print $1}' || true
+}
+
 cmd_handoff() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
@@ -578,10 +625,23 @@ EOF
   printf '  1. .platform/work/BRIEF.md%s\n' "$( (( budget > 0 )) && printf '  (~%d)' "$brief_tokens" )"
   printf '  2. .platform/work/%s.md%s\n' "$slug" "$( (( budget > 0 )) && printf '  (~%d)' "$stream_tokens" )"
   local entry idx=3 e_slug e_tokens
+  local _stream_created_at
+  _stream_created_at="$(frontmatter_value "$stream_file" "created_at")"
   for entry in "${included_domains[@]}"; do
     e_slug="${entry%%|*}"; e_tokens="${entry#*|}"
     printf '  %d. .platform/domains/%s.md%s\n' "$idx" "$e_slug" \
       "$( (( budget > 0 )) && printf '  (~%d)' "$e_tokens" )"
+    # Staleness check: flag if domain hasn't been touched since stream started
+    if command -v git >/dev/null 2>&1 && [[ -n "$_stream_created_at" ]] \
+        && ! is_placeholder_value "$_stream_created_at"; then
+      local _dfile="./.platform/domains/${e_slug}.md"
+      local _ddate
+      _ddate="$(_handoff_domain_git_date "$_dfile")"
+      if [[ -n "$_ddate" && "$_ddate" < "$_stream_created_at" ]]; then
+        printf '     %s⚠ domain last updated %s — may not reflect work done in this stream%s\n' \
+          "$C_YELLOW" "$_ddate" "$C_RESET"
+      fi
+    fi
     idx=$((idx + 1))
   done
   say
@@ -725,6 +785,15 @@ EOF
       say
       printf '%sDo not load:%s %s\n' "$C_BOLD" "$C_RESET" "$do_not_load"
     fi
+    say
+  fi
+
+  local _reasons_out
+  _reasons_out="$(_handoff_render_reasons "$slug" 5)"
+  if [[ -n "$_reasons_out" ]]; then
+    printf '%sRecent reasoning%s %s(last 5 ab log-reason calls for this stream)%s\n' \
+      "$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
+    printf '%s\n' "$_reasons_out"
     say
   fi
 

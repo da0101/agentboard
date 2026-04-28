@@ -61,6 +61,27 @@ _brief_active_streams() {
       rows+=("$(printf '   %s⚠  checkpoint stale (last: %s) — run: ab checkpoint %s%s' \
         "$C_YELLOW" "$updated" "$slug" "$C_RESET")")
     fi
+    # Domain staleness: warn if any domain file was last touched before this stream started
+    local _created_at
+    _created_at="$(frontmatter_value "$file" "created_at")"
+    if [[ -n "$_created_at" ]] && ! is_placeholder_value "$_created_at" \
+        && command -v git >/dev/null 2>&1; then
+      local _domain_slugs _ds _df _ddate _stale_domains=""
+      _domain_slugs="$(frontmatter_value "$file" "domain_slugs")"
+      while IFS= read -r _ds; do
+        [[ -z "$_ds" ]] && continue
+        _df="./.platform/domains/${_ds}.md"
+        [[ -f "$_df" ]] || continue
+        _ddate="$(git log -1 --format="%ai" -- "$_df" 2>/dev/null | awk '{print $1}' || true)"
+        if [[ -n "$_ddate" && "$_ddate" < "$_created_at" ]]; then
+          _stale_domains="${_stale_domains:+${_stale_domains}, }${_ds}"
+        fi
+      done < <(printf '%s' "$_domain_slugs" | tr '[],' '\n' | tr -d ' ')
+      if [[ -n "$_stale_domains" ]]; then
+        rows+=("$(printf '   %s⚠  domain(s) not updated since stream start: %s%s' \
+          "$C_YELLOW" "$_stale_domains" "$C_RESET")")
+      fi
+    fi
     count=$((count + 1))
   done < <(stream_files)
 
