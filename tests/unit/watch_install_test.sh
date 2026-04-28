@@ -76,7 +76,7 @@ _watch_scheduler() {
   printf '%s\n' "${WATCH_TEST_SCHEDULER:-launchd}"
 }
 
-_watch_agentboard_bin() {
+_watch_ab_bin() {
   if [[ "${WATCH_TEST_BIN_MODE:-ok}" == "missing" ]]; then
     die "Cannot resolve absolute path to ab binary"
   fi
@@ -184,8 +184,8 @@ test_watch_install_systemd_happy_path() {
   dir="$(mktemp -d)"
   home="$(mktemp -d)"
   slug="$(printf '%s' "$(basename "$dir")" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')"
-  service="$home/.config/systemd/user/ab-${slug}.service"
-  timer="$home/.config/systemd/user/ab-${slug}.timer"
+  service="$home/.config/systemd/user/agentboard-${slug}.service"
+  timer="$home/.config/systemd/user/agentboard-${slug}.timer"
 
   export AGENTBOARD_WATCH_HOME="$home"
   export WATCH_TEST_SCHEDULER="systemd"

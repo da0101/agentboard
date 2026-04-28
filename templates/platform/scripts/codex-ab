@@ -80,6 +80,9 @@ if [[ "$_ab_poller_pid" -gt 0 ]] 2>/dev/null; then
     _ab_stop_file_poller "$_ab_poller_pid"
   fi
 fi
+if declare -f _ab_check_unreasoned_changes >/dev/null 2>&1; then
+  _ab_check_unreasoned_changes "$AGENTBOARD_SESSION_ID"
+fi
 if declare -f _ab_stop_daemon >/dev/null 2>&1; then
   _ab_stop_daemon
 fi

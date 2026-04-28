@@ -154,7 +154,60 @@ Skipping harvest is fine if the stream produced nothing durable — but once
 the stream is archived, its raw context is no longer in active memory. The
 only knowledge that survives is what you distilled into the files above.
 EOF
+  _close_print_domain_gap "$slug" "$stream_file"
   printf '\n'
+}
+
+# Appended to the harvest checklist. Reads domain slugs from the stream file,
+# collects files touched in stream commits, and lists any that aren't mentioned
+# in the domain file text. Pure informational — no writes.
+_close_print_domain_gap() {
+  local slug="$1" stream_file="$2"
+  local raw_domains
+  raw_domains="$(frontmatter_value "$stream_file" "domain_slugs")"
+  [[ -z "$raw_domains" || "$raw_domains" == "[]" ]] && return 0
+  command -v git >/dev/null 2>&1 || return 0
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+
+  local base_branch touched_files
+  base_branch="$(frontmatter_value "$stream_file" "base_branch")"
+  if [[ -n "$base_branch" ]] && ! is_placeholder_value "$base_branch" \
+      && git rev-parse --verify "$base_branch" >/dev/null 2>&1; then
+    touched_files="$(git log --name-only --pretty=format: "${base_branch}..HEAD" 2>/dev/null \
+      | awk 'NF' | sort -u || true)"
+  else
+    touched_files="$(git log --name-only --pretty=format: -20 2>/dev/null \
+      | awk 'NF' | sort -u || true)"
+  fi
+  [[ -n "$touched_files" ]] || return 0
+
+  local any_gap=0 ds df domain_text gap_lines fpath
+  while IFS= read -r ds; do
+    [[ -z "$ds" ]] && continue
+    df="./.platform/domains/${ds}.md"
+    [[ -f "$df" ]] || continue
+    domain_text="$(< "$df")"
+    gap_lines=""
+    while IFS= read -r fpath; do
+      [[ -z "$fpath" ]] && continue
+      printf '%s' "$domain_text" | grep -qF "$fpath" 2>/dev/null && continue
+      gap_lines="${gap_lines}   ${fpath}\n"
+    done <<< "$touched_files"
+    if [[ -n "$gap_lines" ]]; then
+      if (( any_gap == 0 )); then
+        printf '%s6. DOMAIN GAP%s  — touched files not mentioned in domain doc(s)\n' \
+          "$C_BOLD" "$C_RESET"
+        any_gap=1
+      fi
+      printf '   Domain: %s\n' "$df"
+      printf '%b' "$gap_lines"
+    fi
+  done < <(inline_array_items "$raw_domains")
+
+  if (( any_gap )); then
+    printf '%s   Update the domain doc(s) above before running --confirm.%s\n' \
+      "$C_DIM" "$C_RESET"
+  fi
 }
 
 _close_append_log() {

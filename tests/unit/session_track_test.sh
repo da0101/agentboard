@@ -192,6 +192,58 @@ test_update_refreshes_wrappers_and_tracker() {
     || fail "update did not install session-track.sh"
 }
 
+test_check_unreasoned_changes_prints_reminder() {
+  local dir out
+  dir="$(mktemp -d)"
+  setup_track_fixture "$dir"
+  # Write a FileChange event with no subsequent Reason event
+  printf '{"hook_event_name":"FileChange","session_id":"test-sess","file_path":"src/foo.ts","ts":"2026-01-01T00:00:00Z"}\n' \
+    >> "$dir/.platform/events.jsonl"
+  out="$(
+    cd "$dir"
+    . ".platform/scripts/session-track.sh"
+    _ab_check_unreasoned_changes "test-sess" 2>&1 || true
+  )"
+  assert_contains "$out" "src/foo.ts"
+  assert_contains "$out" "ab log-reason"
+}
+
+test_check_unreasoned_changes_quiet_when_all_reasoned() {
+  local dir out
+  dir="$(mktemp -d)"
+  setup_track_fixture "$dir"
+  # FileChange followed by a Reason for the same file
+  printf '{"hook_event_name":"FileChange","session_id":"test-sess","file_path":"src/foo.ts","ts":"2026-01-01T00:00:00Z"}\n' \
+    >> "$dir/.platform/events.jsonl"
+  printf '{"hook_event_name":"Reason","file":"src/foo.ts","reason":"why","ts":"2026-01-01T00:01:00Z"}\n' \
+    >> "$dir/.platform/events.jsonl"
+  out="$(
+    cd "$dir"
+    . ".platform/scripts/session-track.sh"
+    _ab_check_unreasoned_changes "test-sess" 2>&1 || true
+  )"
+  if printf '%s' "$out" | grep -q "src/foo.ts"; then
+    fail "reminder printed even though Reason event exists after FileChange"
+  fi
+}
+
+test_check_unreasoned_changes_ignores_other_sessions() {
+  local dir out
+  dir="$(mktemp -d)"
+  setup_track_fixture "$dir"
+  # FileChange from a DIFFERENT session — should not trigger reminder for our session
+  printf '{"hook_event_name":"FileChange","session_id":"other-sess","file_path":"src/bar.ts","ts":"2026-01-01T00:00:00Z"}\n' \
+    >> "$dir/.platform/events.jsonl"
+  out="$(
+    cd "$dir"
+    . ".platform/scripts/session-track.sh"
+    _ab_check_unreasoned_changes "test-sess" 2>&1 || true
+  )"
+  if printf '%s' "$out" | grep -q "src/bar.ts"; then
+    fail "reminder printed for file changed in a different session"
+  fi
+}
+
 test_session_track_helper_installed
 test_session_event_writes_jsonl_line
 test_file_poller_logs_changed_tracked_files

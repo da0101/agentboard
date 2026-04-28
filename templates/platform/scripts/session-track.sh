@@ -206,3 +206,51 @@ _ab_stop_file_poller() {
   done
   kill -9 "$pid" 2>/dev/null || true
 }
+
+# After stopping the file poller, check for FileChange events from this
+# session that have no subsequent Reason event for the same file. Prints a
+# reminder to stderr so it appears in the terminal after Codex/Gemini exits.
+# Call between _ab_stop_file_poller and _ab_session_event "SessionEnd".
+_ab_check_unreasoned_changes() {
+  local session_id="$1"
+  local log=".platform/events.jsonl"
+  [[ -f "$log" ]] || return 0
+  local unreasoned
+  unreasoned="$(awk -v sid="$session_id" '
+    function extract(key,    re, s) {
+      re = "\"" key "\"[[:space:]]*:[[:space:]]*\"[^\"]*\""
+      if (match($0, re)) {
+        s = substr($0, RSTART, RLENGTH)
+        sub("^\"" key "\"[[:space:]]*:[[:space:]]*\"", "", s)
+        sub("\"$", "", s)
+        return s
+      }
+      return ""
+    }
+    {
+      hook = extract("hook_event_name")
+      esid = extract("session_id")
+      if (hook == "FileChange" && esid == sid) {
+        fp = extract("file_path")
+        if (fp != "") { fc_line[fp] = NR; fc_files[fp] = 1 }
+      }
+      if (hook == "Reason") {
+        f = extract("file")
+        if (f != "") reason_line[f] = NR
+      }
+    }
+    END {
+      for (fp in fc_files) {
+        if (!(fp in reason_line) || reason_line[fp] < fc_line[fp])
+          print fp
+      }
+    }
+  ' "$log" | sort)" || true
+  [[ -n "$unreasoned" ]] || return 0
+  printf '\n\033[1m⚠  Files changed without ab log-reason:\033[0m\n' >&2
+  while IFS= read -r _f; do
+    [[ -n "$_f" ]] || continue
+    printf '   %s\n' "$_f" >&2
+  done <<< "$unreasoned"
+  printf '   Run: \033[36mab log-reason <file> "<why>"\033[0m for each file above.\n\n' >&2
+}

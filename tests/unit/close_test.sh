@@ -130,6 +130,45 @@ test_close_help() {
   assert_contains "$output" "Usage: ab close"
 }
 
+test_close_harvest_shows_domain_gap() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_close_fixture "$dir"
+  # Commit a file that won't be mentioned in the auth domain doc
+  (
+    cd "$dir"
+    mkdir -p src
+    printf 'export function login() {}\n' > src/login.ts
+    git add src/login.ts
+    git commit -m "add login handler" >/dev/null 2>&1
+  )
+  run_cli_capture output "$dir" close login
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "DOMAIN GAP"
+  assert_contains "$output" "src/login.ts"
+}
+
+test_close_harvest_no_gap_when_file_mentioned_in_domain() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_close_fixture "$dir"
+  # Add the file path to the auth domain doc so it won't show as a gap
+  printf '\nsrc/auth-helper.ts\n' >> "$dir/.platform/domains/auth.md"
+  (
+    cd "$dir"
+    mkdir -p src
+    printf 'export function helper() {}\n' > src/auth-helper.ts
+    git add src/auth-helper.ts "$dir/.platform/domains/auth.md"
+    git commit -m "add auth helper" >/dev/null 2>&1
+  )
+  run_cli_capture output "$dir" close login
+  assert_status "$RUN_STATUS" 0
+  # auth-helper.ts is mentioned in domain, should not appear in gap section
+  if printf '%s' "$output" | grep -q "src/auth-helper.ts"; then
+    fail "domain gap listed a file that IS mentioned in the domain doc"
+  fi
+}
+
 test_close_without_confirm_prints_harvest_checklist
 test_close_confirm_archives_stream
 test_close_confirm_appends_log_entry
