@@ -128,10 +128,12 @@ The single most important design decision:
 Follow the 6-stage workflow in `templates/platform/workflow.md`:
 1. Triage (type/scope/risk)
 2. Interview (only if ambiguous)
-3. Research (only if medium+ scope)
-4. Propose inline in chat
+3. Research (always for new streams; otherwise medium+ scope)
+4. Propose inline in chat with phases, risks, mitigations, alternatives, tests, and rollback path
 5. Execute
 6. Verify + log
+
+For new streams, research is mandatory even when the implementation looks small. Include targeted external research plus local context, then wait for human approval of the research-backed plan before implementation.
 
 Plans live in chat, not `.md` files. Every successful task appends one line to `.platform/memory/log.md` (this repo dogfoods agentboard — `.platform/` is gitignored but populated locally).
 

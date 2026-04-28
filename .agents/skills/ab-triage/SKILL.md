@@ -76,14 +76,16 @@ Step 4 — Pick the workflow depth from this table:
 
 | Scope × Risk | Workflow depth |
 |---|---|
-| trivial × low | Execute directly, no workflow |
-| small × low | Skip interview + research, propose inline, execute, verify |
-| small × medium | Add a quick read of relevant files before proposing |
+| trivial × low | Execute directly, no workflow unless it is a new stream |
+| small × low | For non-stream tasks: skip interview + research, propose inline, execute, verify. For new streams: register, run compact research, propose, get approval, execute, verify |
+| small × medium | For non-stream tasks: add a quick read of relevant files before proposing. For new streams: register, run scaled research, propose, get approval, execute, verify |
 | medium × low | Full workflow: interview (if ambiguous) + research + propose + execute + verify |
 | medium × medium | Full workflow + dedicated security / test review in verify |
 | medium × high | Full workflow + explicit user approval before execute |
 | large × * | Full workflow + parallel research subagents + explicit approval |
 | xl × * | Stop. Propose breaking into phases. Do not execute in one pass. |
+
+**New-stream override:** If the task is not already tracked in `ACTIVE.md` and should become a stream, research and human approval are mandatory even when the implementation itself looks small or low-risk.
 
 ## Output format
 

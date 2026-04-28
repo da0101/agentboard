@@ -32,6 +32,16 @@ test_all_entry_templates_reference_resume_state() {
   done
 }
 
+test_all_entry_templates_require_research_first_new_streams() {
+  for t in "$CLAUDE_TMPL" "$AGENTS_TMPL" "$GEMINI_TMPL"; do
+    [[ -f "$t" ]] || fail "$t missing"
+    assert_file_contains "$t" "Research-first new stream rule"
+    assert_file_contains "$t" "targeted external research every time"
+    assert_file_contains "$t" "wait for human validation/approval before implementation"
+  done
+}
+
 test_all_entry_templates_reference_handoff_on_session_start
 test_all_entry_templates_reference_checkpoint_before_handoff
 test_all_entry_templates_reference_resume_state
+test_all_entry_templates_require_research_first_new_streams

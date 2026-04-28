@@ -7,6 +7,7 @@
 |---|---|---|---|---|
 | event-log-dedup | feature | awaiting-verification | codex | 2026-04-18 |
 | search-command | feature | in-progress | claude-code | 2026-04-19 |
+| research-first-stream-workflow | feature | awaiting-verification | codex | 2026-04-27 |
 ---
 
 ## Session start protocol
