@@ -39,3 +39,4 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 2026-04-18 — Add log-reason command — LLMs annotate WHY after writes; stored as Reason events in events.jsonl; mandatory in all three provider templates
 2026-04-18 — Add events rotation + codex/gemini model selection — rotation prevents unbounded growth; effort/model prompt logs tier in SessionStart so usage reports can break down cost by complexity
 2026-04-18 — debug: duplicate FileChange events — fixed root cause: non-Claude pollers now share persisted per-file diff fingerprints instead of per-process filename memory — concurrent wrappers stop replaying the same dirty snapshot, while real later edits still emit
+2026-04-27 — Add research-first new-stream workflow — all providers now require scaled research, targeted external research, phased planning, and human approval before implementing a new stream

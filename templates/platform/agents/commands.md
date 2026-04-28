@@ -11,6 +11,7 @@ This guide defines the **Exact Phrases** you can use to trigger high-reliability
 | `start stream "<name>"`| Triage a new request and create a work stream file. | `workflow.md#stage-1-triage` |
 | `plan stream` | Create a design doc with invariants and data flow. | `workflow.md#stage-4-propose` |
 | `research stream` | Perform bounded research (1 search + 3 reads max). | `ab-research` |
+| `web first` | Spawn a parallel web-research agent before executing the task. | See §2 below |
 | `debug stream` | Use the scientific method to find a root cause. | `ab-debug` |
 | `sync context` | Ensure AGENTS.md and GEMINI.md are updated. | `.platform/scripts/sync-context.sh` |
 
@@ -40,6 +41,19 @@ When I say **"debug stream"**, you MUST:
 2. **State** a clear hypothesis before running any tests.
 3. **Narrow** the cause through empirical testing (max 3 hypotheses).
 4. **Log** the results of each test in the current stream file.
+
+### `web first`
+When I say **"web first"** (as a prefix before any task description), you MUST:
+1. **Spawn a parallel web-research agent** using the Task tool before touching any code or files:
+   - Model: `sonnet`
+   - Task: search the web for the most relevant docs, articles, or examples for the described task
+   - Search queries: derive 2–3 focused queries from the task description
+   - Cap: ≤4 web sources; return a ≤200-word synthesis + key URLs
+2. **In parallel**, begin your own triage/planning for the task (Stage 1–3 of the 6-stage workflow).
+3. **After the research agent returns**, synthesize its findings into your plan before proposing or executing anything.
+4. **Surface to user**: one bullet of what the research added (or "research confirmed existing approach — no change").
+
+**Style:** Never skip the parallel dispatch. Never do the web search inline/sequentially — it must be a separate Task agent running concurrently with your planning.
 
 ### `audit stream`
 When I say **"audit stream"**, you MUST:

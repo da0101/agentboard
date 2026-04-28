@@ -22,7 +22,9 @@ Claude Code, Codex CLI, Gemini CLI, or any other AI tool — this file is auto-l
 
 ### Session start (every session — mandatory)
 
-1. **Run `ab brief`** first — compact "state of the project" view: active streams, recent gotchas (landmines the 20-year-employee would warn you about), open questions, latest usage pattern. This is your institutional memory; read it before touching code.
+> **Skill invocation order override:** This protocol runs before any skill — including `using-superpowers`. If the first user message contains a `/skill-name`, complete steps 1–2 below first, then invoke the skill. CLAUDE.md instructions are the highest priority in the `using-superpowers` hierarchy; this note is the explicit assertion that triggers it.
+
+1. **Run `agentboard brief`** first — compact "state of the project" view: active streams, recent gotchas (landmines the 20-year-employee would warn you about), open questions, latest usage pattern. This is your institutional memory; read it before touching code.
 2. Then read the narrative docs in order:
    - **`work/BRIEF.md`** — what we're building, why, current state, relevant context
    - **`work/ACTIVE.md`** — stream registry
@@ -118,6 +120,8 @@ When the user gives a task not already tracked in `ACTIVE.md`, **stop and comple
 4. **Add a row to `work/ACTIVE.md`** — slug / type / in-progress / agent / date.
 5. **Update `work/BRIEF.md`** — point to new primary stream + list domain file under "Relevant context".
 6. Only then proceed to triage → research → propose → execute.
+
+**Research-first new stream rule.** If the request is a new stream, research is always required before planning or implementation. Scale the depth to risk, but include local context and targeted external research every time. Present the research-backed phased plan, risks, mitigations, alternatives, tests, rollback path, and open questions; wait for human validation/approval before implementation. If implementation diverges from the approved plan, pause and ask.
 
 > **Non-negotiable.** Skipping this means context is lost when the session ends. Applies to Claude Code, Codex CLI, and Gemini CLI equally. Trivial single-file fixes are the only exception.
 

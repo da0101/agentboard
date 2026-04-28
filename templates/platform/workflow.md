@@ -13,6 +13,20 @@ Triage → Interview → Research → Propose → Execute → Verify + Learn
 
 Each stage has a clear entry condition and a clear exit condition. Skip stages that don't apply.
 
+### New stream intake contract
+
+When a user request is not already tracked in `work/ACTIVE.md` and should become a new stream, every provider follows this strict order:
+
+```
+Detect new stream → Register → Clarify → Research → Plan → Human approval → Execute → Verify + Learn
+```
+
+- **Research is always required for new streams.** Scale the depth to the task: small/low-risk streams may use a compact local + targeted web check, while medium+ or risky streams need the full research pass.
+- **Research must be specific to the work.** Cover the problem, comparable external examples or prior art, current patterns, implementation techniques, best practices, local code/docs, caveats, and a recommendation.
+- **Planning follows research.** Plans must include development phases, complexity, risk mitigation, alternatives considered, files to touch, tests, rollback path, and clarifying questions if anything is still ambiguous.
+- **Human-in-the-loop is mandatory.** The agent must present the research-backed plan and wait for human validation/approval before implementation starts. During implementation, the agent must pause for clarification when the approved plan no longer fits reality.
+- **Implementation follows the approved plan.** Deviations are called out explicitly in chat and captured in the stream file via checkpoint/progress state when they affect scope, risk, or next action.
+
 ### 1. Triage
 
 For every non-trivial task, state inline in chat:
@@ -53,12 +67,12 @@ Full protocol: `agents/work-tracking.md` § "Starting a new workstream".
 
 ### 3. Research
 
-**Only for medium+ scope.** Parallelize:
+**Always for new streams; otherwise required for medium+ scope.** Parallelize:
 - Subagent A: read existing code paths that touch the area
-- Subagent B: web search / docs fetch (strict budget: 1 search + 2–3 fetches)
+- Subagent B: web search / docs fetch (strict budget: 1 search + 2–3 fetches; smaller for low-risk streams, but do not skip it for new streams)
 - Subagent C: check conventions/ and decisions.md for prior art
 
-Synthesize in chat (≤300 words). **Do not** write a research `.md` file.
+Synthesize in chat (≤300 words). Include the problem, comparable examples/prior art, implementation patterns, best practices, caveats, and recommendation. **Do not** write a research `.md` file.
 
 **Exit:** you understand the area well enough to propose.
 
@@ -67,13 +81,18 @@ Synthesize in chat (≤300 words). **Do not** write a research `.md` file.
 State a 5–10 bullet plan **inline in chat**. Include:
 - Files to touch
 - New files / deleted files
+- Development phases
+- Complexity assessment
 - Test plan
 - Risk factors
+- Risk mitigations
+- Alternatives considered
 - Rollback path (for risky changes)
+- Clarifying questions, if any requirement remains ambiguous
 
-**Do not** write a plan `.md` file. If the user approves, proceed. If they push back, iterate.
+**Do not** write a plan `.md` file. For new streams and medium+ risk, wait for explicit human approval before implementation. If the user pushes back, iterate.
 
-**Exit:** user has approved the plan (or you're in autonomous mode and the plan passes your own gate).
+**Exit:** user has approved the plan for new streams, or the plan passes the applicable gate for non-stream low-risk work.
 
 ### 5. Execute
 

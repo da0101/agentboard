@@ -101,6 +101,8 @@ When the user gives a task not already tracked in `ACTIVE.md`, **stop and comple
 5. **Update `work/BRIEF.md`** — point to new primary stream + list domain file under "Relevant context".
 6. Only then proceed to triage → research → propose → execute.
 
+**Research-first new stream rule.** If the request is a new stream, research is always required before planning or implementation. Scale the depth to risk, but include local context and targeted external research every time. Present the research-backed phased plan, risks, mitigations, alternatives, tests, rollback path, and open questions; wait for human validation/approval before implementation. If implementation diverges from the approved plan, pause and ask.
+
 > **Non-negotiable.** Skipping this means context is lost when the session ends. Trivial single-file fixes are the only exception.
 
 ## Reference pack
