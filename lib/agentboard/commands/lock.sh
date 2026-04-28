@@ -24,7 +24,7 @@ _lock_session_id() {
   if [[ -n "${AGENTBOARD_SESSION_ID:-}" ]]; then
     printf '%s' "$AGENTBOARD_SESSION_ID"
   else
-    printf '%s' "${_provider}-ppid-${PPID}"
+    printf '%s' "${_provider}-anonymous"
   fi
 }
 
