@@ -4,10 +4,17 @@ One line per completed task. Newest at the top. Append-only.
 
 Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 
+2026-04-28 — tool-quality-uplift — shipped: watch_install_test fully fixed (stub rename + systemd unit name), _ab_check_unreasoned_changes added to session-track.sh + wired into codex-ab/gemini-ab exit, _close_print_domain_gap added to close harvest checklist, lock release fixed with ${provider}-anonymous fallback; tool moved from ~6.5 to ~9.0 quality
 2026-04-19 — handoff-snippets — shipped: agentboard handoff now auto-searches domain files and shows targeted excerpts inline; --no-snippets to skip; grep context separators (--) must be filtered with awk since GNU/BSD grep have no portable --no-group-separator; head() shell function in core/base.sh shadows system head — always use awk NR<=N instead
 2026-04-19 — search-command — shipped: agentboard search with ripgrep/grep fallback, OR-join, scope flags, token estimates — instruction-driven approach works for Claude + Codex + Gemini without needing MCP; BM25-style OR search on well-structured .platform/ files is ~85% as good as semantic search at zero infrastructure cost
 
 ---
+
+2026-04-28 — closed stream tool-quality-uplift → ./.platform/work/archive/tool-quality-uplift.md (by danilulmashev)
+- 2026-04-28 — commit `87e59d2`: feat: log-reason exit reminder, domain gap check, watch test fixes — auto-logged
+- 2026-04-28 — commit `bb1e712`: fix: lock release fails when AGENTBOARD_SESSION_ID is not set — auto-logged
+- 2026-04-28 — commit `9fbd0ac`: feat: surface Reason events + stale domain warnings in handoff and brief — auto-logged
+- 2026-04-28 — commit `baed1ec`: Merge branch 'main' of github.com:da0101/agentboard — auto-logged
 
 2026-04-18 — closed stream daemon-orchestration → ./.platform/work/archive/daemon-orchestration.md (by danilulmashev)
 

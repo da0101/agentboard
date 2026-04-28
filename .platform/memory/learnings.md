@@ -17,6 +17,13 @@ Class: <the category of problem — so you can grep it>
 
 ---
 
+## L-003 — Lock release silently fails when session ID is subprocess-unstable
+Date: 2026-04-28 | Repo: agentboard
+Symptom: `ab lock release` exits 0 but the lock stays held; next acquire blocks forever.
+Root cause: `_lock_session_id` used `${provider}-ppid-${PPID}`. Each `run_cli_capture` call forks a subshell with a different PPID, so acquire and release sent different IDs; the daemon's ownership check rejected the release.
+Fix: Changed fallback to `${provider}-anonymous`, a stable constant that matches the daemon's own `normalizeSessionId` logic. `lib/agentboard/commands/lock.sh`.
+Class: subprocess-identity / IPC mismatch
+
 <!-- Append new entries above this line, newest at top. -->
 <!-- Use sequential IDs: L-001, L-002, … -->
 - [2026-04-17] [token-optimization] Generic task labels (normal/heavy/etc.) hide spend root causes. Always log usage with semantic task types such as conversation, design, implementation, debug, audit, or handoff.
