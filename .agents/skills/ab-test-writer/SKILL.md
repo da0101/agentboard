@@ -1,6 +1,6 @@
 ---
 name: ab-test-writer
-description: "Unit test writer. Enumerates edge cases by feature type (API endpoint / business logic / auth / data mutation / UI component) and writes tests that cover happy path + boundaries + failures. Uses the project's actual test framework found in the codebase."
+description: "Use after writing production code, before merging any feature, or when a bug reveals a missing test. Detects the project's actual test framework and writes tests covering happy path, edge cases, auth boundaries, and failure modes."
 argument-hint: "<code unit to test — file path, function name, or feature description>"
 allowed-tools:
   - Read
@@ -41,7 +41,7 @@ Tests are written in the project's existing test framework (detected by reading 
 ## When NOT to use
 
 - For UI-visual-only testing (use `ab-qa` for real-browser passes)
-- For integration tests that span services (different skill — call out explicitly)
+- For integration tests that span services (use an e2e framework or `ab-workflow` Stage 6 integration testing)
 - For test-less prototypes the user explicitly marked "no tests"
 
 ## Protocol
@@ -113,12 +113,40 @@ Pick one of these categories. Each has its own edge-case checklist.
 ### Step 3 — Write the tests
 
 One test file per unit (or colocated with the unit per project convention). Follow these rules:
-- **One assertion per test** where possible (easier to debug failures)
+- **One behavior per test** — one test verifies one distinct behavior. Table-driven tests (pytest `parametrize`, Go table tests) may have multiple assertions per row; that's fine because each row tests a distinct input.
 - **Descriptive test names** — "rejects requests with missing email" not "test1"
 - **Arrange / Act / Assert structure** visible in each test
 - **Fixtures for reusable setup**, not copy-paste
-- **Mock external dependencies at the module boundary**, not inside the unit under test
+- **Mock at the right boundary:** spies observe calls without changing behavior; stubs control return values; fakes replace real I/O (in-memory DB, fake clock). Default order of preference: fakes > stubs > spies. Mock at the module boundary, not inside the unit under test.
 - **No sleep/retry loops** in unit tests — use fake timers / clocks
+
+**Skeleton (TypeScript/Jest — adapt to your project's framework):**
+```typescript
+describe('createOrder', () => {
+  it('returns order with generated ID for valid input', async () => {
+    // Arrange
+    const input = { userId: 'u1', items: [{ sku: 'A', qty: 1 }] };
+    const mockRepo = { save: jest.fn().mockResolvedValue({ id: 'ord_1', ...input }) };
+
+    // Act
+    const result = await createOrder(input, { repo: mockRepo });
+
+    // Assert
+    expect(result.id).toMatch(/^ord_/);
+    expect(mockRepo.save).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1' }));
+  });
+
+  it('throws ValidationError when items array is empty', async () => {
+    // Arrange
+    const input = { userId: 'u1', items: [] };
+    const mockRepo = { save: jest.fn() };
+
+    // Act & Assert
+    await expect(createOrder(input, { repo: mockRepo })).rejects.toThrow('items must not be empty');
+    expect(mockRepo.save).not.toHaveBeenCalled();
+  });
+});
+```
 
 ### Step 4 — Run the tests
 
@@ -159,14 +187,14 @@ A test file that follows the project's existing style, named and located per pro
 
 ## Integration
 
-- **Upstream:** called by `ab-workflow` Stage 6 (verify), `ab-architect` output, or directly
+- **Upstream:** called by `ab-workflow` Stage 6 (verify), `ab-architect` "Tests needed" section, or directly
 - **Downstream:** feeds `ab-review` (which expects tests to exist)
-- **Sibling:** `ab-qa` for UI visual / interaction testing beyond what unit tests cover
+- **Sibling:** `ab-qa` for UI visual / interaction testing beyond what unit tests cover; `ab-debug` calls this skill for regression tests
 
 ## Anti-patterns
 
 1. **Testing the framework instead of your code.** If the test only proves `useState` works, delete it.
 2. **Testing implementation details.** Test behavior, not which function was called internally.
-3. **One mega test with 20 assertions.** Split it.
+3. **One mega test with 20 assertions.** Split it by behavior.
 4. **Snapshot tests for everything.** Snapshots are for stable output, not for "I couldn't think of a real assertion".
 5. **Skipping the cross-tenant test** for multi-tenant apps. This is THE test that catches the worst bugs.

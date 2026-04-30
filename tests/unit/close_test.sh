@@ -78,7 +78,9 @@ test_close_confirm_removes_from_active_registry() {
   assert_file_contains "$dir/.platform/work/ACTIVE.md" "login"
   run_cli_capture output "$dir" close login --confirm
   assert_status "$RUN_STATUS" 0
-  assert_file_not_contains "$dir/.platform/work/ACTIVE.md" "| login |"
+  # Row remains but status is updated to "closed" — it is no longer "active"
+  assert_file_contains "$dir/.platform/work/ACTIVE.md" "| login |"
+  assert_file_contains "$dir/.platform/work/ACTIVE.md" "closed"
 }
 
 test_close_confirm_blocked_without_approval() {
@@ -169,6 +171,23 @@ test_close_harvest_no_gap_when_file_mentioned_in_domain() {
   fi
 }
 
+# Regression test: closing a stream should update status to "closed" in ACTIVE.md,
+# not remove the row. The row must remain with status "closed" in the stream column,
+# not just anywhere in the file (the lifecycle table also contains the word "closed").
+test_close_confirm_marks_stream_closed_in_active_registry() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_close_fixture "$dir"
+  _approve_stream "$dir" login
+  run_cli_capture output "$dir" close login --confirm
+  assert_status "$RUN_STATUS" 0
+  # Row must still exist in ACTIVE.md
+  assert_file_contains "$dir/.platform/work/ACTIVE.md" "| login |"
+  # The login row itself must have "closed" in the status column (3rd pipe-separated field)
+  grep -Eq '^\| login \|[^|]*\| closed \|' "$dir/.platform/work/ACTIVE.md" \
+    || fail "login row in ACTIVE.md was not updated to closed status"
+}
+
 test_close_without_confirm_prints_harvest_checklist
 test_close_confirm_archives_stream
 test_close_confirm_appends_log_entry
@@ -178,3 +197,4 @@ test_close_dry_run_writes_nothing
 test_close_rejects_bad_slug
 test_close_rejects_missing_stream
 test_close_help
+test_close_confirm_marks_stream_closed_in_active_registry

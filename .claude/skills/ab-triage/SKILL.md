@@ -1,6 +1,6 @@
 ---
 name: ab-triage
-description: "Classify a task by type/scope/risk before starting work. Decides which workflow depth and which specialist skills are appropriate. Run this at the start of every non-trivial task."
+description: "Use at the start of every non-trivial task — classifies by type, scope, and risk to decide workflow depth and specialist routing. Run before ab-workflow or any specialist skill. Skip only for obvious one-liners."
 argument-hint: "<task description — paste what the user asked for>"
 allowed-tools:
   - Read
@@ -59,6 +59,8 @@ Step 2 — Classify along three axes. Pick exactly one value per axis.
 - `large` — 10+ files or crosses repo boundaries
 - `xl` — architectural shift, migration, schema change, external service integration
 
+*(Line counts are heuristics, not rules. A migration touching 500 lines can be conceptually `small` if it's a mechanical find-replace. A 30-line auth refactor can be `xl` if it changes a core invariant. Judge by complexity and risk, not count.)*
+
 **Risk:**
 - `low` — local changes, no external effects, tests cover the area
 - `medium` — touches shared utilities, public APIs, or tests are sparse
@@ -76,14 +78,16 @@ Step 4 — Pick the workflow depth from this table:
 
 | Scope × Risk | Workflow depth |
 |---|---|
-| trivial × low | Execute directly, no workflow |
-| small × low | Skip interview + research, propose inline, execute, verify |
-| small × medium | Add a quick read of relevant files before proposing |
+| trivial × low | Execute directly, no workflow unless it is a new stream |
+| small × low | For non-stream tasks: skip interview + research, propose inline, execute, verify. For new streams: register, run compact research, propose, get approval, execute, verify |
+| small × medium | For non-stream tasks: add a quick read of relevant files before proposing. For new streams: register, run scaled research, propose, get approval, execute, verify |
 | medium × low | Full workflow: interview (if ambiguous) + research + propose + execute + verify |
 | medium × medium | Full workflow + dedicated security / test review in verify |
 | medium × high | Full workflow + explicit user approval before execute |
 | large × * | Full workflow + parallel research subagents + explicit approval |
 | xl × * | Stop. Propose breaking into phases. Do not execute in one pass. |
+
+**New-stream override:** If the task is not already tracked in `ACTIVE.md` and should become a stream, research and human approval are mandatory even when the implementation itself looks small or low-risk.
 
 ## Output format
 
@@ -95,11 +99,13 @@ Workflow: full workflow + dedicated test review in verify
 
 One block. Three lines. No preamble. No "let me analyze…". No questions.
 
+**For compound requests** (user asks for two unrelated things): emit two separate triage blocks, one per task.
+
 ## Red flags — stop and ask
 
 - **Scope mismatch.** User says "quick fix" but you see it touches auth → raise the risk label, tell the user, confirm before proceeding.
 - **Ambiguous target.** User says "fix the bug in checkout" — you don't know which bug. Ask 1 clarifying question before classifying.
-- **Mixed tasks in one request.** User asks for two unrelated things — triage them separately.
+- **Mixed tasks in one request.** User asks for two unrelated things — triage them separately, emit two blocks.
 
 ## Integration
 

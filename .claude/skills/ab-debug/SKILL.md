@@ -1,6 +1,6 @@
 ---
 name: ab-debug
-description: "Root-cause bug investigation using the scientific method. Forms a hypothesis, tests it, narrows the search, and fixes the underlying cause — not the symptom. Logs each hypothesis + result so you can't loop on the same wrong theory."
+description: "Use when a bug has no obvious immediate cause — first-guess fix failed, the bug is intermittent or flaky, it crosses component boundaries, or ab-qa flagged a failure with unclear root cause. Not for obvious one-line fixes or performance profiling."
 argument-hint: "<bug description — what's broken, what's expected, how to repro>"
 allowed-tools:
   - Read
@@ -107,14 +107,26 @@ Repeat Steps 3–5. **Maximum 3 hypotheses before re-assessing.** If you've burn
 - Ask: am I debugging the wrong thing?
 - Ask: is there a different interpretation of the symptom?
 - Consider: is the repro actually what the user reported, or something similar-looking?
+- **For regression bugs where you can't isolate when it broke:** use `git bisect` to binary-search the commit range before forming more hypotheses. This is often 10× faster than hypothesis narrowing.
 
 If re-assessment doesn't help, escalate to the user or pair with a different angle (fresh read of the relevant files, grep for recent similar bugs in `.platform/memory/log.md`).
 
-### Step 6 — Write the regression test
+### Step 6 — Write the regression test (before fixing)
 
-Before fixing, write a test that reproduces the bug and fails. This is non-negotiable. If the test passes before the fix, it's not testing the bug.
+Before fixing, write a test that reproduces the bug and **currently fails**. This is non-negotiable. If the test passes before the fix, it's not testing the bug.
 
 Use `ab-test-writer` if the test framework / style isn't obvious.
+
+This test proves the root cause. It is distinct from any symptom test described in Step 7.
+
+**Common rationalizations — all are violations:**
+
+| Thought | Why it's wrong |
+|---|---|
+| "I'll add the test right after the fix" | After = not before. The test must FAIL before you touch the fix. |
+| "I know the fix is right, the test is just paperwork" | If you're certain, the test takes 2 minutes. Write it. |
+| "I already ran the failing case manually" | Manual confirmation is not a regression test. It won't catch the bug next time. |
+| "The existing tests cover it" | They didn't catch this bug. Write a test that specifically fails on this bug. |
 
 ### Step 7 — Fix the root cause
 
@@ -125,11 +137,11 @@ Fix the cause you confirmed, not the symptom. Examples:
 If the root cause is too deep to fix now, the symptom fix is acceptable **only** if:
 1. You document the root cause in `.platform/memory/decisions.md` as deferred
 2. You add a TODO at the site with a reference to the decision
-3. You add a test for the symptom
+3. You add a **separate** test for the symptom (distinct from the Step 6 regression test — this one tests the guarded behavior, not the root cause)
 
 ### Step 8 — Verify
 
-Run the regression test — it should now pass.
+Run the regression test (Step 6) — it should now pass.
 Run the surrounding test suite — nothing else should break.
 Re-run the original repro steps — the bug should be gone.
 
@@ -177,7 +189,7 @@ Environment: ...
 ## Red flags — stop and ask
 
 - **You can't reproduce locally.** Debug the environment first, not the code.
-- **You've burned 3 hypotheses and are about to guess a 4th.** Stop. Re-read. Reconsider the problem.
+- **You've burned 3 hypotheses and are about to guess a 4th.** Stop. Re-read. Consider `git bisect`.
 - **The fix works but you can't explain why.** Do not ship. The bug will come back.
 - **The fix involves `try/except Exception: pass`.** Almost always wrong.
 - **You're fixing a symptom because the root cause is "too deep".** Document the deferral explicitly or keep digging.
@@ -187,15 +199,15 @@ Environment: ...
 
 1. **Repro before fix.** No repro, no fix.
 2. **One hypothesis, one experiment, one result.** No shotgun debugging.
-3. **Max 3 hypotheses before re-assessing.** Then ask a fresh question.
-4. **Regression test before fix.** Non-negotiable.
+3. **Max 3 hypotheses before re-assessing.** Then ask a fresh question or use `git bisect`.
+4. **Regression test before fix.** Non-negotiable. The test must fail before the fix.
 5. **Root cause over symptom.** Symptom fixes are logged as deferred root causes.
 6. **Log the session.** Future sessions should not re-debug the same thing.
 
 ## Integration
 
 - **Upstream:** called by `ab-qa` when a finding needs root-cause work, by `ab-workflow` when Stage 5 hits a bug, or directly
-- **Calls:** `ab-test-writer` for the regression test
+- **Calls:** `ab-test-writer` for the regression test (Step 6)
 - **Downstream:** writes to `.platform/memory/log.md`, optionally `.platform/memory/decisions.md` / `conventions/*.md`
 
 ## Anti-patterns

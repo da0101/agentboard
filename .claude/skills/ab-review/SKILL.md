@@ -1,6 +1,6 @@
 ---
 name: ab-review
-description: "Pre-PR code review. Reviews a diff against spec compliance, code quality, security, and test coverage. Produces a structured findings list with severity. Use before every merge."
+description: "Use before merging any PR or branch, when reviewing AI-generated code, or when a collaborator's work needs a structured check before landing."
 argument-hint: "<diff / branch / file set to review>"
 allowed-tools:
   - Read
@@ -61,12 +61,13 @@ git diff <base>...<head>
 git show <commit>
 ```
 
-Read the full diff. Do not skim. For large diffs, focus on:
-- Auth / permission changes
-- Data model / schema changes
-- API contract changes
-- Anything in `conventions/security.md`-sensitive areas
-- New dependencies
+Read the full diff. Do not skim.
+
+**For large diffs (>300 lines):** split into passes by concern — run each pass separately and note which pass each finding came from:
+1. Auth / security / permissions changes
+2. Data model / schema / migration changes
+3. Business logic changes
+4. Test coverage
 
 ### Step 3 — Run the four-axis checklist
 
@@ -99,7 +100,7 @@ Read the full diff. Do not skim. For large diffs, focus on:
 - [ ] New queries filter by tenant where applicable
 - [ ] No `eval` / `exec` of user input
 - [ ] New external calls (URLs, APIs) are to trusted destinations
-- [ ] If the diff touches auth / payments / data access: **flag for deep `ab-security` pass**
+- [ ] If the diff touches auth / payments / data access: **escalate to `ab-security` for a deep pass regardless of confidence**
 
 #### Axis 4: Test coverage
 
@@ -126,7 +127,7 @@ Read the full diff. Do not skim. For large diffs, focus on:
 <notes>
 
 ### Axis 3 — Security (shallow): <PASS / FAIL>
-<notes — if FAIL, flag for ab-security deep pass>
+<notes — if FAIL or touches auth/payments, flag for ab-security deep pass>
 
 ### Axis 4 — Test coverage: <PASS / FAIL>
 <notes>
@@ -177,10 +178,10 @@ Read the full diff. Do not skim. For large diffs, focus on:
 
 ## Hard rules
 
-1. **Read the full diff.** Skimming = miss bugs.
+1. **Read the full diff.** Skimming misses bugs — don't claim to have reviewed what you skimmed.
 2. **Every finding references file:line.** No "somewhere in the auth module".
 3. **Critical findings block merge.** No exceptions without explicit user override.
-4. **Security findings escalate to `ab-security`** for deep analysis if severity is uncertain.
+4. **Any Axis 3 failure escalates to `ab-security`.** Don't guess at security severity — escalate.
 5. **Verdict is one of three.** APPROVE / REQUEST CHANGES / BLOCK.
 
 ## Integration
@@ -191,7 +192,7 @@ Read the full diff. Do not skim. For large diffs, focus on:
 
 ## Anti-patterns
 
-1. **LGTM drive-by.** Not a review. Either read the diff or don't claim to have reviewed it.
+1. **LGTM drive-by.** Claiming you reviewed code you only skimmed. Either read the diff or say you didn't.
 2. **Bikeshedding naming while missing a SQL injection.** Prioritize the four axes in order.
 3. **Treating "style nit" as critical.** Keep the rubric honest.
 4. **Not running the code.** At minimum, run the tests. Ideally, run the feature.

@@ -119,9 +119,84 @@ test_progress_requires_slug() {
   assert_contains "$output" "Usage: ab progress"
 }
 
+test_progress_json_appended() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_stream_with_branch "$dir" "jsontest"
+
+  printf 'export const x = 1;\n' > "$dir/x.ts"
+  git -C "$dir" add x.ts
+  git -C "$dir" commit -m "add x" >/dev/null 2>&1
+
+  run_cli_capture output "$dir" progress jsontest --json
+  assert_status "$RUN_STATUS" 0
+  # Must be valid JSON (python3 is available on macOS / CI)
+  printf '%s' "$output" | python3 -c 'import sys,json; json.loads(sys.stdin.read())' \
+    || fail "--json output is not valid JSON: $output"
+  assert_contains "$output" '"status":"appended"'
+  assert_contains "$output" '"stream":"jsontest"'
+  assert_contains "$output" '"dry_run":false'
+  # File should still have been written
+  assert_file_contains "$dir/.platform/work/jsontest.md" "diff feat/jsontest vs main"
+}
+
+test_progress_json_dry_run() {
+  local dir output before after
+  dir="$(mktemp -d)"
+  setup_stream_with_branch "$dir" "jsondry"
+
+  printf 'export const y = 2;\n' > "$dir/y.ts"
+  git -C "$dir" add y.ts
+  git -C "$dir" commit -m "add y" >/dev/null 2>&1
+
+  before="$(md5 -q "$dir/.platform/work/jsondry.md" 2>/dev/null || md5sum "$dir/.platform/work/jsondry.md" | awk '{print $1}')"
+  run_cli_capture output "$dir" progress jsondry --dry-run --json
+  assert_status "$RUN_STATUS" 0
+  printf '%s' "$output" | python3 -c 'import sys,json; json.loads(sys.stdin.read())' \
+    || fail "--json --dry-run output is not valid JSON: $output"
+  assert_contains "$output" '"status":"dry_run"'
+  assert_contains "$output" '"dry_run":true'
+  after="$(md5 -q "$dir/.platform/work/jsondry.md" 2>/dev/null || md5sum "$dir/.platform/work/jsondry.md" | awk '{print $1}')"
+  [[ "$before" == "$after" ]] || fail "stream file was modified during --dry-run --json"
+}
+
+test_progress_json_no_changes() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_stream_with_branch "$dir" "jsonnoop"
+
+  run_cli_capture output "$dir" progress jsonnoop --json
+  assert_status "$RUN_STATUS" 0
+  printf '%s' "$output" | python3 -c 'import sys,json; json.loads(sys.stdin.read())' \
+    || fail "--json no-changes output is not valid JSON: $output"
+  assert_contains "$output" '"status":"no_changes"'
+  assert_contains "$output" '"dry_run":false'
+}
+
+test_progress_json_note_and_special_chars() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_stream_with_branch "$dir" "jsonspecial"
+
+  printf 'const a = "hello";\n' > "$dir/a.ts"
+  git -C "$dir" add a.ts
+  git -C "$dir" commit -m "add a" >/dev/null 2>&1
+
+  run_cli_capture output "$dir" progress jsonspecial \
+    --note 'fix: handle "quotes" & back\slashes' --json
+  assert_status "$RUN_STATUS" 0
+  printf '%s' "$output" | python3 -c 'import sys,json; o=json.loads(sys.stdin.read()); assert o["note"] is not None' \
+    || fail "note field missing or null in JSON: $output"
+  assert_contains "$output" '"status":"appended"'
+}
+
 test_progress_appends_diff_stat_to_stream_file
 test_progress_dry_run_does_not_modify_file
 test_progress_no_changes_is_noop
 test_progress_base_override_flag
 test_progress_missing_stream_fails
 test_progress_requires_slug
+test_progress_json_appended
+test_progress_json_dry_run
+test_progress_json_no_changes
+test_progress_json_note_and_special_chars

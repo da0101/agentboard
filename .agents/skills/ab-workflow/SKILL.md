@@ -1,6 +1,6 @@
 ---
 name: ab-workflow
-description: "The 6-stage inline workflow orchestrator (triage → interview → research → propose → execute → verify). Runs a medium/large task through all stages with the right specialists at each step. Plans live in chat, never as .md files."
+description: "Use for any task classified small or larger by ab-triage — orchestrates from 'user asked for X' to 'X is shipped, tested, and logged' through 6 stages with appropriate specialists at each step."
 argument-hint: "<task description>"
 allowed-tools:
   - Read
@@ -43,16 +43,25 @@ A single orchestration skill that drives a task from "user asked for X" to "X is
 
 ### Stage 1 — Triage (always)
 
-Call `ab-triage` mentally or emit its three-line output. Emit classification inline:
+**Before reading a single file**, emit the classification in chat:
 ```
 Triage: <type> / <scope> / <risk>
 ```
 
+This is not internal thinking. It must appear in the chat output. Reading files before emitting this line is a Stage 1 skip.
+
+**Rationalizations to reject:**
+- "I need to read the code to know the scope" → Estimate from the task description. You can revise after reading if the scope changes — but emit first.
+- "The triage is obvious, no need to write it" → Write it anyway. Unwritten triage = no triage.
+- "I'll triage mentally and move on" → Mental triage is invisible. It cannot be corrected. Emit it.
+
 If `trivial × low`, exit this skill and execute directly. Otherwise continue.
 
-### Stage 1b — Register (mandatory before any research, proposal, or code)
+### Stage 1b — Register (for streams; skip for trivial/small non-stream tasks)
 
-**Stop here.** Before doing anything else, create the work artifacts:
+**Skip Stage 1b** for trivial × low non-stream tasks — execute directly after Stage 1.
+
+**For all other tasks that will become or continue a tracked stream**, stop here and create the work artifacts before doing anything else:
 
 1. **Check `work/ACTIVE.md`** — does this stream already exist? If yes, load the stream file and resume. No duplicate.
 2. **Check `.platform/domains/`** — does a domain file exist for this feature area?

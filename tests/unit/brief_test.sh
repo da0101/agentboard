@@ -131,13 +131,23 @@ test_brief_warns_about_generic_usage_labels() {
   assert_contains "$output" "generic labels like normal/heavy"
 }
 
+test_brief_shows_domain_list_for_active_stream() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_brief_fixture "$dir"
+  run_cli_capture output "$dir" brief
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "domain(s): auth"
+}
+
 for t in \
   test_init_scaffolds_memory_files \
   test_brief_shows_active_stream \
   test_brief_shows_gotchas_when_present \
   test_brief_reports_empty_state_gracefully \
   test_brief_help \
-  test_brief_warns_about_generic_usage_labels; do
+  test_brief_warns_about_generic_usage_labels \
+  test_brief_shows_domain_list_for_active_stream; do
   printf 'RUN: %s\n' "$t" >&2
   "$t"
 done

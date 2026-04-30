@@ -461,6 +461,7 @@ stream_rows_from_active() {
       agent = trim($5)
       updated = trim($6)
       if (slug == "" || slug == "Stream" || slug == "_(none)_" || slug ~ /^-+$/) next
+      if (status == "closed") next
       printf "%s|%s|%s|%s|%s\n", slug, type, status, agent, updated
     }
   ' "$active"

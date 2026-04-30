@@ -1,6 +1,6 @@
 ---
 name: ab-qa
-description: "Quality assurance pass — manual or real-browser testing of a feature against acceptance criteria. Produces a pass/fail report with reproducible repro steps for any failures. Use before shipping any UI-visible change."
+description: "Use when a UI-visible change is about to ship, a bug report says something looks broken, or a feature needs acceptance testing before merge. Supports static analysis and optional authenticated browser testing for apps protected by MSAL, Azure AD B2C, Google, Firebase, or custom JWT auth."
 argument-hint: "<feature or URL to test>"
 allowed-tools:
   - Read
@@ -9,7 +9,7 @@ allowed-tools:
   - Glob
 ---
 
-# ab-qa — Real-browser / manual QA
+# ab-qa — QA testing
 
 ## Identity
 
@@ -29,7 +29,9 @@ Catch what unit tests can't:
 - Cross-browser / mobile issues
 - End-to-end flows that span multiple services
 
-This skill is for the **final pass before ship**. Unit tests should already be green.
+**Two modes:**
+- **Static mode (always available):** read source code, grep for acceptance criteria, run tests, review the diff. No browser required.
+- **Browser mode (opt-in):** invokes `playwright-skill` or `browse` with saved auth state. Requires one-time auth setup (see Browser auth setup below).
 
 ## When to use
 
@@ -62,11 +64,14 @@ Record in chat:
 Environment: local dev / staging / production
 URL: <base URL>
 Browser: <browser + version>
-Auth state: <logged in as? anonymous?>
+Auth state: <logged in as? anonymous? auth provider?>
 Data state: <fresh DB? seeded fixtures? production-like?>
+Mode: static | browser
 ```
 
 Reproducibility matters. If the environment isn't recorded, the bug report can't be re-checked.
+
+**If browser mode and app requires auth:** see "Browser auth setup" section below before proceeding.
 
 ### Step 3 — Run the happy path
 
@@ -110,6 +115,7 @@ This is a spot check, not a full WCAG audit. Flag issues, don't block on them un
 ## QA report: <feature>
 
 Environment: <env + URL + browser + auth + data>
+Mode: static | browser
 Time: <timestamp>
 
 ### Acceptance criteria
@@ -158,6 +164,71 @@ Time: <timestamp>
 - **NEEDS FIXES:** critical or high findings exist → back to Stage 5 of `ab-workflow`
 - **BLOCKED:** can't test due to environment issue → surface to user
 
+---
+
+## Browser auth setup
+
+Most auth-protected apps block headless browsers. Fix this once per environment with Playwright's `storageState`, which captures cookies, localStorage, and sessionStorage in a single JSON file.
+
+### One-time capture (works for MSAL, Azure AD B2C, Google, most JWT setups)
+
+**Install Playwright if not present:**
+```bash
+npm install --save-dev playwright
+npx playwright install chromium
+```
+
+**Run the capture script:**
+```bash
+npx playwright codegen --save-storage=.auth/state.json https://your-app.com
+```
+A headed browser opens. Log in normally. Close the browser. Auth state is saved to `.auth/state.json`.
+
+Add `.auth/` to `.gitignore` — never commit auth tokens.
+
+**Use saved state when invoking `playwright-skill` or `browse`:**
+Pass `storageState: '.auth/state.json'` to the browser context. The session is fully authenticated.
+
+### Provider-specific notes
+
+**MSAL / Azure AD B2C**
+Tokens live in `sessionStorage` under keys like `msal.{clientId}.*`. The `storageState` capture includes sessionStorage — works out of the box. Tokens expire (usually 1 hour for access tokens; refresh tokens extend the session). Re-run capture when tests start returning 401s.
+
+**Google / Gmail OAuth**
+Auth state is split across cookies (refresh token) and `localStorage` (access token). Both are captured by `storageState`. Re-run capture after the refresh token expires (typically days to weeks depending on Google's session policy).
+
+**Firebase Auth**
+Firebase v9+ uses IndexedDB by default, which `storageState` does **not** capture. Two options:
+
+1. **Change persistence in dev (recommended):** In your Firebase init code, add:
+   ```javascript
+   import { getAuth, setPersistence, browserLocalStorage } from 'firebase/auth';
+   if (process.env.NODE_ENV !== 'production') {
+     setPersistence(getAuth(), browserLocalStorage);
+   }
+   ```
+   Then `storageState` captures the Firebase token in `localStorage` normally.
+
+2. **Token injection (no code change required):** After loading, inject the Firebase token via `page.evaluate()`:
+   ```javascript
+   const token = JSON.parse(fs.readFileSync('.auth/firebase-token.json'));
+   await page.evaluate((t) => {
+     const key = `firebase:authUser:${t.apiKey}:${t.appName}`;
+     localStorage.setItem(key, JSON.stringify(t.user));
+   }, token);
+   await page.reload(); // let the app pick up the injected token
+   ```
+   Extract the token value from a live session: browser DevTools → Application → IndexedDB → `firebaseLocalStorageDb` → `firebaseLocalStorage` → copy the entry.
+
+**Generic bearer token / custom JWT in localStorage**
+`storageState` captures `localStorage` — works out of the box. Locate your token key (e.g., `authToken`, `access_token`) and verify it's present in the exported `.auth/state.json` before running tests.
+
+### When browser mode isn't available or auth setup isn't feasible
+
+Run in static mode: source code review, grep, unit/integration tests, diff review. Note in the QA report that browser testing was skipped and why. Static mode catches ~60% of what browser mode catches — enough to block obvious regressions.
+
+---
+
 ## Severity rubric for QA findings
 
 | Severity | Definition |
@@ -178,15 +249,16 @@ Time: <timestamp>
 
 1. **Acceptance criteria first.** No criteria = no test.
 2. **Repro steps for every failure.** Step-by-step, reproducible by a stranger.
-3. **Test in a real browser.** Not just curl. Not just unit tests. An actual rendered UI.
-4. **Cover all 6 edge-case buckets.** Empty / error / loading / boundary / interrupted / permissions.
-5. **Record the environment.** Non-reproducible bugs are noise.
-6. **The verdict is one of three.** READY / NEEDS FIXES / BLOCKED. No "mostly ready".
+3. **Cover all 6 edge-case buckets.** Empty / error / loading / boundary / interrupted / permissions.
+4. **Record the environment.** Non-reproducible bugs are noise.
+5. **The verdict is one of three.** READY / NEEDS FIXES / BLOCKED. No "mostly ready".
+6. **Browser mode requires saved auth state.** Do not tell Playwright to navigate to a login page and wait — capture state once, reuse it.
 
 ## Integration
 
 - **Upstream:** called by `ab-workflow` Stage 6 for UI changes, or directly when shipping
-- **Downstream:** findings feed back to Stage 5 for fixes, or trigger a `ab-debug` pass for hard-to-repro bugs
+- **Browser testing:** delegates to `playwright-skill` or `browse` with `.auth/state.json`
+- **Downstream:** findings feed back to Stage 5 for fixes, or trigger an `ab-debug` pass for hard-to-repro bugs
 - **Sibling:** `ab-test-writer` writes the unit-test regression for any bug found here
 
 ## Anti-patterns
@@ -196,3 +268,4 @@ Time: <timestamp>
 3. **Flagging every polish issue as critical.** Keep the severity rubric honest.
 4. **Skipping the environment record.** Bugs that can't be reproduced get closed as "can't repro", wasting everyone's time.
 5. **Treating accessibility as optional.** Keyboard + labels are table stakes.
+6. **Launching a headless browser against an auth-protected app without saved state.** Set up auth capture first.

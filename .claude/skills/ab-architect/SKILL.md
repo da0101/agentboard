@@ -1,6 +1,6 @@
 ---
 name: ab-architect
-description: "System / component design mode. Produces a design with explicit invariants, component boundaries, data flow, and failure modes. Use before writing code for any medium+ feature or any change that touches cross-cutting concerns."
+description: "Use before writing code for any medium+ feature, when adding a new component, service, or data store, crossing module boundaries, or touching auth, payments, tenant isolation, or data migrations. Also use when asked 'how should I build X?'"
 argument-hint: "<feature or system to design>"
 allowed-tools:
   - Read
@@ -78,7 +78,9 @@ Use exactly this structure:
 3. ...
 
 ### Data flow
-<ASCII diagram or numbered steps showing how data moves between components>
+<ASCII diagram with labeled arrows showing how data moves between components>
+Example: Client → [HTTP] → API Handler → [enqueue] → Job Queue → [consume] → Worker → [write] → DB
+Prose alternative (numbered steps) is acceptable when the flow is strictly linear, but must name each component explicitly at each step.
 
 ### Invariants (must always hold)
 1. <Invariant 1 — state it as a testable assertion>
@@ -133,6 +135,8 @@ See Step 3 — that IS the output format. Markdown, structured, in chat.
 
 Length target: 150–400 lines of chat. Longer means over-designed, shorter means under-designed.
 
+**Time-constrained minimum:** If time is the constraint, the non-negotiable sections are Components, Invariants, and Failure modes. Skip Alternatives only when time is explicitly the reason — and note zero alternatives as a flag.
+
 ## Red flags — stop and ask
 
 - **You can't name the invariants.** If the design has no invariants, it has nothing to protect.
@@ -154,12 +158,12 @@ Length target: 150–400 lines of chat. Longer means over-designed, shorter mean
 - **Upstream:** called by `ab-workflow` Stage 4 for medium+ tasks, or directly when the user asks for a design
 - **Inputs:** `.platform/architecture.md`, `.platform/memory/decisions.md`, existing source files
 - **Outputs:** chat artifact (the design), optional row in `.platform/memory/decisions.md`
-- **Downstream:** feeds execution and `ab-test-writer` (which reads the "Tests needed" section)
+- **Downstream:** feeds execution and `ab-test-writer` (which reads the "Tests needed" section to drive its edge-case checklist)
 
 ## Anti-patterns
 
 1. **Designing the whole system** when the task is one feature. Scope the design to the change.
-2. **Skipping failure modes.** "It won't fail" is not a failure mode.
+2. **Vague data-flow prose** like "the data flows through the system". Name every component at every step.
 3. **Writing pseudocode in the design.** Design names components and flows, not lines of code.
 4. **Over-generalizing.** Design for the current task + one reasonable extension, not for every hypothetical future need.
 5. **Silent cross-cutting concerns.** If auth is "implicit" in your design, you haven't designed it.

@@ -1,6 +1,6 @@
 ---
 name: ab-security
-description: "Security audit pass. Runs an OWASP-aligned checklist against a diff or a file set, covering auth, authorization, secrets, input validation, injection, tenant isolation, logging hygiene, and dependency risk. Produces a findings list with severity, not a 100-page report."
+description: "Use when reviewing code that touches auth, permissions, data access, external input, file uploads, secrets, multi-tenant data, or infrastructure. Also use for quarterly spot-checks, announced dependency CVEs, or when explicitly asked for a security review."
 argument-hint: "<file path(s), diff, or feature area to audit>"
 allowed-tools:
   - Read
@@ -51,12 +51,19 @@ Ask / determine:
 - **Threat model:** what's the attacker's goal here? (Read customer data / escalate privilege / exfiltrate secrets / DoS / supply chain)
 - **Trust boundary:** where does untrusted input enter? where does it leave the trust boundary?
 
-Emit in chat:
+Emit in chat — **do not skip this block, do not proceed to Step 2 without it:**
 ```
 Scope: <what>
 Threat: <attacker goal>
 Trust boundaries: <input sources>
 ```
+
+Without a threat model, every finding is context-free. "Missing rate limit" is Low on a read-only endpoint and Critical on a password reset endpoint. The scope block is not preamble — it anchors every severity call in Step 3.
+
+**Rationalizations to reject:**
+- "The scope is obvious from the task" → Write it anyway. Obvious to you ≠ recorded.
+- "I'll figure out the threat model as I go" → You'll anchor on whatever you happen to read first. Define it before you look at code.
+- "This is a quick review" → Quick reviews without scope produce findings without severity. That's noise, not a review.
 
 ### Step 2 — Run the checklist
 
@@ -68,6 +75,7 @@ For each item below, read the relevant code and emit a finding OR a "N/A — <re
 - [ ] Auth uses a trusted library, not a hand-rolled crypto
 - [ ] Session / token expiry is enforced
 - [ ] Token is validated on every request (not just set-and-trust)
+- [ ] CSRF protection on state-changing endpoints (SameSite cookies or explicit CSRF tokens)
 
 #### Authorization (A01)
 - [ ] Every resource access checks that the requesting user OWNS that resource (not just "is authenticated")
@@ -141,7 +149,7 @@ If there are no critical / high findings, say so explicitly. Do not pad the repo
 
 ### Step 4 — For critical findings, stop
 
-If critical findings exist, do NOT proceed to merge. Surface them and wait for fixes or an explicit user override.
+If critical findings exist, do NOT proceed to merge. Surface them and wait for fixes or an explicit written override in chat (a verbal "it's fine" is not sufficient).
 
 ## Severity rubric
 
@@ -164,7 +172,7 @@ If critical findings exist, do NOT proceed to merge. Surface them and wait for f
 
 1. **Every checklist item gets an answer.** Pass / fail / N/A-with-reason. No silent skips.
 2. **Findings reference file:line.** Not "in the auth module somewhere".
-3. **Critical findings block merge.** No exceptions without explicit user override.
+3. **Critical findings block merge.** No exceptions without an explicit written override in the chat.
 4. **Never log the fix of a secret** (e.g., don't commit a "fix: removed API key" commit — the key is still in history).
 5. **Do not run exploit payloads** against live systems without explicit authorization.
 

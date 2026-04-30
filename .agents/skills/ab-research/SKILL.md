@@ -1,6 +1,6 @@
 ---
 name: ab-research
-description: "Bounded research protocol. 1 web search + 2–3 fetches + 3–5 code reads max. Produces a ≤300-word synthesis in chat (never a .md file). Use before proposing a plan for any new stream or medium+ scope task."
+description: "Use before proposing a plan for any new stream or medium+ scope task. Also use when hitting an unfamiliar library mid-execution, or when existing code paths are suspiciously empty or unclear."
 argument-hint: "<research question — what do I need to know before proposing>"
 allowed-tools:
   - Read
@@ -63,7 +63,7 @@ If the answer is there, you're done. Emit the finding + source and exit.
 In **one round** of parallel tool calls:
 
 - **Code probe:** `Grep` for 2–3 key symbols in the project source tree, `Read` the top 3–5 matches
-- **Web probe:** exactly 1 `WebSearch` with a precise query. For new streams, always run this; for small/low-risk streams, keep it narrow.
+- **Web probe:** exactly 1 `WebSearch` with a precise query. For new streams, always run this; for small/low-risk non-stream tasks, keep it narrow.
 - **Docs probe:** up to 3 `WebFetch` calls for the most promising results from the web search (or directly for known doc URLs)
 
 **Hard budget ceiling:** 1 search + 3 fetches + 5 reads. If you blow the budget, stop and synthesize what you have.

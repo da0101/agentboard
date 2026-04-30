@@ -54,6 +54,7 @@ cmd_close() {
   if (( dry_run )); then
     printf '%sWould archive%s %s → %s\n' "$C_BOLD" "$C_RESET" "$stream_file" "$archive_path"
     printf '%sWould update frontmatter:%s status=done, closure_approved=true\n' "$C_BOLD" "$C_RESET"
+    printf '%sWould update ACTIVE.md:%s row status → closed\n' "$C_BOLD" "$C_RESET"
     printf '%sWould append closure row to .platform/memory/log.md%s\n' "$C_BOLD" "$C_RESET"
     return 0
   fi
@@ -69,7 +70,7 @@ cmd_close() {
   mv "$stream_file" "$archive_path"
 
   _close_append_log "$slug" "$archive_path" "$today_str" "$agent"
-  _close_remove_from_active_registry "$slug"
+  _close_update_active_registry_status "$slug"
 
   ok "Stream ${C_BOLD}${slug}${C_RESET} closed and archived → ${C_CYAN}${archive_path}${C_RESET}"
   say "  ${C_DIM}If the harvest step (gotchas/playbook/questions) wasn't done before --confirm,${C_RESET}"
@@ -94,7 +95,7 @@ Step 2 — finalize (--confirm):
   Moves the stream file to .platform/work/archive/<slug>.md
   Sets status=done, closure_approved=true
   Appends a closure row to .platform/memory/log.md
-  Removes the stream from work/ACTIVE.md
+  Updates work/ACTIVE.md row status to "closed" (row kept for history)
 
 Flags:
   --confirm   Actually archive + log. Run AFTER the harvest step.
@@ -225,11 +226,21 @@ _close_append_log() {
   mv "$tmp" "$log"
 }
 
-_close_remove_from_active_registry() {
+_close_update_active_registry_status() {
   local slug="$1"
   local registry="./.platform/work/ACTIVE.md"
   [[ -f "$registry" ]] || return 0
   local tmp; tmp="$(mktemp)"
-  grep -v "^| *${slug} *|" "$registry" > "$tmp" || true
+  awk -F'|' -v OFS='|' -v slug="$slug" '
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    {
+      if (NF >= 5 && trim($2) == slug) {
+        $4 = " closed "
+        print
+      } else {
+        print
+      }
+    }
+  ' "$registry" > "$tmp"
   mv "$tmp" "$registry"
 }

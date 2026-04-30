@@ -130,6 +130,13 @@ COMMANDS
                              --base <branch>   override recorded base branch
                              --note "<text>"   one-line note to attach
                              --dry-run         print block instead of writing
+                             --json            emit a single JSON object to
+                                               stdout (status, stream,
+                                               stream_file, base_ref,
+                                               head_branch, timestamp, note,
+                                               diff_stat, dry_run). File is
+                                               still written unless --dry-run
+                                               is also passed.
   search <query terms...>    Search .platform/ context files for relevant
                              snippets. Each term is OR-matched (case-insensitive).
                              Shows file path + surrounding context + full-file
