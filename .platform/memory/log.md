@@ -4,6 +4,11 @@ One line per completed task. Newest at the top. Append-only.
 
 Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 
+2026-04-30 — closed: skills-baseline-testing — pressure-tested 5 ab-* skills, patched ab-debug/security/workflow with rationalization counters, all 3 re-passed; 2 real bugs found as side-effects (close row deletion, brief domain display)
+2026-04-30 — closed: skills-improvement — overhauled all 10 ab-* skills: trigger descriptions, ab-qa browser auth, targeted fixes per skill, synced .claude/.agents; shipped in v1.9.0
+2026-04-30 — closed: research-first-stream-workflow — research-first intake rule landed in ab-triage/workflow/research; mandatory for all new streams regardless of size
+2026-04-30 — closed: search-command — agentboard search shipped and verified working against .platform/ files
+2026-04-30 — closed: event-log-dedup — dedup fix shipped, no duplicate FileChange events reported since 2026-04-18; user confirmed done
 2026-04-30 — fix: ab close ACTIVE.md bug — _close_remove_from_active_registry was deleting the row instead of marking it closed; fixed to update status column to "closed" and added stream_rows_from_active filter to exclude closed rows from handoff/count; regression test written first, existing test updated; ACTIVE.md template lifecycle table updated with closed status
 2026-04-28 — tool-quality-uplift — shipped: watch_install_test fully fixed (stub rename + systemd unit name), _ab_check_unreasoned_changes added to session-track.sh + wired into codex-ab/gemini-ab exit, _close_print_domain_gap added to close harvest checklist, lock release fixed with ${provider}-anonymous fallback; tool moved from ~6.5 to ~9.0 quality
 2026-04-19 — handoff-snippets — shipped: agentboard handoff now auto-searches domain files and shows targeted excerpts inline; --no-snippets to skip; grep context separators (--) must be filtered with awk since GNU/BSD grep have no portable --no-group-separator; head() shell function in core/base.sh shadows system head — always use awk NR<=N instead
