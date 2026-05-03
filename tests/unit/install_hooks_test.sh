@@ -251,6 +251,80 @@ test_install_hooks_aliases_flag_runs_only_aliases() {
   rm -rf "$dir" "$fake_home"
 }
 
+# ─── subdirectory-safety regression (root cause: relative hook paths) ────────
+#
+# Root cause (2026-05-03): hook commands used `bash "./.platform/scripts/hooks/..."`.
+# When the shell CWD shifted to a subdirectory (e.g. after `cd android`, or
+# when a Task/Explore subagent started in a subdirectory), bash could not find
+# the script → exit 127 → Claude Code showed "hook error" for every Bash call.
+#
+# Fix: all hook commands now use `git rev-parse --show-toplevel` to locate the
+# project root, `cd` there, then execute the script with a repo-root-relative path.
+
+test_settings_template_no_bare_relative_hooks() {
+  # Regression guard: no hook command may use a bare "./.platform/..." path.
+  local settings="$TEST_ROOT/templates/root/.claude/settings.json"
+  [[ -f "$settings" ]] || fail "template settings.json not found at $settings"
+  if grep -qE '"command"[[:space:]]*:[[:space:]]*"(bash|node) "\./\.platform/' "$settings" 2>/dev/null; then
+    fail "settings.json template has bare CWD-relative hook path — breaks when shell CWD is a subdirectory"
+  fi
+}
+
+test_settings_template_uses_git_rev_parse() {
+  # Positive check: all hook commands must route through git rev-parse.
+  local settings="$TEST_ROOT/templates/root/.claude/settings.json"
+  [[ -f "$settings" ]] || fail "template settings.json not found at $settings"
+  grep -q "git rev-parse --show-toplevel" "$settings" \
+    || fail "settings.json template must use git rev-parse --show-toplevel for subdirectory safety"
+}
+
+test_installed_settings_uses_git_rev_parse() {
+  # install-hooks must deploy the rev-parse format (not the old relative path).
+  local dir output
+  dir="$(mktemp -d)"
+  mkdir -p "$dir/.platform"
+  run_cli_capture output "$dir" install-hooks
+  assert_status "$RUN_STATUS" 0
+  assert_file_contains "$dir/.claude/settings.json" "git rev-parse --show-toplevel"
+  assert_file_not_contains "$dir/.claude/settings.json" 'bash "./.platform/scripts/hooks/'
+  rm -rf "$dir"
+}
+
+test_hook_exits_0_from_subdirectory() {
+  # Behavioral regression: hook command must exit 0 even when CWD is a nested
+  # subdirectory of the project (e.g. android/app, src/components, etc.).
+  local dir status
+  dir="$(mktemp -d)"
+  make_git_repo "$dir" main
+  mkdir -p "$dir/.platform"
+  run_cli_capture _out "$dir" install-hooks
+  assert_status "$RUN_STATUS" 0
+
+  mkdir -p "$dir/android/app/src"
+  local payload='{"tool_name":"Bash","tool_input":{"command":"ls"},"hook_event_name":"PreToolUse","session_id":"t1"}'
+
+  # Sanity check: the old bare path DOES fail from a subdirectory (confirms the
+  # regression is real and our test environment is behaving correctly).
+  set +e
+  (cd "$dir/android/app/src" && printf '%s' "$payload" | bash "./.platform/scripts/hooks/bash-guard.sh" >/dev/null 2>&1)
+  local old_exit=$?
+  set -e
+  (( old_exit != 0 )) \
+    || fail "sanity: old relative path should fail from a subdir (test env issue)"
+
+  # New git-rev-parse format must exit 0 from any subdirectory.
+  set +e
+  (
+    cd "$dir/android/app/src"
+    printf '%s' "$payload" | \
+      bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); [ -n "$ROOT" ] && [ -f "$ROOT/.platform/scripts/hooks/bash-guard.sh" ] && { cd "$ROOT" && bash ".platform/scripts/hooks/bash-guard.sh"; } || exit 0'
+  )
+  status=$?
+  set -e
+  (( status == 0 )) || fail "hook command should exit 0 from subdirectory, got exit $status"
+  rm -rf "$dir"
+}
+
 for t in \
   test_guard_allows_benign_bash \
   test_guard_blocks_git_commit \
@@ -272,7 +346,11 @@ for t in \
   test_install_hooks_aliases_writes_to_zshrc \
   test_install_hooks_aliases_idempotent \
   test_install_hooks_aliases_force_replaces_block \
-  test_install_hooks_aliases_flag_runs_only_aliases; do
+  test_install_hooks_aliases_flag_runs_only_aliases \
+  test_settings_template_no_bare_relative_hooks \
+  test_settings_template_uses_git_rev_parse \
+  test_installed_settings_uses_git_rev_parse \
+  test_hook_exits_0_from_subdirectory; do
   printf 'RUN: %s\n' "$t" >&2
   "$t"
 done

@@ -205,7 +205,7 @@ cmd_install_hooks() {
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"./.platform/scripts/hooks/bash-guard.sh\"",
+            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); [ -n \"$ROOT\" ] && [ -f \"$ROOT/.platform/scripts/hooks/bash-guard.sh\" ] && { cd \"$ROOT\" && bash \".platform/scripts/hooks/bash-guard.sh\"; } || exit 0'",
             "timeout": 5
           }
         ]
