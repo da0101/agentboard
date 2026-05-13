@@ -54,7 +54,7 @@ cmd_close() {
   if (( dry_run )); then
     printf '%sWould archive%s %s → %s\n' "$C_BOLD" "$C_RESET" "$stream_file" "$archive_path"
     printf '%sWould update frontmatter:%s status=done, closure_approved=true\n' "$C_BOLD" "$C_RESET"
-    printf '%sWould update ACTIVE.md:%s row status → closed\n' "$C_BOLD" "$C_RESET"
+    printf '%sWould update ACTIVE.md:%s remove stream row\n' "$C_BOLD" "$C_RESET"
     printf '%sWould append closure row to .platform/memory/log.md%s\n' "$C_BOLD" "$C_RESET"
     return 0
   fi
@@ -95,7 +95,7 @@ Step 2 — finalize (--confirm):
   Moves the stream file to .platform/work/archive/<slug>.md
   Sets status=done, closure_approved=true
   Appends a closure row to .platform/memory/log.md
-  Updates work/ACTIVE.md row status to "closed" (row kept for history)
+  Removes the stream row from work/ACTIVE.md
 
 Flags:
   --confirm   Actually archive + log. Run AFTER the harvest step.
@@ -231,16 +231,26 @@ _close_update_active_registry_status() {
   local registry="./.platform/work/ACTIVE.md"
   [[ -f "$registry" ]] || return 0
   local tmp; tmp="$(mktemp)"
-  awk -F'|' -v OFS='|' -v slug="$slug" '
+  awk -F'|' -v slug="$slug" '
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
-    {
-      if (NF >= 5 && trim($2) == slug) {
-        $4 = " closed "
-        print
-      } else {
-        print
-      }
+    function is_stream_row(s) {
+      s = trim(s)
+      return s == slug || s ~ ("\\[" slug "\\]\\(" slug "\\.md\\)")
     }
-  ' "$registry" > "$tmp"
+    {
+      if (NF >= 5 && is_stream_row($2)) next
+      print
+    }
+  ' "$registry" | awk '
+    BEGIN { saw_stream = 0; inserted_none = 0 }
+    /^\| [^|]+ \| [^|]+ \| [^|]+ \| [^|]+ \| [^|]+ \|$/ {
+      if ($0 !~ /^\| Stream \| Type \| Status \| Agent \| Last updated \|$/) saw_stream = 1
+    }
+    /^---$/ && !saw_stream && !inserted_none {
+      print "_(none)_"
+      inserted_none = 1
+    }
+    { print }
+  ' > "$tmp"
   mv "$tmp" "$registry"
 }

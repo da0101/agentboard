@@ -5,7 +5,7 @@ status: active
 repo_ids: [repo-primary]
 related_domain_slugs: [core, templates]
 created_at: 2026-04-17
-updated_at: 2026-04-17
+updated_at: 2026-05-13
 ---
 
 # commands
@@ -14,7 +14,7 @@ updated_at: 2026-04-17
 
 Implements every user-invoked `agentboard <cmd>` verb. Each command is a standalone bash file in `lib/agentboard/commands/` sourced by the thin dispatcher in `bin/agentboard`.
 
-## Commands shipped (v1.5.2)
+## Commands shipped (v1.6.2)
 
 | Command | File | Purpose |
 |---|---|---|
@@ -27,17 +27,28 @@ Implements every user-invoked `agentboard <cmd>` verb. Each command is a standal
 | new-domain | streams.sh | Create `.platform/domains/<slug>.md` |
 | new-stream | streams.sh | Create `.platform/work/<slug>.md` + register in ACTIVE.md |
 | resolve | streams.sh | Look up stream/domain/repo by canonical id |
+| current-stream | streams.sh | Print the active stream resolved from env/session/project state |
+| next-action | streams.sh | Print the active stream's next action |
 | handoff | streams.sh | Print load order + Resume state + staleness warning |
 | progress | progress.sh | Append `git diff --stat` to stream's ## Progress log |
 | checkpoint | checkpoint.sh | Overwrite ## Resume state; auto-log usage on cumulative flags |
+| recover | recover.sh | Repair stale session/stream state after interrupted work |
+| events | events.sh | Inspect recent provider/tool activity |
+| daemon | daemon.sh | Run the local Agentboard lock/event daemon |
+| lock | lock.sh | Acquire/release/list advisory file locks for parallel edits |
+| log-reason | log_reason.sh | Record why a non-trivial file edit happened |
+| search | search.sh | Search Agentboard memory/work metadata |
 | close | close.sh | Harvest checklist → archive stream + run `usage learn --apply` |
 | brief | brief.sh | Session-start compact view: streams, gotchas, questions, usage |
 | watch | watch.sh | Background multi-stream poller (git status) → auto-checkpoint |
 | install-hooks | install_hooks.sh | Wire Claude Code PreToolUse guards |
+| install | system_setup.sh | Install the CLI on PATH |
 | usage | usage.sh | SQLite token tracking + summary/dashboard/learn |
 | sync | session.sh | Run `.platform/scripts/sync-context.sh` |
 | status | session.sh | Print STATUS.md |
 | add-repo | system_setup.sh | Scaffold entry files into a sibling repo |
+| version | help.sh | Print the Agentboard CLI version |
+| help | help.sh | Print command catalog and usage hints |
 
 ## Dispatcher contract
 
@@ -56,5 +67,5 @@ Implements every user-invoked `agentboard <cmd>` verb. Each command is a standal
 ## Key files
 
 - `bin/agentboard` — dispatcher
-- `lib/agentboard/commands/*.sh` — 20 command files
+- `lib/agentboard/commands/*.sh` — 23 command files
 - `lib/agentboard/commands/help.sh` — catalog shown by `agentboard help`

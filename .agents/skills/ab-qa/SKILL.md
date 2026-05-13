@@ -158,6 +158,31 @@ Time: <timestamp>
 [READY TO SHIP / NEEDS FIXES / BLOCKED]
 ```
 
+Also include a tester-facing manual plan that the main agent can paste into its Stage 6 final response:
+
+```
+## 🧪 Manual QA Plan
+
+🎯 Scope: <feature / bug / behavior being validated>
+🧰 Environment: <local/staging/prod, URL, branch/build, browser/device, flags>
+🔑 Test data: <accounts, roles, fixtures, records, permissions>
+
+✅ Happy path
+1. <action> → Expected: <observable result>
+2. <action> → Expected: <observable result>
+
+🐛 Bug repro / regression
+1. <original failing behavior or regression path> → Expected: <fixed behavior>
+
+⚠️ Edge cases
+- <case> → Expected: <result>
+- <case> → Expected: <result>
+
+📱 Browser/device checks: <only when relevant>
+♿ Accessibility checks: <keyboard, focus, labels, contrast when relevant>
+🧾 Evidence to capture: <screenshots, logs, IDs, pass/fail notes>
+```
+
 ### Step 8 — Decide
 
 - **READY TO SHIP:** all acceptance criteria pass, no critical/high findings

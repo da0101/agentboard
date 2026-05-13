@@ -164,6 +164,42 @@ Then verify in parallel:
 - Specialist B: security / code review pass (for anything security-sensitive)
 - Specialist C: real-browser QA (for UI changes)
 
+#### Manual QA plan — required when human verification matters
+
+At the end of Stage 6, the agent must include a guided manual QA plan whenever the task requires human click-through, behavior verification, bug reproduction, acceptance testing, or visual review. If manual QA is not relevant, explicitly state `Manual QA: not required` and give the reason.
+
+The plan must be precise enough for someone who did not implement the work to execute it. Use this structure:
+
+```
+## 🧪 Manual QA Plan
+
+🎯 Scope: <feature / bug / behavior being validated>
+🧰 Environment: <local/staging/prod, URL, branch/build, browser/device, flags>
+🔑 Test data: <accounts, roles, fixtures, records, permissions>
+
+✅ Happy path
+1. <action> → Expected: <observable result>
+2. <action> → Expected: <observable result>
+
+🐛 Bug repro / regression
+1. <original failing behavior or regression path> → Expected: <fixed behavior>
+
+⚠️ Edge cases
+- <case> → Expected: <result>
+- <case> → Expected: <result>
+
+📱 Browser/device checks: <only when relevant>
+♿ Accessibility checks: <keyboard, focus, labels, contrast when relevant>
+🧾 Evidence to capture: <screenshots, logs, IDs, pass/fail notes>
+```
+
+Rules:
+- Each step starts with a concrete user action and includes an expected result.
+- Include prerequisites and cleanup if test data or state must be prepared or restored.
+- For bug fixes, include the original repro path and the regression check proving it stays fixed.
+- For features, include at least one happy path plus the most important negative/edge path.
+- Keep it concise enough to execute, but specific enough to remove guesswork.
+
 Then **learn in three layers:**
 
 **Layer 1 — Log (always):** append one line to `.platform/memory/log.md`:

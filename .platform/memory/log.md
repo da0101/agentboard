@@ -16,6 +16,8 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 
 ---
 
+2026-05-13 — closed stream manual-qa-plan-workflow → ./.platform/work/archive/manual-qa-plan-workflow.md (by danilulmashev)
+
 2026-04-28 — closed stream tool-quality-uplift → ./.platform/work/archive/tool-quality-uplift.md (by danilulmashev)
 - 2026-04-28 — commit `87e59d2`: feat: log-reason exit reminder, domain gap check, watch test fixes — auto-logged
 - 2026-04-28 — commit `bb1e712`: fix: lock release fails when AGENTBOARD_SESSION_ID is not set — auto-logged
@@ -53,3 +55,6 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 2026-04-18 — Add events rotation + codex/gemini model selection — rotation prevents unbounded growth; effort/model prompt logs tier in SessionStart so usage reports can break down cost by complexity
 2026-04-18 — debug: duplicate FileChange events — fixed root cause: non-Claude pollers now share persisted per-file diff fingerprints instead of per-process filename memory — concurrent wrappers stop replaying the same dirty snapshot, while real later edits still emit
 2026-04-27 — Add research-first new-stream workflow — all providers now require scaled research, targeted external research, phased planning, and human approval before implementing a new stream
+2026-05-13 — brief startup icons — neutralized brief section headers and zero-stream copy while preserving gotcha severity — normal startup no longer looks like an error state
+2026-05-13 — brief gotcha icons — rendered stored gotcha severity as 📌/💡/📝 in startup output — memory priority remains sortable without red/yellow error-looking markers
+2026-05-13 — manual QA plan workflow — Stage 6 now requires guided manual QA steps when human verification matters — future handoffs should tell developers and QA exactly how to test

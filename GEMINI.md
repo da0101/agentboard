@@ -135,6 +135,8 @@ Follow the 6-stage workflow in `templates/platform/workflow.md`:
 
 For new streams, research is mandatory even when the implementation looks small. Include targeted external research plus local context, then wait for human approval of the research-backed plan before implementation.
 
+At the end of any implementation, bug fix, debugging task, or feature work that requires human behavior verification, include a structured `## 🧪 Manual QA Plan` in the final response. Cover scope, environment, test data, happy path, bug repro/regression steps, edge cases, browser/device checks when relevant, accessibility checks when relevant, and evidence to capture. If manual QA is not relevant, state `Manual QA: not required` and why.
+
 Plans live in chat, not `.md` files. Every successful task appends one line to `.platform/memory/log.md` (this repo dogfoods agentboard — `.platform/` is gitignored but populated locally).
 
 After every non-trivial Write or Edit, log WHY:

@@ -636,6 +636,7 @@ EOF
         && ! is_placeholder_value "$_stream_created_at"; then
       local _dfile="./.platform/domains/${e_slug}.md"
       local _ddate
+      git_file_has_worktree_changes "$_dfile" && { idx=$((idx + 1)); continue; }
       _ddate="$(_handoff_domain_git_date "$_dfile")"
       if [[ -n "$_ddate" && "$_ddate" < "$_stream_created_at" ]]; then
         printf '     %s⚠ domain last updated %s — may not reflect work done in this stream%s\n' \

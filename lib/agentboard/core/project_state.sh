@@ -30,6 +30,13 @@ domain_files() {
   done
 }
 
+git_file_has_worktree_changes() {
+  local file="$1"
+  command -v git >/dev/null 2>&1 || return 1
+  git rev-parse --git-dir >/dev/null 2>&1 || return 1
+  [[ -n "$(git status --porcelain -- "$file" 2>/dev/null)" ]]
+}
+
 stream_file_by_id() {
   local wanted_id="$1" file
   while IFS= read -r file; do

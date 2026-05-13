@@ -9,6 +9,7 @@ WORKFLOW="$TEST_ROOT/templates/platform/workflow.md"
 AB_WORKFLOW="$TEST_ROOT/templates/skills/ab-workflow/SKILL.md"
 AB_RESEARCH="$TEST_ROOT/templates/skills/ab-research/SKILL.md"
 AB_TRIAGE="$TEST_ROOT/templates/skills/ab-triage/SKILL.md"
+AB_QA="$TEST_ROOT/templates/skills/ab-qa/SKILL.md"
 
 test_workflow_requires_research_first_new_stream_intake() {
   assert_file_contains "$WORKFLOW" "New stream intake contract"
@@ -26,5 +27,17 @@ test_skills_match_new_stream_research_and_approval_contract() {
   assert_file_contains "$AB_TRIAGE" "research and human approval are mandatory"
 }
 
+test_workflow_requires_manual_qa_plan_when_human_verification_matters() {
+  assert_file_contains "$WORKFLOW" "Manual QA plan — required when human verification matters"
+  assert_file_contains "$WORKFLOW" "## 🧪 Manual QA Plan"
+  assert_file_contains "$WORKFLOW" "Manual QA: not required"
+  assert_file_contains "$WORKFLOW" "Bug repro / regression"
+  assert_file_contains "$AB_WORKFLOW" "Manual QA Plan"
+  assert_file_contains "$AB_WORKFLOW" "Manual QA: not required"
+  assert_file_contains "$AB_QA" "tester-facing manual plan"
+  assert_file_contains "$AB_QA" "Evidence to capture"
+}
+
 test_workflow_requires_research_first_new_stream_intake
 test_skills_match_new_stream_research_and_approval_contract
+test_workflow_requires_manual_qa_plan_when_human_verification_matters

@@ -127,6 +127,32 @@ Parallelize verification. Fire in one round:
 
 If any check fails, loop back to Stage 5.
 
+Before the final response, produce a **Manual QA Plan** whenever the task needs human click-through, behavior verification, bug reproduction, acceptance testing, or visual review. If manual QA is not relevant, state `Manual QA: not required` with the reason.
+
+Manual QA plan format:
+```
+## 🧪 Manual QA Plan
+
+🎯 Scope: <feature / bug / behavior being validated>
+🧰 Environment: <local/staging/prod, URL, branch/build, browser/device, flags>
+🔑 Test data: <accounts, roles, fixtures, records, permissions>
+
+✅ Happy path
+1. <action> → Expected: <observable result>
+2. <action> → Expected: <observable result>
+
+🐛 Bug repro / regression
+1. <original failing behavior or regression path> → Expected: <fixed behavior>
+
+⚠️ Edge cases
+- <case> → Expected: <result>
+- <case> → Expected: <result>
+
+📱 Browser/device checks: <only when relevant>
+♿ Accessibility checks: <keyboard, focus, labels, contrast when relevant>
+🧾 Evidence to capture: <screenshots, logs, IDs, pass/fail notes>
+```
+
 Once all checks pass, append **one line** to `.platform/memory/log.md`:
 ```
 YYYY-MM-DD — <task> — <outcome> — <takeaway>
@@ -143,6 +169,7 @@ One sentence of takeaway. Not a paragraph. Not a retrospective.
 5. **Every success logs one line** to `.platform/memory/log.md`.
 6. **New streams and high-risk tasks require explicit user approval** between Stage 4 and Stage 5.
 7. **Max ~300 lines per file.**
+8. **Manual QA plan required when human verification matters.** Otherwise state why manual QA is not required.
 
 ## Output format
 
@@ -154,7 +181,7 @@ Progress markers in chat at each stage transition:
   1. …
   2. …
 [Stage 5] Executing…
-[Stage 6] Verified. Logged.
+[Stage 6] Verified. Logged. Manual QA plan: <included | not required + reason>
 ```
 
 One line per marker. No prose fluff between them.

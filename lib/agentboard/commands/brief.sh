@@ -82,6 +82,7 @@ _brief_active_streams() {
         [[ -z "$_ds" ]] && continue
         _df="./.platform/domains/${_ds}.md"
         [[ -f "$_df" ]] || continue
+        git_file_has_worktree_changes "$_df" && continue
         _ddate="$(git log -1 --format="%ai" -- "$_df" 2>/dev/null | awk '{print $1}' || true)"
         if [[ -n "$_ddate" && "$_ddate" < "$_created_at" ]]; then
           _stale_domains="${_stale_domains:+${_stale_domains}, }${_ds}"
@@ -95,9 +96,9 @@ _brief_active_streams() {
     count=$((count + 1))
   done < <(stream_files)
 
-  printf '%s🔥 Active streams (%d)%s\n' "$C_BOLD" "$count" "$C_RESET"
+  printf '%sActive streams (%d)%s\n' "$C_BOLD" "$count" "$C_RESET"
   if (( count == 0 )); then
-    printf '%s   (none — run `ab new-stream` to start)%s\n\n' "$C_DIM" "$C_RESET"
+    printf '%s   (no active streams — run `ab new-stream` to start)%s\n\n' "$C_DIM" "$C_RESET"
     return 0
   fi
   if (( ${#rows[@]} > 0 )); then
@@ -111,7 +112,7 @@ _brief_gotchas() {
   local show_all="$1" file="./.platform/memory/gotchas.md" limit=5
   (( show_all )) && limit=99999
 
-  printf '%s⚠️  Gotchas%s\n' "$C_BOLD" "$C_RESET"
+  printf '%sGotchas%s\n' "$C_BOLD" "$C_RESET"
   if [[ ! -f "$file" ]]; then
     printf '%s   (no gotchas.md yet — ab update will add it)%s\n\n' "$C_DIM" "$C_RESET"
     return 0
@@ -139,14 +140,21 @@ _brief_gotchas() {
   if (( ${#red[@]} > 0 )); then
     for item in "${red[@]}"; do
       (( printed < limit )) || break
-      printf '   %s\n' "$item"
+      printf '   %s\n' "$(_brief_render_gotcha_item "$item")"
       printed=$((printed + 1))
     done
   fi
   if (( ${#yellow[@]} > 0 )); then
     for item in "${yellow[@]}"; do
       (( printed < limit )) || break
-      printf '   %s\n' "$item"
+      printf '   %s\n' "$(_brief_render_gotcha_item "$item")"
+      printed=$((printed + 1))
+    done
+  fi
+  if (( ${#green[@]} > 0 )); then
+    for item in "${green[@]}"; do
+      (( printed < limit )) || break
+      printf '   %s\n' "$(_brief_render_gotcha_item "$item")"
       printed=$((printed + 1))
     done
   fi
@@ -155,6 +163,14 @@ _brief_gotchas() {
       "$C_DIM" $(( total - printed )) "$C_RESET"
   fi
   printf '\n'
+}
+
+_brief_render_gotcha_item() {
+  local item="$1"
+  item="${item/🔴/📌}"
+  item="${item/🟡/💡}"
+  item="${item/🟢/📝}"
+  printf '%s\n' "$item"
 }
 
 _brief_open_questions() {

@@ -5,7 +5,7 @@ status: active
 repo_ids: [repo-primary]
 related_domain_slugs: [templates, commands, framework-audit]
 created_at: 2026-04-27
-updated_at: 2026-04-27
+updated_at: 2026-05-13
 ---
 
 # new-stream-workflow
@@ -13,6 +13,8 @@ updated_at: 2026-04-27
 ## What this domain does
 
 Defines the cross-provider intake contract for starting a new Agentboard workstream. It keeps Codex, Claude, Gemini, and future agents aligned on when a user request becomes a stream and what research, planning, approval, execution, and verification steps must happen before implementation.
+
+Current focus: add a mandatory manual QA plan at the end of implementation whenever human behavior verification is required.
 
 ## Backend / source of truth
 

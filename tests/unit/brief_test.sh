@@ -47,6 +47,7 @@ test_brief_shows_active_stream() {
   fi
   assert_status "$RUN_STATUS" 0
   assert_contains "$output" "Active streams"
+  assert_not_contains "$output" "🔥 Active streams"
   assert_contains "$output" "login"
 }
 
@@ -54,14 +55,14 @@ test_brief_shows_gotchas_when_present() {
   local dir output
   dir="$(mktemp -d)"
   setup_brief_fixture "$dir"
-  # Insert a 🔴 gotcha between markers
+  # Stored severity stays red/yellow/green; brief renders lower-alarm icons.
   python3 - "$dir/.platform/memory/gotchas.md" <<'PY'
 import sys, pathlib
 p = pathlib.Path(sys.argv[1])
 content = p.read_text()
 content = content.replace(
     "<!-- agentboard:gotchas:begin -->",
-    "<!-- agentboard:gotchas:begin -->\n🔴 [auth] — never refactor middleware without running integration suite (mocks lie)",
+    "<!-- agentboard:gotchas:begin -->\n🔴 [auth] — never refactor middleware without running integration suite (mocks lie)\n🟡 [tests] — commit fixtures before checking clean status\n🟢 [docs] — update examples when command names change",
     1,
 )
 p.write_text(content)
@@ -69,6 +70,13 @@ PY
   run_cli_capture output "$dir" brief
   assert_status "$RUN_STATUS" 0
   assert_contains "$output" "Gotchas"
+  assert_not_contains "$output" "⚠️  Gotchas"
+  assert_contains "$output" "📌 [auth]"
+  assert_contains "$output" "💡 [tests]"
+  assert_contains "$output" "📝 [docs]"
+  assert_not_contains "$output" "🔴 [auth]"
+  assert_not_contains "$output" "🟡 [tests]"
+  assert_not_contains "$output" "🟢 [docs]"
   assert_contains "$output" "never refactor middleware"
 }
 
@@ -76,9 +84,12 @@ test_brief_reports_empty_state_gracefully() {
   local dir output
   dir="$(mktemp -d)"
   setup_brief_fixture "$dir"
+  rm -f "$dir/.platform/work/login.md"
   run_cli_capture output "$dir" brief
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "none yet"
+  assert_contains "$output" "Active streams (0)"
+  assert_contains "$output" "no active streams"
+  assert_not_contains "$output" "🔥 Active streams"
 }
 
 test_brief_help() {
@@ -140,6 +151,29 @@ test_brief_shows_domain_list_for_active_stream() {
   assert_contains "$output" "domain(s): auth"
 }
 
+test_brief_does_not_warn_for_modified_domain_context() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_brief_fixture "$dir"
+  (
+    cd "$dir"
+    git add .platform/domains/auth.md .platform/work/login.md .platform/work/ACTIVE.md .platform/work/BRIEF.md
+    git commit -m "track stream" >/dev/null 2>&1
+  )
+  python3 - "$dir/.platform/work/login.md" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+p.write_text(p.read_text().replace("created_at: 2026-", "created_at: 2999-", 1))
+PY
+  run_cli_capture output "$dir" brief
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "domain(s) not updated since stream start: auth"
+  printf '\n## Current note\n\nTouched during active stream.\n' >> "$dir/.platform/domains/auth.md"
+  run_cli_capture output "$dir" brief
+  assert_status "$RUN_STATUS" 0
+  assert_not_contains "$output" "domain(s) not updated since stream start: auth"
+}
+
 for t in \
   test_init_scaffolds_memory_files \
   test_brief_shows_active_stream \
@@ -147,7 +181,8 @@ for t in \
   test_brief_reports_empty_state_gracefully \
   test_brief_help \
   test_brief_warns_about_generic_usage_labels \
-  test_brief_shows_domain_list_for_active_stream; do
+  test_brief_shows_domain_list_for_active_stream \
+  test_brief_does_not_warn_for_modified_domain_context; do
   printf 'RUN: %s\n' "$t" >&2
   "$t"
 done

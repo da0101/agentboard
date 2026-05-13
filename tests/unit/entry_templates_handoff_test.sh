@@ -8,6 +8,9 @@ source "$ROOT/helpers.sh"
 CLAUDE_TMPL="$TEST_ROOT/templates/root/CLAUDE.md.template"
 AGENTS_TMPL="$TEST_ROOT/templates/root/AGENTS.md.template"
 GEMINI_TMPL="$TEST_ROOT/templates/root/GEMINI.md.template"
+CLAUDE_LIVE="$TEST_ROOT/CLAUDE.md"
+AGENTS_LIVE="$TEST_ROOT/AGENTS.md"
+GEMINI_LIVE="$TEST_ROOT/GEMINI.md"
 
 test_all_entry_templates_reference_handoff_on_session_start() {
   for t in "$CLAUDE_TMPL" "$AGENTS_TMPL" "$GEMINI_TMPL"; do
@@ -41,7 +44,28 @@ test_all_entry_templates_require_research_first_new_streams() {
   done
 }
 
+test_all_entry_templates_require_manual_qa_plans() {
+  for t in "$CLAUDE_TMPL" "$AGENTS_TMPL" "$GEMINI_TMPL"; do
+    [[ -f "$t" ]] || fail "$t missing"
+    assert_file_contains "$t" "Manual QA plan rule"
+    assert_file_contains "$t" "## 🧪 Manual QA Plan"
+    assert_file_contains "$t" "bug repro/regression steps"
+    assert_file_contains "$t" "Manual QA: not required"
+  done
+}
+
+test_live_entry_files_require_manual_qa_plans() {
+  for t in "$CLAUDE_LIVE" "$AGENTS_LIVE" "$GEMINI_LIVE"; do
+    [[ -f "$t" ]] || fail "$t missing"
+    assert_file_contains "$t" "## 🧪 Manual QA Plan"
+    assert_file_contains "$t" "bug repro/regression steps"
+    assert_file_contains "$t" "Manual QA: not required"
+  done
+}
+
 test_all_entry_templates_reference_handoff_on_session_start
 test_all_entry_templates_reference_checkpoint_before_handoff
 test_all_entry_templates_reference_resume_state
 test_all_entry_templates_require_research_first_new_streams
+test_all_entry_templates_require_manual_qa_plans
+test_live_entry_files_require_manual_qa_plans
