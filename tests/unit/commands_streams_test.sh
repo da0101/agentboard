@@ -78,12 +78,48 @@ test_new_stream_branch_defaults_when_flags_omitted() {
   (
     cd "$dir"
     "$TEST_ROOT/bin/ab" new-domain api >/dev/null
-    # No --base-branch / --branch: non-interactive fallback uses current branch
+    # No --base-branch / --branch: non-interactive fallback follows Git Flow policy.
     "$TEST_ROOT/bin/ab" new-stream api-v3 --domain api >/dev/null
   )
 
-  assert_file_contains "$dir/.platform/work/api-v3.md" "base_branch:"
-  assert_file_contains "$dir/.platform/work/api-v3.md" "git_branch:"
+  assert_file_contains "$dir/.platform/work/api-v3.md" "base_branch: develop"
+  assert_file_contains "$dir/.platform/work/api-v3.md" "git_branch: feature/api-v3"
+}
+
+test_new_stream_bugfix_defaults_to_develop_bugfix_branch() {
+  local dir output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  make_git_repo "$dir" main
+  init_project_fixture "$dir"
+  commit_all "$dir" "init"
+
+  (
+    cd "$dir"
+    "$TEST_ROOT/bin/ab" new-domain api >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream api-crash --domain api --type bug >/dev/null
+  )
+
+  assert_file_contains "$dir/.platform/work/api-crash.md" "base_branch: develop"
+  assert_file_contains "$dir/.platform/work/api-crash.md" "git_branch: bugfix/api-crash"
+}
+
+test_new_stream_hotfix_defaults_to_master_hotfix_branch() {
+  local dir output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  make_git_repo "$dir" main
+  init_project_fixture "$dir"
+  commit_all "$dir" "init"
+
+  (
+    cd "$dir"
+    "$TEST_ROOT/bin/ab" new-domain api >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream prod-crash --domain api --type hotfix >/dev/null
+  )
+
+  assert_file_contains "$dir/.platform/work/prod-crash.md" "base_branch: master"
+  assert_file_contains "$dir/.platform/work/prod-crash.md" "git_branch: hotfix/prod-crash"
 }
 
 test_handoff_shows_branch_info() {
@@ -668,6 +704,10 @@ test_new_stream_defaults_repo_to_repo_primary
 test_new_stream_sets_stream_id
 test_new_stream_sets_created_at_to_today
 test_new_stream_active_row_format
+test_new_stream_branch_flags_written_to_frontmatter
+test_new_stream_branch_defaults_when_flags_omitted
+test_new_stream_bugfix_defaults_to_develop_bugfix_branch
+test_new_stream_hotfix_defaults_to_master_hotfix_branch
 test_new_stream_branch_defaults_no_git_repo
 test_new_stream_custom_type_and_agent
 test_new_stream_multiple_repos_written_correctly

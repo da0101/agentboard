@@ -100,8 +100,23 @@ cmd_new_stream() {
 
   # ── Branch resolution ────────────────────────────────────────────────────
   if [[ -z "$base_branch" || -z "$git_branch" ]]; then
-    local _current_branch
+    local _current_branch _default_base _branch_prefix _default_branch
     _current_branch="$(git -C . rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
+    case "$stream_type" in
+      hotfix)
+        _default_base="master"
+        _branch_prefix="hotfix"
+        ;;
+      bug|bugfix)
+        _default_base="develop"
+        _branch_prefix="bugfix"
+        ;;
+      *)
+        _default_base="develop"
+        _branch_prefix="feature"
+        ;;
+    esac
+    _default_branch="${_branch_prefix}/${slug}"
 
     if [[ -t 0 ]]; then
       # Interactive: ask the user
@@ -110,13 +125,13 @@ cmd_new_stream() {
       [[ -n "$_current_branch" ]] && \
         printf '    %sCurrent branch: %s%s\n' "$C_DIM" "$_current_branch" "$C_RESET" >&2
       [[ -z "$base_branch" ]] && \
-        base_branch="$(ask "Base branch to fork from" "${_current_branch:-develop}")"
+        base_branch="$(ask "Base branch to fork from" "$_default_base")"
       [[ -z "$git_branch" ]] && \
-        git_branch="$(ask "New git branch name for this stream" "feature/${slug}")"
+        git_branch="$(ask "New git branch name for this stream" "$_default_branch")"
     else
-      # Non-interactive: use current branch as base, feature/<slug> as branch
-      [[ -z "$base_branch" ]] && base_branch="${_current_branch:-develop}"
-      [[ -z "$git_branch" ]] && git_branch="feature/${slug}"
+      # Non-interactive: follow Git Flow branch policy regardless of current checkout.
+      [[ -z "$base_branch" ]] && base_branch="$_default_base"
+      [[ -z "$git_branch" ]] && git_branch="$_default_branch"
     fi
   fi
 

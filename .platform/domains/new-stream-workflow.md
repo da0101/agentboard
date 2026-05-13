@@ -14,7 +14,7 @@ updated_at: 2026-05-13
 
 Defines the cross-provider intake contract for starting a new Agentboard workstream. It keeps Codex, Claude, Gemini, and future agents aligned on when a user request becomes a stream and what research, planning, approval, execution, and verification steps must happen before implementation.
 
-Current focus: add a mandatory manual QA plan at the end of implementation whenever human behavior verification is required.
+Current focus: add mandatory worktree branch and local environment preparation before implementation so feature, bugfix, and hotfix work happens in isolated filesystem checkouts with dependencies and localhost ports known.
 
 ## Backend / source of truth
 
@@ -33,6 +33,9 @@ Current focus: add a mandatory manual QA plan at the end of implementation whene
 
 - A non-trivial untracked task must be registered before research, planning, or code.
 - New streams must follow a research-first workflow before implementation unless the task is explicitly trivial.
+- Feature and bugfix stream work starts from `develop` in `feature/*` or `bugfix/*` worktree branches.
+- Hotfix work starts from `master` in `hotfix/*` worktree branches only when the user explicitly says hotfix.
+- Every touched repo must have an isolated worktree, installed dev dependencies, and recorded local dev command plus localhost port(s) before coding or QA.
 - Plans must include phases, risks, complexity, alternatives, and human approval gates.
 - Implementation must stay traceable to the approved plan and preserve human-in-the-loop validation.
 

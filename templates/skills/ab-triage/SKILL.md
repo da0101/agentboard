@@ -85,7 +85,7 @@ Step 4 — Pick the workflow depth from this table:
 | large × * | Full workflow + parallel research subagents + explicit approval |
 | xl × * | Stop. Propose breaking into phases. Do not execute in one pass. |
 
-**New-stream override:** If the task is not already tracked in `ACTIVE.md` and should become a stream, research and human approval are mandatory even when the implementation itself looks small or low-risk.
+**New-stream override:** If the task is not already tracked in `ACTIVE.md` and should become a stream, research, worktree/local-environment prep, and human approval are mandatory even when the implementation itself looks small or low-risk.
 
 ## Output format
 

@@ -22,6 +22,7 @@ test_sync_check_detects_drift_after_init() {
   run_cli_capture output "$dir" sync
   assert_status "$RUN_STATUS" 1
   assert_contains "$output" "DRIFT"
+  assert_contains "$output" "ab sync --apply"
 }
 
 test_sync_apply_resolves_drift() {
@@ -67,8 +68,43 @@ test_sync_rejects_unknown_flag() {
   assert_contains "$output" "unknown flag"
 }
 
+test_sync_missing_platform_points_to_init() {
+  local dir output
+  dir="$(mktemp -d)"
+  run_cli_capture output "$dir" sync
+  assert_status "$RUN_STATUS" 1
+  assert_contains "$output" "No .platform/ found"
+  assert_contains "$output" "ab init"
+}
+
+test_sync_missing_script_points_to_update() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_sync_fixture "$dir"
+  rm -f "$dir/.platform/scripts/sync-context.sh"
+  run_cli_capture output "$dir" sync
+  assert_status "$RUN_STATUS" 1
+  assert_contains "$output" ".platform/scripts/sync-context.sh is missing"
+  assert_contains "$output" "ab update"
+  assert_not_contains "$output" "./.platform/scripts/sync-context.sh not found"
+}
+
+test_sync_non_executable_script_points_to_update() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_sync_fixture "$dir"
+  chmod -x "$dir/.platform/scripts/sync-context.sh"
+  run_cli_capture output "$dir" sync
+  assert_status "$RUN_STATUS" 1
+  assert_contains "$output" ".platform/scripts/sync-context.sh is not executable"
+  assert_contains "$output" "ab update"
+}
+
 test_sync_check_detects_drift_after_init
 test_sync_apply_resolves_drift
 test_sync_dry_run_alias_shows_drift_without_writing
 test_sync_list_shows_repo
 test_sync_rejects_unknown_flag
+test_sync_missing_platform_points_to_init
+test_sync_missing_script_points_to_update
+test_sync_non_executable_script_points_to_update

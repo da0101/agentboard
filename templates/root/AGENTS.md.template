@@ -119,6 +119,8 @@ When the user gives a task not already tracked in `ACTIVE.md`, **stop and comple
 
 **Research-first new stream rule.** If the request is a new stream, research is always required before planning or implementation. Scale the depth to risk, but include local context and targeted external research every time. Present the research-backed phased plan, risks, mitigations, alternatives, tests, rollback path, and open questions; wait for human validation/approval before implementation. If implementation diverges from the approved plan, pause and ask.
 
+**Worktree branch rule.** Before implementation starts on any feature, bugfix, or hotfix stream, create or enter a separate Git worktree for every touched repo. Use `feature/<slug>` or `bugfix/<slug>` from `develop`; use `hotfix/<slug>` from `master` only when the user explicitly says hotfix. Install each repo's development dependencies in its worktree, identify the local dev command and localhost port(s), and record them in the stream file before coding or QA.
+
 **Manual QA plan rule.** At the end of any implementation, bug fix, debugging task, or feature work that requires human behavior verification, include a structured `## 🧪 Manual QA Plan` in the final response. Cover scope, environment, test data, happy path, bug repro/regression steps, edge cases, browser/device checks when relevant, accessibility checks when relevant, and evidence to capture. If manual QA is not relevant, state `Manual QA: not required` and why.
 
 > **Non-negotiable.** Skipping this means context is lost when the session ends. Trivial single-file fixes are the only exception.

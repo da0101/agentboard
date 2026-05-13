@@ -178,7 +178,7 @@ Add the new repo to the "Four Repos" (now N-Repos) table. Add a line to the refe
 These are generated from `CLAUDE.md` — **do not edit by hand**. After updating `CLAUDE.md`, run:
 
 ```bash
-.platform/scripts/sync-context.sh --apply
+ab sync --apply
 ```
 
 ### 5f. `.platform/scripts/sync-context.sh` — add the new repo to the `REPOS` array
@@ -255,7 +255,7 @@ Skip this step if the stack is a one-off.
 [ ] Step 5b — .platform/repos.md updated
 [ ] Step 5c — .platform/ONBOARDING.md updated
 [ ] Step 5d — platform root CLAUDE.md updated
-[ ] Step 5e — sync-context.sh --apply run; AGENTS.md + GEMINI.md regenerated at platform root
+[ ] Step 5e — ab sync --apply run; AGENTS.md + GEMINI.md regenerated at platform root
 [ ] Step 5f — new repo added to sync-context.sh REPOS array; second run clean
 [ ] Step 5g — .platform/memory/log.md line appended
 [ ] Step 6 — specialist skills created (if needed)

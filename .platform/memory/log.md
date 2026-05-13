@@ -16,6 +16,8 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 
 ---
 
+2026-05-13 — closed stream sync-command-fallback → ./.platform/work/archive/sync-command-fallback.md (by danilulmashev)
+
 2026-05-13 — closed stream manual-qa-plan-workflow → ./.platform/work/archive/manual-qa-plan-workflow.md (by danilulmashev)
 
 2026-04-28 — closed stream tool-quality-uplift → ./.platform/work/archive/tool-quality-uplift.md (by danilulmashev)
@@ -58,3 +60,6 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 2026-05-13 — brief startup icons — neutralized brief section headers and zero-stream copy while preserving gotcha severity — normal startup no longer looks like an error state
 2026-05-13 — brief gotcha icons — rendered stored gotcha severity as 📌/💡/📝 in startup output — memory priority remains sortable without red/yellow error-looking markers
 2026-05-13 — manual QA plan workflow — Stage 6 now requires guided manual QA steps when human verification matters — future handoffs should tell developers and QA exactly how to test
+2026-05-13 — sync command fallback — `ab sync` now gives public-command recovery guidance, `ab update` restores missing `sync-context.sh`, and templates now say `ab sync --apply` instead of direct script invocation
+2026-05-13 — sync-context executable mode — multi-repo update rewrites `sync-context.sh` after injecting repo paths, so chmod must run after that rewrite and the shared writer preserves executable mode
+2026-05-13 — worktree branch workflow — new feature/bugfix/hotfix streams now require isolated worktrees, dependency installation, and localhost port discovery before coding — concurrent multi-repo work starts from clean filesystem boundaries

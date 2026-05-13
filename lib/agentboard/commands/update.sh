@@ -140,12 +140,18 @@ cmd_update() {
   local sc_src="$TEMPLATES_PLATFORM/scripts/sync-context.sh"
   local sc_dst="./.platform/scripts/sync-context.sh"
   local repos_file="./.platform/repos.md"
-  if [[ -f "$sc_src" ]] && [[ -f "$sc_dst" ]]; then
+  if [[ -f "$sc_src" ]]; then
     if (( dry_run )); then
-      printf '  %s~%s scripts/sync-context.sh\n' "$C_YELLOW" "$C_RESET"
+      if [[ -f "$sc_dst" ]]; then
+        printf '  %s~%s scripts/sync-context.sh\n' "$C_YELLOW" "$C_RESET"
+      else
+        printf '  %s+%s scripts/sync-context.sh  %s(would add)%s\n' "$C_GREEN" "$C_RESET" "$C_DIM" "$C_RESET"
+      fi
     else
+      local sc_is_new=0
+      [[ -f "$sc_dst" ]] || sc_is_new=1
+      mkdir -p "./.platform/scripts"
       cp "$sc_src" "$sc_dst"
-      chmod +x "$sc_dst"
       if [[ -f "$repos_file" ]]; then
         local sync_paths="" repo_row repo_id repo_path repo_stack repo_ref repo_abs repo_name current_repo
         current_repo="$(pwd)"
@@ -158,7 +164,12 @@ cmd_update() {
           write_sync_repos_array "$sc_dst" "$sync_paths"
         fi
       fi
-      printf '  %s↻%s %sscripts/sync-context.sh%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET"
+      chmod +x "$sc_dst"
+      if (( sc_is_new )); then
+        printf '  %s+%s %sscripts/sync-context.sh%s  %s(new)%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+      else
+        printf '  %s↻%s %sscripts/sync-context.sh%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET"
+      fi
     fi
     updated=$((updated + 1))
   fi

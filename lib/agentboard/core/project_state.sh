@@ -166,9 +166,10 @@ replace_repos_table() {
 
 write_sync_repos_array() {
   local sync_script="$1" extra_paths="$2"
-  local tmp tmp_paths
+  local tmp tmp_paths was_executable=0
   tmp="$(mktemp)"
   tmp_paths="$(mktemp)"
+  [[ -x "$sync_script" ]] && was_executable=1
   printf '%s' "$extra_paths" > "$tmp_paths"
   awk -v paths_file="$tmp_paths" '
     /^REPOS=\($/ {
@@ -186,6 +187,7 @@ write_sync_repos_array() {
     { print }
   ' "$sync_script" > "$tmp"
   mv "$tmp" "$sync_script"
+  (( was_executable )) && chmod +x "$sync_script"
   rm -f "$tmp_paths"
 }
 

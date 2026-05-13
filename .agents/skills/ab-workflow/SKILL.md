@@ -73,6 +73,19 @@ If `trivial × low`, exit this skill and execute directly. Otherwise continue.
 
 Exit condition: domain file exists + stream file exists + `ACTIVE.md` row added + `BRIEF.md` updated. Only then proceed.
 
+### Stage 1c — Worktree + local environment prep (mandatory before implementation)
+
+Before implementation starts on any feature, bugfix, or hotfix stream:
+
+1. Create or enter a separate Git worktree for every touched repo.
+2. Use `feature/<slug>` or `bugfix/<slug>` from `develop`.
+3. Use `hotfix/<slug>` from `master` only when the user explicitly says this is a hotfix.
+4. Install each repo's development dependencies in that worktree using the repo's lockfile/toolchain.
+5. Identify the local dev command and localhost port(s) for each touched repo.
+6. Record worktree path, branch, base, dependency status, dev command, and port(s) in the stream file under `## Worktree / Local environment`.
+
+If the worktree or dependency install cannot be completed, stop and surface the blocker before coding. Do not implement feature/bugfix/hotfix work in the shared main checkout.
+
 ### Stage 2 — Interview (only if ambiguous)
 
 Ask **2–5 targeted questions** via the agent CLI's question mechanism (`AskUserQuestion` in Claude Code, equivalent in others). Rules:
@@ -96,6 +109,7 @@ State a 5–10 bullet plan **inline in chat**. Include:
 - **Files to touch** (list with short why)
 - **New / deleted files** (list)
 - **Development phases** (ordered implementation chunks)
+- **Worktree/local environment plan** (repos, worktree paths, dependency install command, dev command, localhost ports)
 - **Complexity assessment** (why the task is small/medium/large)
 - **Test plan** (what you'll run to prove it works)
 - **Risk factors** (what could go wrong, for medium+/high risk)
@@ -110,7 +124,7 @@ Wait for user approval before implementing any new stream. If user pushes back, 
 
 ### Stage 5 — Execute
 
-Write the code. Rules:
+Write the code from the prepared worktree path(s). Rules:
 - Atomic commits per logical chunk (don't pile 10 changes into 1 commit)
 - Max ~300 lines per file — extract before hitting the limit
 - Read before you edit (every time — no exceptions)
@@ -170,6 +184,7 @@ One sentence of takeaway. Not a paragraph. Not a retrospective.
 6. **New streams and high-risk tasks require explicit user approval** between Stage 4 and Stage 5.
 7. **Max ~300 lines per file.**
 8. **Manual QA plan required when human verification matters.** Otherwise state why manual QA is not required.
+9. **Feature, bugfix, and hotfix implementation happens in isolated worktrees.** Dependencies and localhost ports are identified before coding.
 
 ## Output format
 

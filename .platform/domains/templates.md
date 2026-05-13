@@ -3,9 +3,9 @@ domain_id: dom-templates
 slug: templates
 status: active
 repo_ids: [repo-primary]
-related_domain_slugs: [commands]
+related_domain_slugs: [commands, new-stream-workflow]
 created_at: 2026-04-17
-updated_at: 2026-04-17
+updated_at: 2026-05-13
 ---
 
 # templates
@@ -13,6 +13,8 @@ updated_at: 2026-04-17
 ## What this domain does
 
 Every file `agentboard init` drops into a user project — the skeleton of `.platform/`, the root entry files (CLAUDE.md / AGENTS.md / GEMINI.md), the 10 `ab-*` skills, and `.codex/` subagent config. If it's copied into user projects, it's defined here.
+
+Current workflow-bearing templates also carry the mandatory stream-start contract: new feature/bugfix/hotfix work must prepare isolated worktrees, install dev dependencies, and record local dev commands plus localhost ports before implementation.
 
 ## Layout
 
@@ -81,3 +83,4 @@ Re-activation replaces content between markers in place — never prepends a sec
 - Skills are dual-installed (.claude/skills + .agents/skills) because Claude Code and Codex/Gemini read different paths. Both get the same content.
 - `.claude/settings.json` in templates/root/ ships with ALL hooks wired. Fresh init → hooks work on day 1 without running `install-hooks`.
 - Template files that accept substitutions must use `{{UPPERCASE_SNAKE}}` — never `{{lowercase}}` or `${VAR}`.
+- Workflow-critical requirements must be present in both canonical `.platform/workflow.md` and shipped templates/skills/provider entry templates so updated projects and new projects receive the same protocol.

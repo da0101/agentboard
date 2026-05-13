@@ -14,11 +14,11 @@
 #
 # Modes
 # -----
-#   ./sync-context.sh             # CHECK mode (default). Shows drift, exits non-zero on any.
-#   ./sync-context.sh --dry-run   # CHECK mode alias (explicit name, same exit codes).
-#   ./sync-context.sh --apply     # APPLY mode. Overwrites AGENTS.md + GEMINI.md from CLAUDE.md.
-#   ./sync-context.sh --list      # Show which repos will be touched and exit.
-#   ./sync-context.sh --help      # This help text.
+#   ab sync             # CHECK mode (default). Shows drift, exits non-zero on any.
+#   ab sync --dry-run   # CHECK mode alias (explicit name, same exit codes).
+#   ab sync --apply     # APPLY mode. Overwrites AGENTS.md + GEMINI.md from CLAUDE.md.
+#   ab sync --list      # Show which repos will be touched and exit.
+#   ab sync --help      # This help text.
 #
 # Exit codes
 # ----------
@@ -155,7 +155,7 @@ for repo in "${REPOS[@]}"; do
           echo "        ${C_DIM}→ rewrote from CLAUDE.md${C_RESET}"
         else
           diff -u "$target" "$tmp" | sed -n '4,20p' | sed 's/^/        /' || true
-          echo "        ${C_DIM}...run with --apply to fix${C_RESET}"
+          echo "        ${C_DIM}...run 'ab sync --apply' to fix${C_RESET}"
         fi
       fi
     else
@@ -198,6 +198,6 @@ if [[ $drift_count -eq 0 ]]; then
   exit 0
 else
   echo "${C_RED}Drift detected:${C_RESET} ${drift_count} file(s) out of sync."
-  echo "Run: ${C_CYAN}$0 --apply${C_RESET}"
+  echo "Run: ${C_CYAN}ab sync --apply${C_RESET}"
   exit 1
 fi

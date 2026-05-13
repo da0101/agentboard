@@ -147,19 +147,19 @@ The same idempotency contract from Step 4 applies: every Agentboard section you 
 
 Run:
 ```bash
-./.platform/scripts/sync-context.sh --apply
+ab sync --apply
 ```
 
 This generates them from the new `CLAUDE.md` so Codex CLI and Gemini CLI get the same entry point. The markers are carried over from `CLAUDE.md`.
 
 ### Case B — One or both exist, with NO Agentboard markers
 
-**Do not run `sync-context.sh --apply` blindly — it will overwrite them.** Instead, for each existing file:
+**Do not run `ab sync --apply` blindly — it will overwrite them.** Instead, for each existing file:
 
 1. Read the user's existing file in full.
 2. Take the ab section you wrote between the markers in `CLAUDE.md` in Step 4.
 3. Prepend that same section — with the begin/end markers — to the user's existing file, followed by `\n\n---\n\n## Existing AGENTS.md content (preserved by ab activation on {{TODAY}})\n\n` and the original content.
-4. Manually write the result — do **not** use `sync-context.sh --apply` because it clobbers rather than prepends.
+4. Manually write the result — do **not** use `ab sync --apply` because it clobbers rather than prepends.
 
 ### Case C — Re-activation: an entry file already contains Agentboard markers
 
