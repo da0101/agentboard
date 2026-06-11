@@ -178,7 +178,11 @@ _events_clear() {
 
   local ts; ts="$(date +%s)"
   local archive="${log}.archive-${ts}"
-  mv "$log" "$archive"
+  platform_lock_acquire "events" || true
+  if [[ -f "$log" ]]; then
+    mv "$log" "$archive"
+  fi
+  platform_lock_release "events"
   ok "Archived $size event(s) to $archive"
 }
 
@@ -220,10 +224,16 @@ _events_rotate() {
   local dir=".platform"
   local archive="${dir}/events-${today}.jsonl"
 
-  # Append to archive (creates if absent, accumulates if already exists)
-  cat "$log" >> "$archive"
-  # Truncate the live file
-  printf '' > "$log"
+  # Lock the copy-then-truncate so a concurrent rotation (or another ab
+  # process reading/archiving events.jsonl) can't duplicate or lose lines.
+  platform_lock_acquire "events" || true
+  if [[ -f "$log" ]]; then
+    # Append to archive (creates if absent, accumulates if already exists)
+    cat "$log" >> "$archive"
+    # Truncate the live file
+    printf '' > "$log"
+  fi
+  platform_lock_release "events"
 
   ok "Rotated events.jsonl → events-${today}.jsonl (${line_count} lines archived)"
 }

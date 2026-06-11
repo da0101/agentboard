@@ -11,6 +11,9 @@ name: ci
 #   - unit-tests
 #   - integration-tests
 #   - ci-gate
+#
+# macOS jobs (unit-tests-macos, integration-tests-macos) run the suites under
+# the system /bin/bash (3.2) and gate the merge via ci-gate's needs list.
 
 on:
   pull_request:
@@ -66,15 +69,55 @@ jobs:
           set -euo pipefail
           bash tests/integration.sh
 
+  unit-tests-macos:
+    name: unit-tests-macos
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run unit tests (system bash 3.2)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /bin/bash --version
+          /bin/bash tests/unit.sh
+
+  integration-tests-macos:
+    name: integration-tests-macos
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run integration tests (system bash 3.2)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /bin/bash --version
+          /bin/bash tests/integration.sh
+
   ci-gate:
     name: ci-gate
     runs-on: ubuntu-latest
     needs:
       - unit-tests
       - integration-tests
+      - unit-tests-macos
+      - integration-tests-macos
     steps:
       - name: Confirm merge gate is green
         shell: bash
         run: |
           set -euo pipefail
-          echo "unit-tests and integration-tests passed."
+          echo "unit-tests and integration-tests passed on ubuntu and macos."

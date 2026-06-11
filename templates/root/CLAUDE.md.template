@@ -54,6 +54,8 @@ After every Write or Edit that another agent will need to understand, run:
 ab log-reason [<file>] "<one sentence why>"
 ```
 
+This appends a structured `Reason` event to `.platform/events.jsonl` (the file argument is optional; the active stream is resolved automatically) — full spec in `.platform/agents/commands.md` § "`ab log-reason`".
+
 **When to call it:**
 - Refactors, extractions, new abstractions
 - Deletions of non-obvious code

@@ -51,7 +51,7 @@ Trivial tasks (typo fix, rename, 1-line config change) skip directly to Stage 5.
    - If **yes and it's accurate**: read it, verify it's current, update if stale.
    - If **no, or the existing file only partially covers it**: create `.platform/domains/<name>.md` with the cross-layer touch-point inventory. Create it NOW, before the stream file.
    - **Common trap:** finding a domain file for a nearby feature (e.g. `menu-builder.md`) and treating it as sufficient for a different concern (e.g. subdomain routing). These are separate concerns and require separate domain files.
-3. **Create `work/<stream-slug>.md`** from `work/TEMPLATE.md` — fill in the frontmatter metadata (`stream_id`, `slug`, `type`, `status`, `agent_owner`, `domain_slugs`, `repo_ids`, `created_at`, `updated_at`) before writing scope, done criteria, and next action. Keep `stream_id` canonical: `stream-<slug>`.
+3. **Create `work/<stream-slug>.md`** from `work/TEMPLATE.md` — fill in the frontmatter metadata (`stream_id`, `slug`, `type`, `status`, `agent_owner`, `domain_slugs`, `repo_ids`, `base_branch`, `git_branch`, `created_at`, `updated_at`, `closure_approved`) before writing scope, done criteria, and next action. Keep `stream_id` canonical: `stream-<slug>`. Defaults: `base_branch: develop`, `git_branch: feature/<slug>` (or `bugfix/<slug>`), `closure_approved: false` — never set it `true` yourself; only the human flips it at closure.
 4. **Add a row to `work/ACTIVE.md`** — slug / type / in-progress / agent / date.
 5. **Update `work/BRIEF.md`** — set primary stream to this task; add domain file under "Relevant context".
 
@@ -245,6 +245,8 @@ Class: <category — for grep>
 **Layer 3 — Memory (if architectural):** if the insight is a stable cross-session invariant (a new pattern, a recurring gotcha, an API contract), update `memory/MEMORY.md` or a topic file under `memory/`.
 
 **Bug investigation rule:** before diagnosing any non-obvious bug, grep `.platform/memory/learnings.md` for the symptom keyword first. Don't re-diagnose a known class of problem.
+
+**Stream state update:** `ab checkpoint <stream-slug> --what "<what just happened>" --next "<next action>"` is the canonical way to update the stream file's `## Resume state` (current state) section — run it at the end of Stage 6, and any time you pause, switch providers, or end the session. Don't hand-edit that block; the command overwrites it atomically and trims the progress log.
 
 **Exit:** task is done, recorded, and learned from.
 

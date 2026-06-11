@@ -1,9 +1,46 @@
 #!/usr/bin/env bash
+#
+# Integration test runner.
+#
+# Usage: tests/integration.sh [--filter <pattern>] [--verbose]
+#   --filter <pattern>  run only test functions whose name matches
+#                       *<pattern>* (shell glob, no regex)
+#   --verbose           print each test function name as it runs
+#
+# Continues across failing tests, names each failing test function, and
+# exits 1 if anything failed.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AGENTBOARD="$ROOT/bin/ab"
+
+FILTER=""
+VERBOSE=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --filter)
+      if [[ $# -lt 2 ]]; then
+        printf 'integration.sh: --filter requires a pattern\n' >&2
+        exit 2
+      fi
+      FILTER="$2"
+      shift 2
+      ;;
+    --verbose|-v)
+      VERBOSE=1
+      shift
+      ;;
+    -h|--help)
+      printf 'Usage: tests/integration.sh [--filter <pattern>] [--verbose]\n'
+      exit 0
+      ;;
+    *)
+      printf 'integration.sh: unknown argument: %s\n' "$1" >&2
+      exit 2
+      ;;
+  esac
+done
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -356,6 +393,7 @@ test_brief_renders_active_stream() {
   assert_contains "$output" "Active"
 }
 
+ALL_TESTS="
 test_single_repo_branch_inference
 test_apply_domains_creates_stubs
 test_default_branch_dirty_worktree_inference
@@ -366,5 +404,47 @@ test_ios_role_hint_safe_defaults
 test_local_context_artifacts_are_listed
 test_full_workflow_stream_lifecycle
 test_brief_renders_active_stream
+"
 
-printf 'PASS: integration\n'
+TESTS_RUN=0
+FAILED=0
+
+for t in $ALL_TESTS; do
+  if [[ -n "$FILTER" ]]; then
+    case "$t" in
+      *${FILTER}*) ;;
+      *) continue ;;
+    esac
+  fi
+  TESTS_RUN=$((TESTS_RUN + 1))
+  if [[ "$VERBOSE" -eq 1 ]]; then
+    printf 'RUN: %s\n' "$t"
+  fi
+  set +e
+  ( set -e; "$t" )
+  status=$?
+  set -e
+  if [[ "$status" -eq 0 ]]; then
+    if [[ "$VERBOSE" -eq 1 ]]; then
+      printf '  ok %s\n' "$t"
+    fi
+  else
+    FAILED=$((FAILED + 1))
+    if [[ "$VERBOSE" -eq 1 ]]; then
+      printf '  FAIL %s\n' "$t"
+    fi
+    printf 'FAIL: integration.sh -> %s\n' "$t" >&2
+  fi
+done
+
+if [[ "$TESTS_RUN" -eq 0 ]]; then
+  printf 'integration.sh: no tests match filter: %s\n' "$FILTER" >&2
+  exit 1
+fi
+
+if [[ "$FAILED" -gt 0 ]]; then
+  printf 'FAIL: integration (%d of %d tests failed)\n' "$FAILED" "$TESTS_RUN" >&2
+  exit 1
+fi
+
+printf 'PASS: integration (%d tests)\n' "$TESTS_RUN"

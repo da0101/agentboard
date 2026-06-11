@@ -26,15 +26,19 @@ agentboard/
 │   ├── core/
 │   │   ├── base.sh            (shared utilities, colors, die/ok helpers)
 │   │   ├── project_state.sh   (reads .platform/ state)
+│   │   ├── project_render.sh  (renders briefs, repo references, registry tables)
 │   │   ├── project_detection.sh
 │   │   ├── bootstrap_repos.sh
 │   │   └── bootstrap_domains.sh
 │   └── commands/
 │       ├── init.sh / install.sh / update.sh
-│       ├── streams.sh         (new-stream, new-domain, resolve, close)
-│       ├── checkpoint.sh / handoff / progress.sh
+│       ├── streams.sh         (new-stream, new-domain)
+│       ├── stream_resolve.sh  (resolve, current-stream, next-action)
+│       ├── handoff.sh / handoff_render.sh  (handoff packet)
+│       ├── checkpoint.sh / progress.sh / close.sh
 │       ├── usage.sh           (log, summary, dashboard, learn — requires sqlite3)
-│       ├── watch.sh           (git watcher — requires launchctl/schtasks)
+│       ├── watch.sh / watch_poll.sh / watch_install.sh / watch_status.sh
+│       │                      (git watcher — scheduler requires launchctl/schtasks)
 │       ├── doctor.sh / bootstrap.sh / brief.sh
 │       └── …
 ├── templates/
@@ -124,7 +128,7 @@ The single most important design decision:
 4. **Placeholders use `{{UPPERCASE_SNAKE}}`.** The only three the `init` command fills are `{{PROJECT_NAME}}`, `{{DESCRIPTION}}`, `{{TODAY}}`. Everything else is filled by the LLM during activation.
 5. **`sync-context.sh` must stay bash-portable.** macOS default shell must work. No bash 4-only features, no GNU-only flags.
 6. **The CLI core has no required runtime dependencies.** `init`, `new-stream`, `new-domain`, `checkpoint`, `handoff`, `doctor`, and `sync` are pure bash + file I/O. The git pre-commit closure gate is also pure bash. Optional features are allowed opt-in system deps: `usage` commands require `sqlite3`; the Claude Code closure gate (`platform-closure-gate.js`) requires `node`; `watch --install` requires `launchctl` (macOS) or `schtasks` (Windows). Fail gracefully with a clear message when an optional dep is absent. Never add required deps.
-7. **Max ~300 lines per bash source file** in `lib/` and `bin/`. This rule applies to executable code, not to documentation or workflow markdown — those are as long as they need to be.
+7. **Max 300 lines per bash source file** in `lib/` and `bin/`, enforced by `tests/unit/file_size_ratchet_test.sh`. New bash files must come in under the cap — split them instead of growing them. A handful of legacy files already over the cap are frozen at their current recorded size by the ratchet test: they may shrink, but any growth fails the test suite. Never add new entries to the ratchet allowlist. This rule applies to executable code, not to documentation or workflow markdown — those are as long as they need to be.
 
 ## Workflow for editing this repo
 

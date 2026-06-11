@@ -182,9 +182,8 @@ EOF
     return 0
   fi
 
-  _checkpoint_write_resume_state "$stream_file" "$resume_block"
-  _checkpoint_prepend_progress_entry "$stream_file" "$log_entry"
-  replace_frontmatter_line "$stream_file" "updated_at" "$today_str"
+  platform_with_lock "stream-${slug}" _checkpoint_apply_writes \
+    "$stream_file" "$resume_block" "$log_entry" "$today_str"
 
   ok "Checkpoint saved to $stream_file"
   say "  ${C_DIM}next:${C_RESET} ${next_action}"
@@ -272,10 +271,19 @@ _Overwritten by \`ab checkpoint\` — the compact payload the next agent reads f
 EOF
 )"
 
-  _checkpoint_write_resume_state "$stream_file" "$resume_block" 2>/dev/null || return 0
-  _checkpoint_prepend_progress_entry "$stream_file" "${ts} — ${what}" 2>/dev/null || return 0
-  replace_frontmatter_line "$stream_file" "updated_at" "$today_str" 2>/dev/null || return 0
+  platform_with_lock "stream-${slug}" _checkpoint_apply_writes \
+    "$stream_file" "$resume_block" "${ts} — ${what}" "$today_str" 2>/dev/null || return 0
   return 0
+}
+
+# Apply the three stream-file writes of a checkpoint as one unit. Run under
+# the per-stream advisory lock so a concurrent `ab watch --once` and a manual
+# `ab checkpoint` can't interleave their read-modify-write sequences.
+_checkpoint_apply_writes() {
+  local stream_file="$1" resume_block="$2" log_entry="$3" today_str="$4"
+  _checkpoint_write_resume_state "$stream_file" "$resume_block"
+  _checkpoint_prepend_progress_entry "$stream_file" "$log_entry"
+  replace_frontmatter_line "$stream_file" "updated_at" "$today_str"
 }
 
 _checkpoint_auto_log_usage() {

@@ -22,15 +22,19 @@ agentboard/
 │   ├── core/
 │   │   ├── base.sh            (shared utilities, colors, die/ok helpers)
 │   │   ├── project_state.sh   (reads .platform/ state)
+│   │   ├── project_render.sh  (renders briefs, repo references, registry tables)
 │   │   ├── project_detection.sh
 │   │   ├── bootstrap_repos.sh
 │   │   └── bootstrap_domains.sh
 │   └── commands/
 │       ├── init.sh / install.sh / update.sh
-│       ├── streams.sh         (new-stream, new-domain, resolve, close)
-│       ├── checkpoint.sh / handoff / progress.sh
+│       ├── streams.sh         (new-stream, new-domain)
+│       ├── stream_resolve.sh  (resolve, current-stream, next-action)
+│       ├── handoff.sh / handoff_render.sh  (handoff packet)
+│       ├── checkpoint.sh / progress.sh / close.sh
 │       ├── usage.sh           (log, summary, dashboard, learn — requires sqlite3)
-│       ├── watch.sh           (git watcher — requires launchctl/schtasks)
+│       ├── watch.sh / watch_poll.sh / watch_install.sh / watch_status.sh
+│       │                      (git watcher — scheduler requires launchctl/schtasks)
 │       ├── doctor.sh / bootstrap.sh / brief.sh
 │       └── …
 ├── templates/
