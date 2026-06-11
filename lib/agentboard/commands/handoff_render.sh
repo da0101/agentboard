@@ -88,7 +88,9 @@ _handoff_print_snippets() {
           _s_matches="$(grep -i -E -C 2 --color=never "$_kw_pat" "$_s_file" 2>/dev/null | awk 'NR<=25 && $0 != "--"' || true)"
         fi
         [[ -z "$_s_matches" ]] && continue
-        (( _snip_found++ ))
+        # (( var++ )) returns the pre-increment value, so it exits 1 under
+        # set -e when the counter is 0. Assignment form is errexit-safe.
+        _snip_found=$((_snip_found + 1))
         printf '\n  %s%s%s %s(~%d tokens full file)%s\n' \
           "$C_CYAN" "$_s_file" "$C_RESET" "$C_DIM" "$_s_tok" "$C_RESET"
         printf '%s\n' "$_s_matches" | awk '{ print "  | " $0 }'

@@ -6,6 +6,12 @@
 
 set -euo pipefail
 
+# bash 5.2 turned on patsub_replacement by default, which makes '&' in
+# ${var//pat/repl} expand to the matched text (sed-style). This codebase is
+# written for bash 3.2 semantics where '&' is literal — e.g. the XML escaping
+# in watch_install.sh. Restore the literal behavior everywhere.
+shopt -u patsub_replacement 2>/dev/null || true
+
 # Resolve symlinks so AGENTBOARD_ROOT points to the real repo, not /usr/local
 _SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$_SOURCE" ]; do
