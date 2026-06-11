@@ -125,7 +125,7 @@ ab log-reason [<file>] "<one sentence why>"
 - **Two arguments** → first is the file path (a leading `./` is stripped), second is the reason.
 - The reason must be non-empty. `ab log-reason --help` prints usage.
 
-**Where it writes:** appends one JSON line to `.platform/events.jsonl` (via the local daemon when `.platform/.daemon-port` is live and `curl` is available, otherwise by direct append). The event shape is:
+**Where it writes:** appends one JSON line to `.platform/events.jsonl` (via a loopback HTTP request to the local daemon when `.platform/.daemon-port` is live, otherwise by direct append). The event shape is:
 
 ```json
 {"hook_event_name":"Reason","ts":"<UTC ISO-8601>","provider":"<claude|codex|gemini>","stream":"<slug>","file":"<path, only if given>","reason":"<text>"}
