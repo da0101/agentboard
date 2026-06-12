@@ -17,6 +17,9 @@ dist/
 
 
 
+
+
+
 # agentboard:runtime-begin
 .platform/events.jsonl
 .platform/events-*.jsonl
@@ -26,6 +29,7 @@ dist/
 .platform/.file-change-state.lock.d/
 .platform/.file-change-state.tsv
 .platform/.file-locks.json
+.platform/.locks/
 .platform/.session-streams.tsv
 .platform/.watch.pid
 .platform/.watch/

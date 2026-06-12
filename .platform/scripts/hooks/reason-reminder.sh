@@ -25,4 +25,4 @@ _fp="$(printf '%s' "$INPUT" | awk '
 _rel="${_fp##"$(pwd)/"}"
 case "$_rel" in .platform/*) exit 0 ;; esac
 
-printf '📝 agentboard log-reason "%s" "<one sentence why you made this change>"\n' "$_rel"
+printf '📝 ab log-reason "%s" "<one sentence why you made this change>"\n' "$_rel"

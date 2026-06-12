@@ -87,7 +87,7 @@ _remember_session_stream() {
 }
 
 _resolve_stream() {
-  local explicit_stream="$1" session_id="$2" brief_stream active_streams active_count
+  local explicit_stream="${1:-}" session_id="${2:-}" brief_stream active_streams active_count
   if [[ -n "$explicit_stream" && -f ".platform/work/${explicit_stream}.md" ]]; then
     printf '%s\n' "$explicit_stream"; return 0
   fi
@@ -115,13 +115,13 @@ fi
 
 tool="$(_json_string_field "tool_name")"
 
-# Skip Bash events that are agentboard meta-calls — those commands produce
+# Skip Bash events that are ab meta-calls — those commands produce
 # their own structured events (Reason, checkpoint, etc.) which are the signal.
 # Logging the Bash wrapper too just duplicates noise.
 if [[ "$tool" == "Bash" ]]; then
   _cmd_peek="$(_json_string_field "command")"
   case "$_cmd_peek" in
-    agentboard\ *) exit 0 ;;
+    ab\ *|agentboard\ *) exit 0 ;;
   esac
 fi
 
@@ -138,7 +138,7 @@ hook_e="$(_jsesc "$hook_event")"
 case "$hook_event" in
   SessionStart|SessionEnd|FileChange|Reason)
     # ── Session event: preserve hook_event_name + session_id + file_path ─────
-    _sid_e="$(_jsesc "$session_id")"
+    _sid_e="$(_jsesc "${session_id:-}")"
     _fp="$(_json_string_field "file_path")"
     if [[ -n "$_fp" ]]; then
       _fp_e="$(_jsesc "$_fp")"
