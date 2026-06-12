@@ -91,23 +91,46 @@ As an AI Agent, when you encounter one of the phrases above, you are **forbidden
 
 ## 4. CLI Command Shortcuts
 
-When the user types one of these phrases, **run the associated CLI command** (don't invent a substitute — these map to exact agentboard verbs). Fill `<slug>` from the currently active stream.
+When the user types one of these phrases, **run the associated CLI command** (don't invent a substitute — these map to exact ab verbs). Fill `<slug>` from the currently active stream.
 
 | If the user says… | Run this | Notes |
 |---|---|---|
-| "do a checkpoint", "save my place", "checkpoint this", "end session" | `agentboard checkpoint <slug> --what "…" --next "…"` | Fill `--what` from the last completed action; `--next` from the next planned step. Add `--provider` and `--type` when known. |
-| "log usage", "log tokens", "track spend now", "record usage" | `agentboard usage log --provider <p> --input N --output N --stream <slug> --type <t>` | Use the actual session token counts. Omit `--stream` only if no active stream. |
-| "brief me", "session start", "what are we working on", "what's the current state" | `agentboard brief` | Run at the start of every session before any work. |
-| "validate the project", "run doctor", "anything broken", "check the state" | `agentboard doctor` | Run before declaring a stream done or handing off. |
-| "close this stream", "we're done", "done ritual", "archive this" | `agentboard close <slug>` | Step 1 only (harvest checklist). Do NOT run `--confirm` until the user has reviewed and distilled the harvest items into memory files. |
-| "confirm close", "yes archive it", "close confirmed" | `agentboard close <slug> --confirm` | Step 2 — only after harvest is complete and user says yes. |
-| "what changed", "show progress", "diff vs base" | `agentboard progress <slug>` | Appends `git diff --stat` to the stream's progress log. |
-| "prep handoff", "pass this off", "switching to codex", "switching agents" | `agentboard handoff <slug>` | Prints load order + resume state for the next agent. Run `checkpoint` first if state is stale. |
-| "install hooks", "set up hooks", "wire up agentboard" | `agentboard install-hooks` | Then add `--aliases` if the user runs Codex or Gemini CLI. |
-| "install shell aliases", "wire up codex", "wire up gemini" | `agentboard install-hooks --aliases` | Writes shell functions to `~/.zshrc`/`~/.bashrc`. Reload shell after. |
-| "start a new stream", "new task", "let's work on…" | `agentboard new-stream <slug> --domain <d>` | Then fill the stream file with context and update `work/BRIEF.md`. |
-| "usage summary", "how much have we spent", "token report" | `agentboard usage summary` | Global 30-day totals. Use `usage dashboard --week` for visual output. |
-| "update agentboard", "pull latest agentboard files" | `agentboard update` | Refreshes shipped protocol files without touching project-specific docs. |
+| "do a checkpoint", "save my place", "checkpoint this", "end session" | `ab checkpoint <slug> --what "…" --next "…"` | Fill `--what` from the last completed action; `--next` from the next planned step. Add `--provider` and `--type` when known. |
+| "log usage", "log tokens", "track spend now", "record usage" | `ab usage log --provider <p> --input N --output N --stream <slug> --type <t>` | Use the actual session token counts. Omit `--stream` only if no active stream. |
+| "brief me", "session start", "what are we working on", "what's the current state" | `ab brief` | Run at the start of every session before any work. |
+| "validate the project", "run doctor", "anything broken", "check the state" | `ab doctor` | Run before declaring a stream done or handing off. |
+| "close this stream", "we're done", "done ritual", "archive this" | `ab close <slug>` | Step 1 only (harvest checklist). Do NOT run `--confirm` until the user has reviewed and distilled the harvest items into memory files. |
+| "confirm close", "yes archive it", "close confirmed" | `ab close <slug> --confirm` | Step 2 — only after harvest is complete and user says yes. |
+| "what changed", "show progress", "diff vs base" | `ab progress <slug>` | Appends `git diff --stat` to the stream's progress log. |
+| "prep handoff", "pass this off", "switching to codex", "switching agents" | `ab handoff <slug>` | Prints load order + resume state for the next agent. Run `checkpoint` first if state is stale. |
+| "install hooks", "set up hooks", "wire up ab" | `ab install-hooks` | Then add `--aliases` if the user runs Codex or Gemini CLI. |
+| "install shell aliases", "wire up codex", "wire up gemini" | `ab install-hooks --aliases` | Writes shell functions to `~/.zshrc`/`~/.bashrc`. Reload shell after. |
+| "start a new stream", "new task", "let's work on…" | `ab new-stream <slug> --domain <d>` | Then fill the stream file with context and update `work/BRIEF.md`. |
+| "usage summary", "how much have we spent", "token report" | `ab usage summary` | Global 30-day totals. Use `usage dashboard --week` for visual output. |
+| "update ab", "pull latest ab files" | `ab update` | Refreshes shipped protocol files without touching project-specific docs. |
+| "log the reason", "annotate that change", "why did you change that" | `ab log-reason [<file>] "<why>"` | One sentence on WHY the edit was made. Full spec in §5 below. |
 
 ### Hard rule
 When a phrase from this table appears in conversation, **run the command** before doing anything else. Do not describe the command. Do not ask for confirmation unless the command is destructive (close --confirm). Just run it and show the output.
+
+---
+
+## 5. `ab log-reason` — reasoning annotation spec
+
+```bash
+ab log-reason [<file>] "<one sentence why>"
+```
+
+- **One argument** → the argument is the reason; no file is attached.
+- **Two arguments** → first is the file path (a leading `./` is stripped), second is the reason.
+- The reason must be non-empty. `ab log-reason --help` prints usage.
+
+**Where it writes:** appends one JSON line to `.platform/events.jsonl` (via a loopback HTTP request to the local daemon when `.platform/.daemon-port` is live, otherwise by direct append). The event shape is:
+
+```json
+{"hook_event_name":"Reason","ts":"<UTC ISO-8601>","provider":"<claude|codex|gemini>","stream":"<slug>","file":"<path, only if given>","reason":"<text>"}
+```
+
+The stream is resolved automatically: if `<file>` is itself a stream file (`.platform/work/<slug>.md`), that slug wins; otherwise the currently active stream is used. Provider comes from `AGENTBOARD_PROVIDER` (defaults to `claude`).
+
+**When to call it** (after any significant Write/Edit): refactors and extractions, deletions of non-obvious code, new abstractions or interfaces, architectural choices not obvious from the code. **Skip for:** formatting, typo fixes, obvious renames. This is what lets the next agent see *why* a change was made, not just *what* changed.

@@ -32,6 +32,7 @@ VERSION="1.13.0"
 
 source "$AGENTBOARD_ROOT/lib/agentboard/core.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/init.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/graphify_prompt.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/bootstrap.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/migration.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/migrate_layout.sh"

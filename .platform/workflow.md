@@ -51,7 +51,7 @@ Trivial tasks (typo fix, rename, 1-line config change) skip directly to Stage 5.
    - If **yes and it's accurate**: read it, verify it's current, update if stale.
    - If **no, or the existing file only partially covers it**: create `.platform/domains/<name>.md` with the cross-layer touch-point inventory. Create it NOW, before the stream file.
    - **Common trap:** finding a domain file for a nearby feature (e.g. `menu-builder.md`) and treating it as sufficient for a different concern (e.g. subdomain routing). These are separate concerns and require separate domain files.
-3. **Create `work/<stream-slug>.md`** from `work/TEMPLATE.md` — fill in the frontmatter metadata (`stream_id`, `slug`, `type`, `status`, `agent_owner`, `domain_slugs`, `repo_ids`, `created_at`, `updated_at`) before writing scope, done criteria, and next action. Keep `stream_id` canonical: `stream-<slug>`.
+3. **Create `work/<stream-slug>.md`** from `work/TEMPLATE.md` — fill in the frontmatter metadata (`stream_id`, `slug`, `type`, `status`, `agent_owner`, `domain_slugs`, `repo_ids`, `base_branch`, `git_branch`, `created_at`, `updated_at`, `closure_approved`) before writing scope, done criteria, and next action. Keep `stream_id` canonical: `stream-<slug>`. Defaults: `base_branch: develop`, `git_branch: feature/<slug>` (or `bugfix/<slug>`), `closure_approved: false` — never set it `true` yourself; only the human flips it at closure.
 4. **Add a row to `work/ACTIVE.md`** — slug / type / in-progress / agent / date.
 5. **Update `work/BRIEF.md`** — set primary stream to this task; add domain file under "Relevant context".
 
@@ -126,7 +126,7 @@ Write the code from the prepared worktree path(s), never from the shared main ch
 **After every non-trivial Write or Edit**, log the reason so the next agent understands WHY, not just what changed:
 
 ```bash
-agentboard log-reason [<file>] "<one sentence why>"
+ab log-reason [<file>] "<one sentence why>"
 ```
 
 Skip for: formatting, typo fixes, obvious renames. Required for: refactors, deletions, new abstractions, architectural choices.
@@ -246,6 +246,8 @@ Class: <category — for grep>
 
 **Bug investigation rule:** before diagnosing any non-obvious bug, grep `.platform/memory/learnings.md` for the symptom keyword first. Don't re-diagnose a known class of problem.
 
+**Stream state update:** `ab checkpoint <stream-slug> --what "<what just happened>" --next "<next action>"` is the canonical way to update the stream file's `## Resume state` (current state) section — run it at the end of Stage 6, and any time you pause, switch providers, or end the session. Don't hand-edit that block; the command overwrites it atomically and trims the progress log.
+
 **Exit:** task is done, recorded, and learned from.
 
 ---
@@ -268,7 +270,7 @@ Run this checklist **every time a stream reaches done** — before archiving the
 5. **Update architecture.md** — if the stream changed system topology (new endpoints, new data flows, auth changes), update the relevant section.
 6. **Unblock downstream streams** — flip any `pending (blocked on this)` stream in `ACTIVE.md` to `ready-to-plan`.
 7. **Archive the stream file** — first check: does the stream file have `closure_approved: true`? If not, **STOP**. Do not archive. Ask the owner to set it. Only when `closure_approved: true` is present: move `work/<slug>.md` → `work/archive/<slug>.md`, remove from `ACTIVE.md`, reset `BRIEF.md`. **Remove the closed stream from `BRIEF.md` entirely — do NOT add a "Previously completed" section.** Completed work belongs in `log.md` only. `BRIEF.md` must only ever list active streams.
-8. **Log token usage** — run `agentboard usage log` to record the total token investment for this stream (aggregate from session reports).
+8. **Log token usage** — run `ab usage log` to record the total token investment for this stream (aggregate from session reports).
 9. **Append to log.md** — one line: `YYYY-MM-DD — <stream> — <outcome> — <takeaway>`.
 10. **Learnings check** — any non-obvious bugs surfaced? Confirm they are in `learnings.md`. Add if missing.
 
@@ -470,15 +472,36 @@ Repeat until the scorecard is all 🟢:
 
 ---
 
-## Model profile hint (Claude Code, optional)
+## Model profile hint
 
-| Scope | Suggested profile |
+| Scope / work type | Model |
 |---|---|
-| Trivial | Haiku / cheapest |
-| Small | Sonnet / balanced |
-| Medium | Sonnet / balanced |
-| Large | Opus / quality |
-| High-risk | Opus / quality |
+| Trivial / mechanical | Haiku — cheapest, zero reasoning needed |
+| Small–medium, analysis, research, review, writing | Sonnet — balanced, handles most work |
+| Large, implementation, architectural decisions | Opus — quality reasoning, multi-file changes |
+| Frontier — greenfield systems, hardest design decisions | Fable — maximum capability |
+
+### Workflow agent model rules (Claude Code /workflows)
+
+**Always pass `model` explicitly in every `agent()` call.** Omitting it
+inherits the caller's model — if you are running on Opus, all subagents
+become Opus and token cost multiplies by agent count.
+
+```js
+// research / audit / review / test-writing → sonnet
+agent("research approach", { model: "sonnet" })
+agent("review the diff",   { model: "sonnet" })
+agent("write unit tests",  { model: "sonnet" })
+
+// implementation / architecture / hard decisions → opus
+agent("implement feature", { model: "opus" })
+agent("design the schema", { model: "opus" })
+
+// trivial mechanical transforms → haiku
+agent("rename symbol",     { model: "haiku" })
+```
+
+**All analysis agents run on Sonnet.** Analysis is read-only — never Opus.
 
 ---
 
