@@ -59,7 +59,7 @@ cmd_search() {
     # Note: do not pipe through `head` here — the head() shell function in core/base.sh
     # overrides the system head command within this process.
     [[ -z "$_matches" ]] && continue
-    (( _file_count++ ))
+    _file_count=$((_file_count + 1))
 
     if (( _quiet )); then
       say "$_f"

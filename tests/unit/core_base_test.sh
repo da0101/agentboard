@@ -72,6 +72,55 @@ test_path_and_placeholder_helpers() {
   fi
 }
 
+test_substitute_escapes_sed_metacharacters() {
+  local file
+  file="$(mktemp)"
+  cat > "$file" <<'EOF'
+name: {{PROJECT_NAME}}
+desc: {{DESCRIPTION}}
+pipe: {{PIPE}}
+dash: {{DASH}}
+EOF
+
+  substitute "$file" \
+    PROJECT_NAME 'AT&T' \
+    DESCRIPTION 'back\slash and \\ double' \
+    PIPE 'a|b|c' \
+    DASH '-leading dash'
+
+  assert_file_contains "$file" 'name: AT&T'
+  assert_file_contains "$file" 'desc: back\slash and \\ double'
+  assert_file_contains "$file" 'pipe: a|b|c'
+  assert_file_contains "$file" 'dash: -leading dash'
+  assert_file_not_contains "$file" '{{'
+}
+
+test_replace_template_literals_escapes_sed_metacharacters() {
+  local file
+  file="$(mktemp)"
+  printf '%s\n' 'project: PLACEHOLDER_NAME' > "$file"
+
+  replace_template_literals "$file" 'PLACEHOLDER_NAME' 'Fish & Chips | C:\path -v'
+
+  assert_file_contains "$file" 'project: Fish & Chips | C:\path -v'
+  assert_file_not_contains "$file" 'PLACEHOLDER_NAME'
+}
+
+test_replace_frontmatter_line_escapes_sed_metacharacters() {
+  local file
+  file="$(mktemp)"
+  cat > "$file" <<'EOF'
+---
+title: old value
+---
+EOF
+
+  replace_frontmatter_line "$file" 'title' 'R&D \ pipes | -dash'
+
+  assert_file_contains "$file" 'title: R&D \ pipes | -dash'
+  assert_file_not_contains "$file" 'old value'
+}
+
 test_shell_helpers() {
   local old_path="$PATH" old_shell="${SHELL:-}"
   export PATH="/tmp/custom/bin:$old_path"
@@ -93,4 +142,7 @@ test_shell_helpers() {
 test_frontmatter_helpers
 test_active_and_repo_registry_parsers
 test_path_and_placeholder_helpers
+test_substitute_escapes_sed_metacharacters
+test_replace_template_literals_escapes_sed_metacharacters
+test_replace_frontmatter_line_escapes_sed_metacharacters
 test_shell_helpers

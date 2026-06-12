@@ -63,14 +63,18 @@ cmd_close() {
   today_str="$(today)"
   agent="${AGENTBOARD_AGENT:-${USER:-agent}}"
 
+  # Per-stream lock: don't let a concurrent checkpoint/watch interleave with
+  # the frontmatter rewrite + archive move.
+  platform_lock_acquire "stream-${slug}" || true
   replace_frontmatter_line "$stream_file" "status" "done"
   replace_frontmatter_line "$stream_file" "closure_approved" "true"
   replace_frontmatter_line "$stream_file" "updated_at" "$today_str"
 
   mv "$stream_file" "$archive_path"
+  platform_lock_release "stream-${slug}"
 
-  _close_append_log "$slug" "$archive_path" "$today_str" "$agent"
-  _close_update_active_registry_status "$slug"
+  platform_with_lock "memory-log" _close_append_log "$slug" "$archive_path" "$today_str" "$agent"
+  platform_with_lock "active-md" _close_update_active_registry_status "$slug"
 
   ok "Stream ${C_BOLD}${slug}${C_RESET} closed and archived → ${C_CYAN}${archive_path}${C_RESET}"
   say "  ${C_DIM}If the harvest step (gotchas/playbook/questions) wasn't done before --confirm,${C_RESET}"

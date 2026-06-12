@@ -26,10 +26,10 @@ Implements every user-invoked `agentboard <cmd>` verb. Each command is a standal
 | bootstrap | bootstrap.sh | Discover repos + suggest starter domains/streams |
 | new-domain | streams.sh | Create `.platform/domains/<slug>.md` |
 | new-stream | streams.sh | Create `.platform/work/<slug>.md` + register in ACTIVE.md |
-| resolve | streams.sh | Look up stream/domain/repo by canonical id |
-| current-stream | streams.sh | Print the active stream resolved from env/session/project state |
-| next-action | streams.sh | Print the active stream's next action |
-| handoff | streams.sh | Print load order + Resume state + staleness warning |
+| resolve | stream_resolve.sh | Look up stream/domain/repo by canonical id |
+| current-stream | stream_resolve.sh | Print the active stream resolved from env/session/project state |
+| next-action | stream_resolve.sh | Print the active stream's next action |
+| handoff | handoff.sh (+ handoff_render.sh helpers) | Print load order + Resume state + staleness warning |
 | progress | progress.sh | Append `git diff --stat` to stream's ## Progress log |
 | checkpoint | checkpoint.sh | Overwrite ## Resume state; auto-log usage on cumulative flags |
 | recover | recover.sh | Repair stale session/stream state after interrupted work |
@@ -40,7 +40,7 @@ Implements every user-invoked `agentboard <cmd>` verb. Each command is a standal
 | search | search.sh | Search Agentboard memory/work metadata |
 | close | close.sh | Harvest checklist → archive stream + run `usage learn --apply` |
 | brief | brief.sh | Session-start compact view: streams, gotchas, questions, usage |
-| watch | watch.sh | Background multi-stream poller (git status) → auto-checkpoint |
+| watch | watch.sh (+ watch_poll.sh, watch_install.sh, watch_status.sh helpers) | Background multi-stream poller (git status) → auto-checkpoint |
 | install-hooks | install_hooks.sh | Wire Claude Code PreToolUse guards |
 | install | system_setup.sh | Install the CLI on PATH |
 | usage | usage.sh | SQLite token tracking + summary/dashboard/learn |
@@ -59,7 +59,7 @@ Implements every user-invoked `agentboard <cmd>` verb. Each command is a standal
 
 ## Decisions locked
 
-- One command = one file in `commands/`. Don't co-locate multiple verbs unless they share ≥50% of their logic (streams.sh is the tolerated exception: new-domain/new-stream/resolve/handoff all share frontmatter + ACTIVE.md logic).
+- One command = one file in `commands/`. Don't co-locate multiple verbs unless they share ≥50% of their logic (streams.sh keeps new-domain/new-stream and stream_resolve.sh keeps resolve/current-stream/next-action because each pair shares frontmatter + ACTIVE.md logic; handoff.sh + handoff_render.sh split cmd_handoff's helpers across two files to stay under the 300-line cap).
 - No command may require a runtime outside bash + standard unix tools (`awk`, `sed`, `grep`, `git`). `sqlite3` is opt-in for usage.sh only.
 - All user-facing paths are relative (`./.platform/...`) not absolute — command runs from project root.
 - Help text is required (`-h|--help` branch in every parser) — see help.sh for the catalog shown by `agentboard help`.

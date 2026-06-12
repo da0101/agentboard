@@ -238,6 +238,8 @@ These files are generic and ship verbatim — you don't need to rewrite them:
 - **`.platform/ONBOARDING.md`** — the 7-step onboarding path for future sessions
 - **`.platform/scripts/sync-context.sh`** — the sync script
 - **`.platform/templates/repo/*`** — scaffolding for adding new repos later via `ab add-repo`
+
+  A note on these repo templates: their placeholders (`{{REPO_NAME}}`, `{{TECH_STACK_LINE}}`, …) are **not** filled during activation or by `ab init`. When the user later runs `ab add-repo <path>`, the CLI copies the templates verbatim into the new repo with placeholders intact — it is then the LLM's job to fill them by scanning that repo (the user typically says "onboard this new repo into the platform"). The full placeholder table and runbook live in `.platform/templates/repo/ADDING-A-REPO.md`.
 - **`.platform/work/BRIEF.md`** — feature brief (read FIRST every session — narrative context for current active feature)
 - **`.platform/work/ACTIVE.md`** — active workstream registry (read every session start, after BRIEF.md)
 - **`.platform/work/TEMPLATE.md`** — skeleton for new workstreams; copy to `work/<slug>.md` when starting work

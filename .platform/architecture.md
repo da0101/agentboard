@@ -28,8 +28,8 @@ lib/agentboard/
     bootstrap_domains.sh        ← infer starter domains from repo layout
   commands/
     init.sh, update.sh, migrate_layout.sh, migration.sh, bootstrap.sh
-    doctor.sh, streams.sh, progress.sh
-    checkpoint.sh, close.sh, brief.sh, watch.sh
+    doctor.sh, streams.sh, stream_resolve.sh, handoff.sh, handoff_render.sh, progress.sh
+    checkpoint.sh, close.sh, brief.sh, watch.sh, watch_poll.sh, watch_install.sh, watch_status.sh
     daemon.sh, events.sh, lock.sh
     install_hooks.sh, usage.sh, session.sh, system_setup.sh, help.sh
 templates/

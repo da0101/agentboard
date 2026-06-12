@@ -57,6 +57,10 @@ The design split is deliberate:
 - **Generic, shipped verbatim:** workflow rules, onboarding path, sync script, work tracking protocol, repo templates, hooks
 - **Project-specific, written during activation:** architecture, decisions, repos, domain files, conventions, current priorities
 
+### When NOT to use Agentboard
+
+Agentboard earns its keep when context has to survive **across providers** (Claude Code + Codex + Gemini on the same work) or **across repos** (a hub coordinating several codebases). That's where shared stream files, handoffs, and the memory pack do something no single tool does. If you're a solo developer using only Claude Code on a single repo, there's real overlap with what you already get natively — `CLAUDE.md`, auto-memory, and built-in session resumption cover much of the same ground, and the checkpoint/log-reason discipline may feel like ceremony. It still buys you structured workstream history and a portable context pack if you later add a second provider or repo, but if that's not on your horizon, native memory alone may be enough.
+
 ---
 
 ## Quick start
@@ -316,6 +320,7 @@ agentboard usage summary
 agentboard usage history
 agentboard usage stream <stream-slug>
 agentboard usage dashboard [--today|--week|--month]
+agentboard usage optimize
 agentboard usage learn [--apply]
 agentboard version
 agentboard help
@@ -344,6 +349,7 @@ agentboard help
 - `status` prints `.platform/STATUS.md`
 - `add-repo` scaffolds entry files into a sibling repo in hub mode and refuses to overwrite existing root entry files
 - `usage log` records a token segment to `~/.agentboard/usage.db`; `usage summary/history/stream/dashboard/learn` aggregate and visualise the data — see `CHEATSHEET.md` for the full reference
+- `usage optimize` surfaces optimization insights from the same database: most expensive task types and streams, provider efficiency comparison, largest individual segments, and streams that need finer checkpointing
 
 ---
 

@@ -60,7 +60,6 @@ Things that must be resolved before v1.6.0 ships:
 ## File size violations (300-line rule)
 
 - `usage.sh` — ~500 LOC (SQLite + dashboard + learn logic). Split candidate for v1.6.
-- `streams.sh` — ~540 LOC (new-domain/new-stream/resolve/handoff). Split candidate.
 - `base.sh` — ~510 LOC (color/fs/frontmatter helpers). Less urgent; tightly coupled.
 - `project_state.sh` — ~470 LOC. Less urgent.
 

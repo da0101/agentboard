@@ -90,6 +90,12 @@ jobs:
               if echo "$hit" | grep -qi -E '(not just|never use|do not use|don'\''t use|no curl|no wget|no netcat)'; then
                 continue
               fi
+              # Allow capability probes and loopback-only calls to the local
+              # agentboard daemon (bin/ab-daemon.js binds 127.0.0.1). Any
+              # non-loopback host still fails the scan.
+              if echo "$hit" | grep -q -E '(command -v (curl|wget)|https?://127\.0\.0\.1[:/]|https?://localhost[:/])'; then
+                continue
+              fi
               echo "NETWORK-COMMAND: $hit" >> "$tmp_hits"
               findings=$((findings + 1))
             done < <(grep -n -E -H "$pat" "${files[@]}" 2>/dev/null || true)
@@ -201,6 +207,12 @@ jobs:
           for pat in "${network_patterns[@]}"; do
             while IFS= read -r hit; do
               [ -z "$hit" ] && continue
+              # Allow capability probes and loopback-only calls to the local
+              # agentboard daemon (bin/ab-daemon.js binds 127.0.0.1). Any
+              # non-loopback host still fails the scan.
+              if echo "$hit" | grep -q -E '(command -v (curl|wget)|https?://127\.0\.0\.1[:/]|https?://localhost[:/])'; then
+                continue
+              fi
               echo "NETWORK-CALL: $hit" >> "$tmp_hits"
               findings=$((findings + 1))
             done < <(grep -n -E -H "$pat" "${files[@]}" 2>/dev/null || true)
