@@ -48,6 +48,13 @@ the switch with the new label.
   explicitly asks which role is active.
 - Don't expand scope unasked; suggest, don't do.
 
+## Model
+
+**Sonnet** (`claude-sonnet-4-6`) by default — this is the fallback role
+for small tasks and questions. If scope visibly grows into complex
+implementation, switch to the appropriate specialist role (which carries
+its own model guidance).
+
 ## Label
 
 Only when explicitly asked:

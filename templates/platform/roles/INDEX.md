@@ -29,24 +29,26 @@ wrong to the user, they just say so — switch without ceremony.
 
 ## Routing table
 
-| Slug | Role | Activate when the user wants… | Not for |
-|---|---|---|---|
-| `product-manager` | Senior Product Manager | to shape an idea — what to build, for whom, requirements, priorities, "is this worth it" | implementation (hand to a builder role) |
-| `tech-advisor` | Principal Technology Advisor | research, comparison, or a recommendation — "X vs Y", "which database", "how does Z work for us" | building the chosen option |
-| `startup-mvp` | Startup MVP Builder | a new product/app/service built from scratch or near-scratch | changes to an existing codebase |
-| `feature-builder` | Senior Product Engineer | a feature added to an EXISTING product — "add checkout", "build notifications" | greenfield products, pure fixes |
-| `backend-architect` | Backend Systems Architect | server-side design — APIs, data models, infrastructure shape, scaling plans | UI work |
-| `frontend-engineer` | Senior Frontend Engineer | UI/UX implementation — components, screens, styling, accessibility | server/data work |
-| `debugger` | Production Debugger | a bug found and fixed — errors, crashes, "it stopped working", code-level incidents | known one-line fixes |
-| `perf-engineer` | Performance Engineer | speed, memory, scalability — "it's slow", "optimize" | bugs that aren't performance-related |
-| `qa-engineer` | Senior QA Engineer | testing — test plans, coverage, edge-case hunting, "is this ready to ship" | fixing what testing finds (hand to debugger) |
-| `security-engineer` | Senior Security Engineer | a security view — "is it secure", auth/permissions review, handling user data safely | general code quality (code-auditor) |
-| `code-auditor` | Senior Code Auditor | an honest assessment of existing code — quality, architecture, risks, scores | making changes (audit first, then switch) |
-| `refactor-architect` | Refactoring Architect | messy working code made clean — structure, coupling; also migrations and version upgrades | adding new features |
-| `devops-engineer` | Senior DevOps/Platform Engineer | deploy, CI/CD, environments, containers, monitoring, "the server is down" (infra-level) | application-code bugs (debugger) |
-| `data-analyst` | Senior Data Analyst | answers from data — metrics, queries, reports, "why are users churning", dashboards | building data infrastructure (backend-architect) |
-| `tech-writer` | Senior Technical Writer | documentation — READMEs, API references, guides, onboarding docs | marketing copy |
-| `pair-programmer` | Pair Programmer (default) | everything else — small tasks, questions, continuation work | — |
+| Slug | Role | Activate when the user wants… | Not for | Model |
+|---|---|---|---|---|
+| `product-manager` | Senior Product Manager | to shape an idea — what to build, for whom, requirements, priorities, "is this worth it" | implementation (hand to a builder role) | Sonnet |
+| `tech-advisor` | Principal Technology Advisor | research, comparison, or a recommendation — "X vs Y", "which database", "how does Z work for us" | building the chosen option | Sonnet |
+| `startup-mvp` | Startup MVP Builder | a new product/app/service built from scratch or near-scratch | changes to an existing codebase | Opus / Fable |
+| `feature-builder` | Senior Product Engineer | a feature added to an EXISTING product — "add checkout", "build notifications" | greenfield products, pure fixes | Opus |
+| `backend-architect` | Backend Systems Architect | server-side design — APIs, data models, infrastructure shape, scaling plans | UI work | Opus |
+| `frontend-engineer` | Senior Frontend Engineer | UI/UX implementation — components, screens, styling, accessibility | server/data work | Sonnet → Opus |
+| `debugger` | Production Debugger | a bug found and fixed — errors, crashes, "it stopped working", code-level incidents | known one-line fixes | Sonnet → Opus |
+| `perf-engineer` | Performance Engineer | speed, memory, scalability — "it's slow", "optimize" | bugs that aren't performance-related | Sonnet → Opus |
+| `qa-engineer` | Senior QA Engineer | testing — test plans, coverage, edge-case hunting, "is this ready to ship" | fixing what testing finds (hand to debugger) | Sonnet |
+| `security-engineer` | Senior Security Engineer | a security view — "is it secure", auth/permissions review, handling user data safely | general code quality (code-auditor) | Sonnet |
+| `code-auditor` | Senior Code Auditor | an honest assessment of existing code — quality, architecture, risks, scores | making changes (audit first, then switch) | Sonnet |
+| `refactor-architect` | Refactoring Architect | messy working code made clean — structure, coupling; also migrations and version upgrades | adding new features | Opus |
+| `devops-engineer` | Senior DevOps/Platform Engineer | deploy, CI/CD, environments, containers, monitoring, "the server is down" (infra-level) | application-code bugs (debugger) | Sonnet |
+| `data-analyst` | Senior Data Analyst | answers from data — metrics, queries, reports, "why are users churning", dashboards | building data infrastructure (backend-architect) | Sonnet |
+| `tech-writer` | Senior Technical Writer | documentation — READMEs, API references, guides, onboarding docs | marketing copy | Sonnet |
+| `pair-programmer` | Pair Programmer (default) | everything else — small tasks, questions, continuation work | — | Sonnet |
+
+> **Model key:** Sonnet = analysis/writing/review · Opus = complex implementation/architecture · Sonnet→Opus = start Sonnet, upgrade if scope demands it · Fable = frontier reasoning (greenfield systems, hardest design calls)
 
 ## Stacking with ab-* skills
 

@@ -472,15 +472,36 @@ Repeat until the scorecard is all 🟢:
 
 ---
 
-## Model profile hint (Claude Code, optional)
+## Model profile hint
 
-| Scope | Suggested profile |
+| Scope / work type | Model |
 |---|---|
-| Trivial | Haiku / cheapest |
-| Small | Sonnet / balanced |
-| Medium | Sonnet / balanced |
-| Large | Opus / quality |
-| High-risk | Opus / quality |
+| Trivial / mechanical | Haiku — cheapest, zero reasoning needed |
+| Small–medium, analysis, research, review, writing | Sonnet — balanced, handles most work |
+| Large, implementation, architectural decisions | Opus — quality reasoning, multi-file changes |
+| Frontier — greenfield systems, hardest design decisions | Fable — maximum capability |
+
+### Workflow agent model rules (Claude Code /workflows)
+
+**Always pass `model` explicitly in every `agent()` call.** Omitting it
+inherits the caller's model — if you are running on Opus, all subagents
+become Opus and token cost multiplies by agent count.
+
+```js
+// research / audit / review / test-writing → sonnet
+agent("research approach", { model: "sonnet" })
+agent("review the diff",   { model: "sonnet" })
+agent("write unit tests",  { model: "sonnet" })
+
+// implementation / architecture / hard decisions → opus
+agent("implement feature", { model: "opus" })
+agent("design the schema", { model: "opus" })
+
+// trivial mechanical transforms → haiku
+agent("rename symbol",     { model: "haiku" })
+```
+
+**All analysis agents run on Sonnet.** Analysis is read-only — never Opus.
 
 ---
 

@@ -67,6 +67,13 @@ and hand off to `refactor-architect` rather than building on rot.
 - Scope is the feature asked for. Adjacent improvements are suggested in the
   summary, not done.
 
+## Model
+
+**Opus** (`claude-opus-4-8`) — this role produces complex implementation
+artifacts or drives multi-file architectural decisions that require sustained
+reasoning. Use **Fable** (`claude-fable-5`) when it is available for
+the hardest tasks (greenfield systems, gnarly root-cause investigations).
+
 ## Label
 
 Start every response with:

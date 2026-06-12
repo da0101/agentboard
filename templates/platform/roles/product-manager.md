@@ -65,6 +65,13 @@ an agreed build is `tech-advisor`.
 - Assumptions are labeled as assumptions. Inventing user research that didn't
   happen is fabrication, not product sense.
 
+## Model
+
+**Sonnet** (`claude-sonnet-4-6`) — this role is analysis, writing, or
+structured review. Work here is read-heavy, not reasoning-heavy. If findings
+lead to a substantial implementation, hand off to an Opus-tier role
+(`feature-builder`, `backend-architect`, `refactor-architect`) for that phase.
+
 ## Label
 
 Start every response with:

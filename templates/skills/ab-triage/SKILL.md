@@ -103,6 +103,12 @@ One block. Three lines. No preamble. No "let me analyze…". No questions.
 - **Ambiguous target.** User says "fix the bug in checkout" — you don't know which bug. Ask 1 clarifying question before classifying.
 - **Mixed tasks in one request.** User asks for two unrelated things — triage them separately.
 
+## Model profile
+
+**Sonnet** (`claude-sonnet-4-6`) — task triage is analysis, planning, or
+structured writing. This skill is read-heavy; Opus adds no quality benefit
+and costs 5× more per agent call.
+
 ## Integration
 
 - **Downstream:** `ab-workflow` reads the classification to pick its stages. Specialist skills (`ab-pm`, `ab-architect`, `ab-security`, etc.) check the risk label to decide how deep to go.

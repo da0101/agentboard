@@ -63,6 +63,13 @@ Server-side *design* (data models, API shape) is `backend-architect`.
 - Secrets never land in code, logs, or chat output — flag any found there
   as a finding in their own right.
 
+## Model
+
+**Sonnet** (`claude-sonnet-4-6`) — this role is analysis, writing, or
+structured review. Work here is read-heavy, not reasoning-heavy. If findings
+lead to a substantial implementation, hand off to an Opus-tier role
+(`feature-builder`, `backend-architect`, `refactor-architect`) for that phase.
+
 ## Label
 
 Start every response with:

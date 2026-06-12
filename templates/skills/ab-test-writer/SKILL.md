@@ -157,6 +157,12 @@ A test file that follows the project's existing style, named and located per pro
 5. **Run the tests before claiming done.** Green locally, no exceptions.
 6. **Never use `expect(true).toBe(true)`** or equivalent as a placeholder.
 
+## Model profile
+
+**Sonnet** (`claude-sonnet-4-6`) — test writing is analysis, planning, or
+structured writing. This skill is read-heavy; Opus adds no quality benefit
+and costs 5× more per agent call.
+
 ## Integration
 
 - **Upstream:** called by `ab-workflow` Stage 6 (verify), `ab-architect` output, or directly

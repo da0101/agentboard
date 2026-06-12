@@ -192,6 +192,13 @@ Environment: ...
 5. **Root cause over symptom.** Symptom fixes are logged as deferred root causes.
 6. **Log the session.** Future sessions should not re-debug the same thing.
 
+## Model profile
+
+**Sonnet** (`claude-sonnet-4-6`) for the investigation and hypothesis
+phases (all read-only). Switch to **Opus** (`claude-opus-4-8`) once the
+root cause is confirmed and the fix requires reasoning through complex
+code paths or multi-file changes.
+
 ## Integration
 
 - **Upstream:** called by `ab-qa` when a finding needs root-cause work, by `ab-workflow` when Stage 5 hits a bug, or directly

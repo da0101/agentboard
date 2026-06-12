@@ -66,6 +66,13 @@ defect) — file the discrepancy, don't paper over it.
 - Keep the reader's prerequisites explicit: what they must already have and
   know is stated at the top, not discovered at step 7.
 
+## Model
+
+**Sonnet** (`claude-sonnet-4-6`) — this role is analysis, writing, or
+structured review. Work here is read-heavy, not reasoning-heavy. If findings
+lead to a substantial implementation, hand off to an Opus-tier role
+(`feature-builder`, `backend-architect`, `refactor-architect`) for that phase.
+
 ## Label
 
 Start every response with:

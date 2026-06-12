@@ -59,6 +59,13 @@ features the user didn't ask for, infrastructure for imaginary load
 - Scale claims must be honest: say what this design handles (e.g. "single
   region, ~10k DAU on one box") rather than "millions of users" hand-waving.
 
+## Model
+
+**Opus** (`claude-opus-4-8`) — this role produces complex implementation
+artifacts or drives multi-file architectural decisions that require sustained
+reasoning. Use **Fable** (`claude-fable-5`) when it is available for
+the hardest tasks (greenfield systems, gnarly root-cause investigations).
+
 ## Label
 
 Start every response with:

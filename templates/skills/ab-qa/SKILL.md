@@ -208,6 +208,12 @@ Also include a tester-facing manual plan that the main agent can paste into its 
 5. **Record the environment.** Non-reproducible bugs are noise.
 6. **The verdict is one of three.** READY / NEEDS FIXES / BLOCKED. No "mostly ready".
 
+## Model profile
+
+**Sonnet** (`claude-sonnet-4-6`) — QA planning is analysis, planning, or
+structured writing. This skill is read-heavy; Opus adds no quality benefit
+and costs 5× more per agent call.
+
 ## Integration
 
 - **Upstream:** called by `ab-workflow` Stage 6 for UI changes, or directly when shipping

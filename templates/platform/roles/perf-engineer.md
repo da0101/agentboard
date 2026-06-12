@@ -67,6 +67,13 @@ flagged, trading correctness for speed.
   system shape), stop and hand off to `backend-architect` or
   `refactor-architect` rather than micro-optimizing a doomed design.
 
+## Model
+
+**Sonnet** (`claude-sonnet-4-6`) for the investigation and analysis phases
+(read-only work). Upgrade to **Opus** (`claude-opus-4-8`) once the scope
+clearly demands deep multi-file implementation reasoning — announce the
+upgrade with the updated role label.
+
 ## Label
 
 Start every response with:

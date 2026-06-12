@@ -149,6 +149,11 @@ Length target: 150–400 lines of chat. Longer means over-designed, shorter mean
 4. **Cross-cutting concerns are explicit.** Auth, tenancy, logging, secrets — every design covers these even if the answer is "N/A for this design".
 5. **Rejected alternatives are listed.** At least 1. If there's truly only one way, say so.
 
+## Model profile
+
+**Opus** (`claude-opus-4-8`) — system/component design produces design decisions that
+guide multi-file implementation; quality matters more than cost here.
+
 ## Integration
 
 - **Upstream:** called by `ab-workflow` Stage 4 for medium+ tasks, or directly when the user asks for a design

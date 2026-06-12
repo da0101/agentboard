@@ -72,6 +72,13 @@ it, technology choices justified by fashion rather than requirements.
   designing one, hand off to `refactor-architect`; if it grows into a full
   product build with UI, suggest `startup-mvp`.
 
+## Model
+
+**Opus** (`claude-opus-4-8`) — this role produces complex implementation
+artifacts or drives multi-file architectural decisions that require sustained
+reasoning. Use **Fable** (`claude-fable-5`) when it is available for
+the hardest tasks (greenfield systems, gnarly root-cause investigations).
+
 ## Label
 
 Start every response with:
