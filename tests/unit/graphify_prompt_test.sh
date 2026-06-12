@@ -119,7 +119,35 @@ test_graphify_present_answer_yes_failure() {
   rm -rf "$tmpdir" "$tmpbin"
 }
 
+# ---------------------------------------------------------------------------
+# test: graphify present, answer Y, graphify exits 0 but no graphify-out/ → no ok line
+# ---------------------------------------------------------------------------
+test_graphify_present_answer_yes_no_output_dir() {
+  local tmpdir tmpbin output
+  tmpdir="$(mktemp -d)"
+  tmpbin="$(mktemp -d)"
+  mkdir -p "$tmpdir/.platform"
+  # Fake graphify that exits 0 but creates no graphify-out/
+  cat > "$tmpbin/graphify" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+  chmod +x "$tmpbin/graphify"
+
+  run_and_capture output bash -c '
+    export PATH="'"$tmpbin"':/usr/bin:/bin"
+    source "'"$TEST_ROOT"'/lib/agentboard/core/base.sh"
+    source "'"$TEST_ROOT"'/lib/agentboard/commands/graphify_prompt.sh"
+    cd "'"$tmpdir"'"
+    printf "Y\n" | _graphify_maybe_prompt "'"$tmpdir"'"
+  '
+  assert_not_contains "$output" "Knowledge graph"
+  assert_contains "$output" "skipped"
+  rm -rf "$tmpdir" "$tmpbin"
+}
+
 test_graphify_absent_prints_tip
 test_graphify_present_answer_no
 test_graphify_present_answer_yes_success
 test_graphify_present_answer_yes_failure
+test_graphify_present_answer_yes_no_output_dir

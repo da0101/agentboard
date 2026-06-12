@@ -30,9 +30,11 @@ _graphify_maybe_prompt() {
     if [[ -d "graphify-out" ]]; then
       cp -R "graphify-out/." "$dest_dir/"
       rm -rf "graphify-out"
+      ok "Knowledge graph → ${C_CYAN}.platform/graphify/${C_RESET}"
+      dim "  Open graph.html in a browser, or ask the LLM about GRAPH_REPORT.md."
+    else
+      dim "  graphify completed but produced no graphify-out/ directory — skipped."
     fi
-    ok "Knowledge graph → ${C_CYAN}.platform/graphify/${C_RESET}"
-    dim "  Open graph.html in a browser, or ask the LLM about GRAPH_REPORT.md."
   else
     printf '  %sWarning: graphify exited with an error — skipped.%s\n' "$C_YELLOW" "$C_RESET"
   fi
