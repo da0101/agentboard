@@ -36,6 +36,8 @@ On the **first substantive task message** — and again whenever the task type c
 
 **Manual override always wins** — if the user names a role or says "switch role", use that role. `ab role list` shows the available roles.
 
+**Rescan trigger** — when the user says "update the platform", "rescan", "refresh context", "you're out of date", or similar: run `ab rescan`, then read `.platform/RESCAN.md` and follow the update protocol.
+
 ### Context handoff — before ending or switching providers (mandatory)
 
 When context is running low, you're ending the session, or you're about to hand off to another CLI (Claude → Codex, Codex → Gemini, etc.), **run**:

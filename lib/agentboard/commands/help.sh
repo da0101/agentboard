@@ -149,6 +149,13 @@ COMMANDS
   role [list]                List agent role profiles from .platform/roles/
                              (label, name, mission — colored per role)
   role show <slug>           Print one role profile file in full
+  rescan                     Re-read the codebase and refresh .platform/ context.
+                             Prints a staleness summary (last scan date, file
+                             inventory), then instructs the agent to read
+                             .platform/RESCAN.md and follow the update protocol.
+                             Safe to run at any time — the protocol is additive,
+                             never destructive. Also accepts natural language:
+                             "update the platform" / "rescan" / "you're out of date"
   status                     Print .platform/STATUS.md to stdout
   add-repo <path>            Copy per-repo entry file templates to a new repo
                              Refuses to overwrite existing entry files.
