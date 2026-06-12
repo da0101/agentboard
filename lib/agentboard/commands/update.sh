@@ -72,33 +72,33 @@ cmd_update() {
     done
   fi
 
-  # agents/*.md — upsert: update existing AND add new ones (agentboard-global protocol files)
-  if [[ -d "$TEMPLATES_PLATFORM/agents" ]]; then
-    local asrc
-    for asrc in "$TEMPLATES_PLATFORM/agents"/*.md; do
+  # agents/*.md + roles/*.md — upsert: update existing AND add new ones
+  local pdir asrc
+  for pdir in agents roles; do
+    [[ -d "$TEMPLATES_PLATFORM/$pdir" ]] || continue
+    for asrc in "$TEMPLATES_PLATFORM/$pdir"/*.md; do
       [[ -f "$asrc" ]] || continue  # glob matched nothing (empty dir) — skip
       local afname; afname="$(basename "$asrc")"
-      local adst="./.platform/agents/$afname"
-      local agent_is_new=0
-      [[ -f "$adst" ]] || agent_is_new=1
+      local adst="./.platform/$pdir/$afname"
+      local agent_is_new=0; [[ -f "$adst" ]] || agent_is_new=1
       if (( dry_run )); then
         if (( agent_is_new )); then
-          printf '  %s+%s agents/%s  %s(would add)%s\n' "$C_GREEN" "$C_RESET" "$afname" "$C_DIM" "$C_RESET"
+          printf '  %s+%s %s/%s  %s(would add)%s\n' "$C_GREEN" "$C_RESET" "$pdir" "$afname" "$C_DIM" "$C_RESET"
         else
-          printf '  %s~%s agents/%s\n' "$C_YELLOW" "$C_RESET" "$afname"
+          printf '  %s~%s %s/%s\n' "$C_YELLOW" "$C_RESET" "$pdir" "$afname"
         fi
       else
-        mkdir -p "./.platform/agents"
+        mkdir -p "./.platform/$pdir"
         cp "$asrc" "$adst"
         if (( agent_is_new )); then
-          printf '  %s+%s %sagents/%s%s  %s(new)%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$afname" "$C_RESET" "$C_DIM" "$C_RESET"
+          printf '  %s+%s %s%s/%s%s  %s(new)%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$pdir" "$afname" "$C_RESET" "$C_DIM" "$C_RESET"
         else
-          printf '  %s↻%s %sagents/%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$afname" "$C_RESET"
+          printf '  %s↻%s %s%s/%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$pdir" "$afname" "$C_RESET"
         fi
       fi
       updated=$((updated + 1))
     done
-  fi
+  done
 
   # skills — always replace (pure protocol content; project-specific work lives in .platform/)
   local skills_dir_claude="./.claude/skills"

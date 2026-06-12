@@ -29,6 +29,18 @@ agentboard help
 
 ---
 
+## Role profiles
+
+```bash
+agentboard role list                 # list available role profiles — the routing
+                                     # table from .platform/roles/INDEX.md
+agentboard role show <slug>          # print one role file; naming a role in chat
+                                     # (or running this) manually activates it,
+                                     # overriding the automatic intent routing
+```
+
+---
+
 ## Domains & Streams
 
 ```bash

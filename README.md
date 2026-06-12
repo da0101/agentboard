@@ -236,6 +236,23 @@ Install behavior is additive:
 
 Each skill has a `SKILL.md` and uses progressive disclosure: the name and description are visible at session start, and the full protocol loads on demand.
 
+### Role profiles
+
+Skills cover *process stages*; role profiles cover *who is doing the work*. `agentboard init` also installs `.platform/roles/` — a routing index plus one file per role. At the start of a session the agent matches the user's plain-English request against the index (by meaning, not keywords — "make me app for gym" works), adopts the matching role, and announces it with a `[role:<slug>]` label so you always know which hat it's wearing. No match → it works as a plain pair programmer, no ceremony. Naming a role in chat always overrides the automatic routing.
+
+The shipped roles:
+
+- `startup-mvp` — builds a new product from scratch, scope-ruthless
+- `code-auditor` — honest assessment of existing code; reads, doesn't rewrite
+- `debugger` — finds and fixes bugs with root-cause discipline
+- `perf-engineer` — speed, memory, and scalability work
+- `refactor-architect` — makes messy working code clean without adding features
+- `backend-architect` — server-side design: APIs, data models, scaling
+- `frontend-engineer` — UI/UX implementation: components, screens, accessibility
+- `pair-programmer` — the default for everything else
+
+`ab role list` prints the routing table; `ab role show <slug>` prints one role file (and activates it manually). To add your own, create `.platform/roles/<slug>.md` following any shipped role's structure and add a row to `INDEX.md`. Don't edit the shipped role files in place — `agentboard update` refreshes them.
+
 ---
 
 ## What ships in the kit
@@ -258,6 +275,7 @@ your-project/
     ├── architecture.md
     ├── repos.md
     ├── agents/            (commands.md, context-organization.md, skill-labels.md, …)
+    ├── roles/             (role profiles: INDEX.md + one file per role)
     ├── memory/
     │   ├── decisions.md
     │   ├── log.md
@@ -305,6 +323,8 @@ agentboard doctor
 agentboard new-domain <slug> [repo-id ...] [--repo <repo-id>]
 agentboard new-stream <slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]
 agentboard resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>
+agentboard role list
+agentboard role show <slug>
 agentboard handoff [stream-slug] [--budget <N|Nk>]
 agentboard checkpoint <slug> --what "..." --next "..." [--provider <p>] [--type <t>] [--diff]
 agentboard close <slug>
@@ -339,6 +359,7 @@ agentboard help
 - `new-domain` bootstraps a domain file with metadata and can assign multiple repo IDs up front
 - `new-stream` bootstraps a stream file, registers it in `work/ACTIVE.md`, and seeds `work/BRIEF.md` when the brief is still a placeholder; repeat `--domain` and `--repo` when the stream spans multiple areas or repos
 - `resolve` turns a canonical stream/domain/repo reference into the exact file or repo record to load
+- `role` lists the available role profiles (`list`) or prints one role file for manual activation (`show <slug>`); the routing table lives in `.platform/roles/INDEX.md`
 - `handoff` prints the minimum file load order, repo scope, and current-state summary another LLM needs to resume a stream without a full re-brief; `--budget` drops secondary domains when token count is tight
 - `checkpoint` saves a compact "where we are" snapshot into the stream file before a context clear, provider switch, or session end; overwrites `## Resume state` and prepends a trimmed `## Progress log` entry
 - `close` runs in two steps: first call prints the harvest checklist (distill gotchas/decisions/learnings into `.platform/memory/`); second call with `--confirm` archives the stream and logs closure

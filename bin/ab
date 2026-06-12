@@ -27,7 +27,7 @@ TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
 TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
 TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
 
-VERSION="1.12.0"
+VERSION="1.13.0"
 
 
 source "$AGENTBOARD_ROOT/lib/agentboard/core.sh"
@@ -49,6 +49,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/daemon.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/lock.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/log_reason.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/search.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/role.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
@@ -157,6 +158,7 @@ main() {
     lock)        cmd_lock "$@" ;;
     log-reason)  cmd_log_reason "$@" ;;
     search)      cmd_search "$@" ;;
+    role)        cmd_role "$@" ;;
     close)       cmd_close "$@" ;;
     brief)       cmd_brief "$@" ;;
     watch)       cmd_watch "$@" ;;
