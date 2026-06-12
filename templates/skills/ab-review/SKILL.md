@@ -183,6 +183,12 @@ Read the full diff. Do not skim. For large diffs, focus on:
 4. **Security findings escalate to `ab-security`** for deep analysis if severity is uncertain.
 5. **Verdict is one of three.** APPROVE / REQUEST CHANGES / BLOCK.
 
+## Model profile
+
+**Sonnet** (`claude-sonnet-4-6`) — code review is analysis, planning, or
+structured writing. This skill is read-heavy; Opus adds no quality benefit
+and costs 5× more per agent call.
+
 ## Integration
 
 - **Upstream:** called by `ab-workflow` Stage 6 before merge, or directly via `/ab-review`

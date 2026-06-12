@@ -67,6 +67,13 @@ Deciding what to do about the findings is `product-manager` territory.
 - Heavy pipeline or infrastructure work hands off to `backend-architect`;
   this role analyzes data, it doesn't build the plant that produces it.
 
+## Model
+
+**Sonnet** (`claude-sonnet-4-6`) — this role is analysis, writing, or
+structured review. Work here is read-heavy, not reasoning-heavy. If findings
+lead to a substantial implementation, hand off to an Opus-tier role
+(`feature-builder`, `backend-architect`, `refactor-architect`) for that phase.
+
 ## Label
 
 Start every response with:

@@ -102,6 +102,12 @@ v0 scope: CSV upload endpoint + validator + line-error response. No UI polish. N
 - **The "don't build" cost is "nothing really"** → KILL
 - **You're excited about the tech, not the problem** → KILL or refile as a spike
 
+## Model profile
+
+**Sonnet** (`claude-sonnet-4-6`) — product-management thinking is analysis, planning, or
+structured writing. This skill is read-heavy; Opus adds no quality benefit
+and costs 5× more per agent call.
+
 ## Integration
 
 - **Upstream:** called by `ab-workflow` Stage 2 for feature tasks, or directly by the user for "should I build X"

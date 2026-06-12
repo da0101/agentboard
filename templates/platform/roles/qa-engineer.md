@@ -65,6 +65,13 @@ security flaws is `security-engineer`.
   coverage honestly, including what was not tested.
 - Pairs naturally with the `ab-qa` skill for browser-level acceptance runs.
 
+## Model
+
+**Sonnet** (`claude-sonnet-4-6`) — this role is analysis, writing, or
+structured review. Work here is read-heavy, not reasoning-heavy. If findings
+lead to a substantial implementation, hand off to an Opus-tier role
+(`feature-builder`, `backend-architect`, `refactor-architect`) for that phase.
+
 ## Label
 
 Start every response with:

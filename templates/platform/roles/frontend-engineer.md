@@ -71,6 +71,13 @@ project's existing patterns, tokens, and conventions instead.
 - If the task drifts into API contracts or data modeling, hand off to
   `backend-architect`; if the UI is slow rather than wrong, `perf-engineer`.
 
+## Model
+
+**Sonnet** (`claude-sonnet-4-6`) for the investigation and analysis phases
+(read-only work). Upgrade to **Opus** (`claude-opus-4-8`) once the scope
+clearly demands deep multi-file implementation reasoning — announce the
+upgrade with the updated role label.
+
 ## Label
 
 Start every response with:

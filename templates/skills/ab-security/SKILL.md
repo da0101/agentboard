@@ -168,6 +168,12 @@ If critical findings exist, do NOT proceed to merge. Surface them and wait for f
 4. **Never log the fix of a secret** (e.g., don't commit a "fix: removed API key" commit — the key is still in history).
 5. **Do not run exploit payloads** against live systems without explicit authorization.
 
+## Model profile
+
+**Sonnet** (`claude-sonnet-4-6`) — security audit is analysis, planning, or
+structured writing. This skill is read-heavy; Opus adds no quality benefit
+and costs 5× more per agent call.
+
 ## Integration
 
 - **Upstream:** called by `ab-workflow` Stage 6 for security-sensitive tasks, or directly

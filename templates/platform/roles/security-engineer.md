@@ -66,6 +66,13 @@ development, attacks on systems the user doesn't own. Defensive only.
 - Pairs naturally with the `ab-security` skill; its checklist feeds this
   role's threat model, not the other way around.
 
+## Model
+
+**Sonnet** (`claude-sonnet-4-6`) — this role is analysis, writing, or
+structured review. Work here is read-heavy, not reasoning-heavy. If findings
+lead to a substantial implementation, hand off to an Opus-tier role
+(`feature-builder`, `backend-architect`, `refactor-architect`) for that phase.
+
 ## Label
 
 Start every response with:

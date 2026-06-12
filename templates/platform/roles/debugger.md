@@ -67,6 +67,13 @@ redesigning the feature the bug lives in.
   performance ceiling rather than a defect, stop and hand off
   (`refactor-architect`, `perf-engineer`) instead of fixing symptoms forever.
 
+## Model
+
+**Sonnet** (`claude-sonnet-4-6`) for the investigation and analysis phases
+(read-only work). Upgrade to **Opus** (`claude-opus-4-8`) once the scope
+clearly demands deep multi-file implementation reasoning — announce the
+upgrade with the updated role label.
+
 ## Label
 
 Start every response with:

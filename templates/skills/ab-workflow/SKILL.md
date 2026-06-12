@@ -199,6 +199,34 @@ One line per marker. No prose fluff between them.
 - **High-risk task with no tests in the area** — stop, propose writing tests first as a separate chunk
 - **You can't find any relevant code paths** — confirm with user that the feature area exists
 
+## Model profile
+
+**Orchestrator model:** inherits from the caller (set by the user at
+session start — typically Sonnet or Opus).
+
+**Subagents in workflow scripts — pass `model` explicitly on every
+`agent()` call. Never omit it (omission inherits the caller's model
+and multiplies its cost by the agent count):**
+
+| Stage work type | Model |
+|---|---|
+| Research, audit, review, test writing, doc writing | `sonnet` |
+| Architecture design, hard decisions, deviation handling | `opus` |
+| Code implementation, complex multi-file fixes | `opus` |
+| Mechanical transforms — renaming, formatting, trivial edits | `haiku` |
+
+```js
+// correct — explicit per-agent model
+agent("research X",      { label: "research",  model: "sonnet" })
+agent("compare options", { label: "compare",   model: "sonnet" })
+agent("implement Y",     { label: "impl",      model: "opus"   })
+agent("write tests",     { label: "tests",     model: "sonnet" })
+agent("rename variable", { label: "rename",    model: "haiku"  })
+
+// wrong — omitting model inherits caller tier for every agent
+agent("research X")   // ← becomes Opus if caller is Opus
+```
+
 ## Integration
 
 - **Upstream:** called by the main agent when a task is classified `small+` by `ab-triage`

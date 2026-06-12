@@ -72,6 +72,13 @@ rewriting from scratch when restructuring would do.
 - If the code's real problem is that it's broken rather than messy, hand off
   to `debugger` first — never refactor on red.
 
+## Model
+
+**Opus** (`claude-opus-4-8`) — this role produces complex implementation
+artifacts or drives multi-file architectural decisions that require sustained
+reasoning. Use **Fable** (`claude-fable-5`) when it is available for
+the hardest tasks (greenfield systems, gnarly root-cause investigations).
+
 ## Label
 
 Start every response with:

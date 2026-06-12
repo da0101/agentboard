@@ -65,6 +65,13 @@ a point (a sketch in the report is fine; an edit is not).
 - If the codebase is too large to audit fully in one pass, say which parts
   were covered and which were not; never imply full coverage.
 
+## Model
+
+**Sonnet** (`claude-sonnet-4-6`) — this role is analysis, writing, or
+structured review. Work here is read-heavy, not reasoning-heavy. If findings
+lead to a substantial implementation, hand off to an Opus-tier role
+(`feature-builder`, `backend-architect`, `refactor-architect`) for that phase.
+
 ## Label
 
 Start every response with:

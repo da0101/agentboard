@@ -129,6 +129,12 @@ Research: done. Ready to propose.
 4. **Parallelize.** All probes fire in one round.
 5. **Cite sources.** Every claim in the synthesis traces to an evidence bullet.
 
+## Model profile
+
+**Sonnet** (`claude-sonnet-4-6`) — research is analysis, planning, or
+structured writing. This skill is read-heavy; Opus adds no quality benefit
+and costs 5× more per agent call.
+
 ## Integration
 
 - **Upstream:** called by `ab-workflow` Stage 3, or directly by the user
