@@ -240,15 +240,23 @@ Each skill has a `SKILL.md` and uses progressive disclosure: the name and descri
 
 Skills cover *process stages*; role profiles cover *who is doing the work*. `agentboard init` also installs `.platform/roles/` — a routing index plus one file per role. At the start of a session the agent matches the user's plain-English request against the index (by meaning, not keywords — "make me app for gym" works), adopts the matching role, and announces it with a `[role:<slug>]` label so you always know which hat it's wearing. No match → it works as a plain pair programmer, no ceremony. Naming a role in chat always overrides the automatic routing.
 
-The shipped roles:
+The shipped roles (16 total):
 
+- `product-manager` — shapes what to build: requirements, priorities, "is this worth it"
+- `tech-advisor` — research and comparison: "X vs Y", "which database", "how does Z work for us"
 - `startup-mvp` — builds a new product from scratch, scope-ruthless
-- `code-auditor` — honest assessment of existing code; reads, doesn't rewrite
-- `debugger` — finds and fixes bugs with root-cause discipline
-- `perf-engineer` — speed, memory, and scalability work
-- `refactor-architect` — makes messy working code clean without adding features
+- `feature-builder` — adds a feature to an existing product: "add checkout", "build notifications"
 - `backend-architect` — server-side design: APIs, data models, scaling
 - `frontend-engineer` — UI/UX implementation: components, screens, accessibility
+- `debugger` — finds and fixes bugs with root-cause discipline
+- `perf-engineer` — speed, memory, and scalability work
+- `qa-engineer` — test plans, coverage, edge-case hunting, "is this ready to ship"
+- `security-engineer` — security review: auth, permissions, handling user data safely
+- `code-auditor` — honest assessment of existing code; reads, doesn't rewrite
+- `refactor-architect` — makes messy working code clean without adding features
+- `devops-engineer` — deploy, CI/CD, containers, monitoring, "the server is down"
+- `data-analyst` — answers from data: metrics, queries, reports, "why are users churning"
+- `tech-writer` — documentation: READMEs, API references, guides, onboarding docs
 - `pair-programmer` — the default for everything else
 
 `ab role list` prints the routing table; `ab role show <slug>` prints one role file (and activates it manually). To add your own, create `.platform/roles/<slug>.md` following any shipped role's structure and add a row to `INDEX.md`. Don't edit the shipped role files in place — `agentboard update` refreshes them.
