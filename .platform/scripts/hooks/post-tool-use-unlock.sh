@@ -3,7 +3,7 @@
 # Registered as a PostToolUse hook in .claude/settings.json
 # Fail-open: silently skips if daemon is unreachable.
 
-set -uo pipefail
+set -u
 
 [[ -d ".platform" ]] || exit 0
 _port_file=".platform/.daemon-port"
@@ -39,9 +39,9 @@ if command -v jq >/dev/null 2>&1; then
     .tool_input.new_file_path,
     (.tool_input.edits[]?.file_path // empty)
     | select(. != null and . != "")
-  ' 2>/dev/null | sort -u)"
+  ' 2>/dev/null | sort -u || true)"
 else
-  _files="$(printf '%s' "$_input" | grep -o '"file_path"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"' | sort -u)"
+  _files="$(printf '%s' "$_input" | grep -o '"file_path"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"' | sort -u || true)"
 fi
 
 [[ -n "$_files" ]] || exit 0

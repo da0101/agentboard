@@ -1,6 +1,6 @@
 ---
 name: ab-workflow
-description: "Use for any task classified small or larger by ab-triage — orchestrates from 'user asked for X' to 'X is shipped, tested, and logged' through 6 stages with appropriate specialists at each step."
+description: "The 6-stage inline workflow orchestrator (triage → interview → research → propose → execute → verify). Runs a medium/large task through all stages with the right specialists at each step. Plans live in chat, never as .md files."
 argument-hint: "<task description>"
 allowed-tools:
   - Read
@@ -43,25 +43,16 @@ A single orchestration skill that drives a task from "user asked for X" to "X is
 
 ### Stage 1 — Triage (always)
 
-**Before reading a single file**, emit the classification in chat:
+Call `ab-triage` mentally or emit its three-line output. Emit classification inline:
 ```
 Triage: <type> / <scope> / <risk>
 ```
 
-This is not internal thinking. It must appear in the chat output. Reading files before emitting this line is a Stage 1 skip.
-
-**Rationalizations to reject:**
-- "I need to read the code to know the scope" → Estimate from the task description. You can revise after reading if the scope changes — but emit first.
-- "The triage is obvious, no need to write it" → Write it anyway. Unwritten triage = no triage.
-- "I'll triage mentally and move on" → Mental triage is invisible. It cannot be corrected. Emit it.
-
 If `trivial × low`, exit this skill and execute directly. Otherwise continue.
 
-### Stage 1b — Register (for streams; skip for trivial/small non-stream tasks)
+### Stage 1b — Register (mandatory before any research, proposal, or code)
 
-**Skip Stage 1b** for trivial × low non-stream tasks — execute directly after Stage 1.
-
-**For all other tasks that will become or continue a tracked stream**, stop here and create the work artifacts before doing anything else:
+**Stop here.** Before doing anything else, create the work artifacts:
 
 1. **Check `work/ACTIVE.md`** — does this stream already exist? If yes, load the stream file and resume. No duplicate.
 2. **Check `.platform/domains/`** — does a domain file exist for this feature area?
@@ -185,6 +176,7 @@ One sentence of takeaway. Not a paragraph. Not a retrospective.
 7. **Max ~300 lines per file.**
 8. **Manual QA plan required when human verification matters.** Otherwise state why manual QA is not required.
 9. **Feature, bugfix, and hotfix implementation happens in isolated worktrees.** Dependencies and localhost ports are identified before coding.
+10. **Workflow script self-audit — mandatory before every `Workflow()` call.** Before submitting any workflow script, scan every `agent(` call in the script and verify it has an explicit `model:` parameter. Fix any that are missing before calling `Workflow()`. No exceptions — omitting `model` makes every agent inherit the caller's tier, turning a 10-agent fan-out into a 10× token burn for no quality gain. Rule of thumb: research/audit/review/test-writing → `"sonnet"` · implementation/architecture → `"opus"` · trivial mechanical transforms → `"haiku"`.
 
 ## Output format
 
@@ -223,3 +215,4 @@ One line per marker. No prose fluff between them.
 3. **Writing the plan to `PLAN.md`.** No. Chat only.
 4. **Running tests AFTER committing.** Tests pass before the commit, not after.
 5. **Logging more than one line per task.** One line. Rolling history.
+6. **Submitting a workflow script with bare `agent()` calls.** `agent("do X")` with no `model:` is a token bomb — it inherits Opus from the caller and multiplies it by every agent in the fan-out. Always write `agent("do X", { model: "sonnet" })`. The self-audit in rule #10 catches these before they fire.

@@ -1,6 +1,6 @@
 # Skill Labels — Visual Identity System
 
-Every agentboard skill announces itself at the start of each response with a labeled blockquote:
+Every ab skill announces itself at the start of each response with a labeled blockquote:
 
 > **`[ab-research]`**
 
@@ -20,6 +20,12 @@ This makes it immediately clear which skill is active during multi-skill workflo
 | ab-qa | `[ab-qa]` | 226 (yellow) | Manual / browser QA |
 | ab-review | `[ab-review]` | 183 (lavender) | Pre-PR code review |
 | ab-debug | `[ab-debug]` | 208 (amber) | Root-cause bug investigation |
+
+## Role labels
+
+Role profiles (`.platform/roles/`) use the same convention with `[role:<slug>]` labels — same blockquote format, same optional ANSI color on raw terminals (each role file declares its color). Roles and ab-* skill labels **stack**: the role says *who is working and what done looks like*; the skill says *which process stage is running*. When both are active, the role label comes first:
+
+> **`[role:debugger]`** **`[ab-debug]`**
 
 ## Rendering
 

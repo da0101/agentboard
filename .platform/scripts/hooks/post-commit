@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# post-commit — agentboard activity log (installed by agentboard)
+# post-commit — ab activity log (installed by ab)
 # Appends one line to .platform/memory/log.md after every commit.
 # Gives Codex/Gemini sessions a breadcrumb trail without manual checkpoints.
 #
@@ -25,9 +25,9 @@ awk -v e="$entry" '
 
 # Auto-checkpoint the active stream. Runs for every provider (Claude, Codex,
 # Gemini, human) since git hooks are provider-agnostic. Fail-open: if
-# agentboard isn't on PATH or the call errors, the commit still succeeds.
-if command -v agentboard >/dev/null 2>&1; then
-  agentboard checkpoint --auto >/dev/null 2>&1 || true
+# ab isn't on PATH or the call errors, the commit still succeeds.
+if command -v ab >/dev/null 2>&1; then
+  ab checkpoint --auto >/dev/null 2>&1 || true
 fi
 
 exit 0

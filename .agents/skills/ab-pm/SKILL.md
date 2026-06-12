@@ -1,13 +1,12 @@
 ---
 name: ab-pm
-description: "Use before starting any medium+ feature, when asked 'should I build X?', or before adding a new dependency, service, or data model. Asks six forcing questions to establish user value before any code is written."
+description: "Product-management thinking mode. Forces user-value framing before writing code: who is the user, what problem does this solve, what's the simplest validation, what are the failure modes. Use before starting any feature or when the user asks 'should we build X?'."
 argument-hint: "<feature idea or product question>"
 allowed-tools:
   - Read
   - Grep
   - Glob
   - WebSearch
-  - WebFetch
 ---
 
 # ab-pm — Product thinking
@@ -52,7 +51,7 @@ Answer each in 1–3 sentences. If you can't answer, ask the user.
 3. **What's the simplest version that validates the assumption?** The MVP. Strip everything that isn't load-bearing. If you can't name a v0, the idea isn't ready.
 4. **What happens if we don't build this?** Be honest. Sometimes the answer is "nothing". That's a valid answer.
 5. **What are the failure modes if we build it wrong?** Top 2–3. "Users get confused and file support tickets" is a failure mode. "The feature doesn't work" is not — that's just a bug.
-6. **What would a relevant industry leader do here?** Pick a comparable (Shopify, Stripe, Linear, Notion, etc.) whose constraints match your domain. What does their solution look like and why? If there's no close comparable, name the core constraint the solution must satisfy and search for one analogous pattern outside your domain.
+6. **What would [industry leader] do here?** Pick a relevant comparable (Shopify, Stripe, Linear, Notion, etc. based on the domain). What does their solution look like? Why?
 
 ### Step 2 — Decide
 
@@ -62,7 +61,7 @@ Output one of three verdicts:
 
 **RESHAPE** — valid problem but the proposed solution is wrong-sized. Propose a smaller v0 or a different approach. Return to user for confirmation.
 
-**KILL** — no clear user, no real problem, or the "don't build" cost is near-zero. State: "KILL — [feature]: [specific reason why the problem is invalid, unclear, or the cost/benefit doesn't work]. [What to do instead, if anything.]"
+**KILL** — no clear user, no real problem, or the "don't build" cost is near-zero. Tell the user why. Be honest.
 
 ### Step 3 — Record the decision
 
@@ -103,6 +102,12 @@ v0 scope: CSV upload endpoint + validator + line-error response. No UI polish. N
 - **The "don't build" cost is "nothing really"** → KILL
 - **You're excited about the tech, not the problem** → KILL or refile as a spike
 
+## Model profile
+
+**Sonnet** (`claude-sonnet-4-6`) — product-management thinking is analysis, planning, or
+structured writing. This skill is read-heavy; Opus adds no quality benefit
+and costs 5× more per agent call.
+
 ## Integration
 
 - **Upstream:** called by `ab-workflow` Stage 2 for feature tasks, or directly by the user for "should I build X"
@@ -113,4 +118,4 @@ v0 scope: CSV upload endpoint + validator + line-error response. No UI polish. N
 1. **Answering the questions with mush** ("users will love this") — name the user, name the pain.
 2. **Skipping the kill verdict** because it feels unhelpful — a kill is the most helpful verdict when it's right.
 3. **Building v2 before v0 is shipped** — every "what about later?" goes in `decisions.md` as deferred, not in the v0.
-4. **Cargo-culting a competitor's solution** without understanding the constraint it was designed for.
+4. **Copying a competitor's solution without asking why theirs looks that way** — understand the constraint, don't cargo-cult.
