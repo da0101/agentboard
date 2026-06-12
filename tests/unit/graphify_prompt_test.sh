@@ -15,7 +15,7 @@ _fake_bin_with_graphify() {
   cat > "$tmpbin/graphify" <<'EOF'
 #!/usr/bin/env bash
 mkdir -p graphify-out
-printf "stub\n" > graphify-out/GRAPH_REPORT.md
+printf "stub\n" > graphify-out/graph.json
 exit 0
 EOF
   chmod +x "$tmpbin/graphify"
@@ -91,8 +91,8 @@ test_graphify_present_answer_yes_success() {
   '
   [[ -d "$tmpdir/.platform/graphify" ]] \
     || fail "expected .platform/graphify/ to be created"
-  [[ -f "$tmpdir/.platform/graphify/GRAPH_REPORT.md" ]] \
-    || fail "expected GRAPH_REPORT.md inside .platform/graphify/"
+  [[ -f "$tmpdir/.platform/graphify/graph.json" ]] \
+    || fail "expected graph.json inside .platform/graphify/"
   assert_contains "$output" "Knowledge graph"
   rm -rf "$tmpdir" "$tmpbin"
 }
