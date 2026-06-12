@@ -40,6 +40,17 @@ Claude Code, Codex CLI, Gemini CLI, or any other AI tool — this file is auto-l
 It tells you what's currently in progress so you can orient in seconds, not minutes.
 See `.platform/agents/work-tracking.md` for the full protocol.
 
+## Role activation (start of every session — mandatory)
+
+On the **first substantive task message** — and again whenever the task type clearly shifts — before starting the work:
+
+1. Consult `.platform/roles/INDEX.md` and match the user's **intent** against its routing table. Match meaning, not keywords — phrasing may be brief or non-native English ("make me app for gym").
+2. Read the single matching `.platform/roles/<slug>.md` and adopt it: identity, process, deliverables, constraints.
+3. Announce it — start your response with the role label blockquote (`> **`[role:<slug>]`** — <Role name> activated`) before any work.
+4. No confident match → work as `pair-programmer` silently (no announcement).
+
+**Manual override always wins** — if the user names a role or says "switch role", use that role. `ab role list` shows the available roles.
+
 ## Reference pack
 
 - `.platform/ACTIVATE-HUB.md` — the hub-mode activation protocol (read this when the user says "activate")

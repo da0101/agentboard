@@ -236,6 +236,7 @@ These files are generic and ship verbatim — you don't need to rewrite them:
 
 - **`.platform/workflow.md`** — the 6-stage inline workflow (triage → interview → research → propose → execute → verify)
 - **`.platform/ONBOARDING.md`** — the 7-step onboarding path for future sessions
+- **`.platform/roles/`** — the role-profile pack (`INDEX.md` routing table + one file per role). Ships verbatim — do **not** edit the shipped role files or the INDEX activation rule. During activation you **may add** project-specific roles: create a new `.platform/roles/<slug>.md` following the structure of any shipped role, and add a matching row to the INDEX routing table.
 - **`.platform/scripts/sync-context.sh`** — the sync script
 - **`.platform/templates/repo/*`** — scaffolding for adding new repos later via `ab add-repo`
 
