@@ -17,12 +17,34 @@ After running, `.platform/graphify/` contains:
 2. **After `ab rescan`** — when ≥5 files changed, the graph may be stale.
 3. **Before starting a new stream** that touches unfamiliar parts of the repo.
 
+## Backend requirement — read before running
+
+Graphify needs a direct API key to do semantic extraction. It **cannot** use Claude Code
+or Codex CLI authentication — those authenticate via subscription/OAuth, not raw keys.
+Always pass `--backend` explicitly to avoid burning quota on the wrong provider.
+
+**Check which key is available:**
+```bash
+env | grep -E '^(ANTHROPIC|OPENAI|GEMINI|DEEPSEEK)_API_KEY' | sed 's/=.*/=set/'
+```
+
+**Pick the matching backend:**
+
+| Key set | Command |
+|---|---|
+| `ANTHROPIC_API_KEY` | `graphify . --backend claude` |
+| `OPENAI_API_KEY` | `graphify . --backend openai` |
+| `GEMINI_API_KEY` (paid tier) | `graphify . --backend gemini` |
+| None / free tier only | `graphify . --backend ollama` (requires `ollama` + a local model) |
+
+**No API key at all?** Tell the user they need one of: an Anthropic API key
+(`console.anthropic.com`), an OpenAI API key, or a paid Gemini key. Claude Code /
+Codex CLI subscriptions do not expose keys that graphify can use.
+
 ## How to invoke
 
-Run via your shell tool (works in Claude Code, Codex, Gemini CLI, and any other AI agent):
-
 ```bash
-graphify .
+graphify . --backend <claude|openai|gemini|ollama>
 ```
 
 If graphify outputs to `graphify-out/` (its default), move the output:
