@@ -72,6 +72,23 @@ Based on scan + interview, generate these files. Write them one at a time, then 
 
 **`.platform/memory/log.md`** — append one line: `{{TODAY}} — ab activation — .platform/ pack filled from scan + interview — <one-sentence summary of what you learned>`
 
+## Step 3b — Knowledge graph (optional)
+
+If `graphify --version` returns a version number, build the knowledge graph now:
+
+```bash
+graphify .
+mkdir -p .platform/graphify
+cp -R graphify-out/. .platform/graphify/ && rm -rf graphify-out
+```
+
+This takes ~30 seconds and writes `.platform/graphify/GRAPH_REPORT.md` — a summary of
+key concepts, cross-cutting patterns, and surprising connections. Reference it during
+`ab-research` instead of grepping individual files.
+
+If graphify is not installed, suggest: `uv tool install graphifyy && graphify install`
+then skip this step.
+
 ## Step 4 — Install or update the root `CLAUDE.md` **(never delete existing content)**
 
 Check whether `CLAUDE.md` already exists at the project root.
@@ -227,6 +244,7 @@ These live in `.claude/skills/` (Claude Code auto-loads them). They are additive
 | `ab-qa` | Real-browser / manual QA pass with reproducible repro steps. Required for UI changes. |
 | `ab-review` | Pre-PR code review across spec / quality / security / tests. |
 | `ab-debug` | Root-cause bug investigation. Hypothesis-test-narrow loop. |
+| `ab-graphify` | Build or refresh the codebase knowledge graph. Reference `GRAPH_REPORT.md` during research. |
 
 Read each skill's `SKILL.md` on first use to understand its protocol. The skills enforce the same workflow this kit documents, so they compose naturally with `ab-workflow`.
 
