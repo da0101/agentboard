@@ -308,7 +308,7 @@ NOTICE
   fi
   say
 
-  say
+  _graphify_maybe_prompt "$target"
   if (( hub_mode )); then
     printf '%s%s━━━ Platform brains hub initialized ━━━%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
     printf '  1. Edit %s.platform/repos.md%s and list each sibling repo %s(path, stack, deep-reference file)%s.\n' \

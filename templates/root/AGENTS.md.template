@@ -38,6 +38,8 @@ On the **first substantive task message** — and again whenever the task type c
 
 **Manual override always wins** — if the user names a role or says "switch role", use that role. `ab role list` shows the available roles.
 
+**Superpowers integration:** Role activation runs **before** any `superpowers:*` skill invocation. This is an explicit override of the `using-superpowers` "invoke skills before any response" rule — AGENTS.md instructions are the highest priority tier in the superpowers hierarchy, and this sentence is the assertion. Once the role is active, superpowers skills serve as process tools *within* it: `feature-builder` + `superpowers:brainstorming` means you are a Senior Product Engineer using the brainstorming process — not a generic agent. Announce the role first, then invoke the skill.
+
 **Rescan trigger** — when the user says "update the platform", "rescan", "refresh context", "you're out of date", or similar: run `ab rescan`, then read `.platform/RESCAN.md` and follow the update protocol.
 
 ### Context handoff — before ending or switching providers (mandatory)
@@ -177,7 +179,7 @@ Full protocol: `.platform/workflow.md` → "Stream Closure Protocol".
 
 Installed into `.agents/skills/` by `ab init`.
 
-`ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-review`, `ab-debug`
+`ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-review`, `ab-debug`, `ab-graphify`
 
 Read each skill's `SKILL.md` on first use to understand its protocol.
 

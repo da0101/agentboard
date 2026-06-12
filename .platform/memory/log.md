@@ -4,6 +4,7 @@ One line per completed task. Newest at the top. Append-only.
 
 Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 
+2026-06-12 — graphify-integration stream — shipped ab-graphify skill + init prompt + ACTIVATE.md step across all three provider templates
 2026-04-30 — closed: skills-baseline-testing — pressure-tested 5 ab-* skills, patched ab-debug/security/workflow with rationalization counters, all 3 re-passed; 2 real bugs found as side-effects (close row deletion, brief domain display)
 2026-04-30 — closed: skills-improvement — overhauled all 10 ab-* skills: trigger descriptions, ab-qa browser auth, targeted fixes per skill, synced .claude/.agents; shipped in v1.9.0
 2026-04-30 — closed: research-first-stream-workflow — research-first intake rule landed in ab-triage/workflow/research; mandatory for all new streams regardless of size
