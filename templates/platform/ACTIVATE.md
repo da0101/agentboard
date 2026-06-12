@@ -74,17 +74,19 @@ Based on scan + interview, generate these files. Write them one at a time, then 
 
 ## Step 3b — Knowledge graph (optional)
 
-If `graphify --version` returns a version number, build the knowledge graph now:
+If `graphify --version` returns a version number, build the structural knowledge graph now
+(AST-only — no API key, no LLM, free):
 
 ```bash
-graphify .
+graphify update . --force --no-cluster
 mkdir -p .platform/graphify
 cp -R graphify-out/. .platform/graphify/ && rm -rf graphify-out
 ```
 
-This takes ~30 seconds and writes `.platform/graphify/GRAPH_REPORT.md` — a summary of
-key concepts, cross-cutting patterns, and surprising connections. Reference it during
-`ab-research` instead of grepping individual files.
+This writes `.platform/graphify/graph.json` — a structural map of the codebase (god nodes,
+import cycles, cross-cutting connections). Reference it during `ab-research` to understand
+what calls what without grepping individual files. No GRAPH_REPORT.md is generated in
+AST-only mode; agents query graph.json directly.
 
 If graphify is not installed, suggest: `uv tool install graphifyy && graphify install`
 then skip this step.
