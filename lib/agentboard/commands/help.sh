@@ -146,6 +146,9 @@ COMMANDS
                              --domains           domains/ only
                              --memory            memory/ only
                              --conventions       conventions/ only
+  role [list]                List agent role profiles from .platform/roles/
+                             (label, name, mission — colored per role)
+  role show <slug>           Print one role profile file in full
   status                     Print .platform/STATUS.md to stdout
   add-repo <path>            Copy per-repo entry file templates to a new repo
                              Refuses to overwrite existing entry files.
