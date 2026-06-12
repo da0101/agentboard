@@ -1,9 +1,46 @@
 #!/usr/bin/env bash
+#
+# Integration test runner.
+#
+# Usage: tests/integration.sh [--filter <pattern>] [--verbose]
+#   --filter <pattern>  run only test functions whose name matches
+#                       *<pattern>* (shell glob, no regex)
+#   --verbose           print each test function name as it runs
+#
+# Continues across failing tests, names each failing test function, and
+# exits 1 if anything failed.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-AGENTBOARD="$ROOT/bin/agentboard"
+AGENTBOARD="$ROOT/bin/ab"
+
+FILTER=""
+VERBOSE=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --filter)
+      if [[ $# -lt 2 ]]; then
+        printf 'integration.sh: --filter requires a pattern\n' >&2
+        exit 2
+      fi
+      FILTER="$2"
+      shift 2
+      ;;
+    --verbose|-v)
+      VERBOSE=1
+      shift
+      ;;
+    -h|--help)
+      printf 'Usage: tests/integration.sh [--filter <pattern>] [--verbose]\n'
+      exit 0
+      ;;
+    *)
+      printf 'integration.sh: unknown argument: %s\n' "$1" >&2
+      exit 2
+      ;;
+  esac
+done
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -128,7 +165,7 @@ init_project() {
     git config user.email test@example.com
     git config user.name "Agentboard Test"
     git add .
-    git commit -m "agentboard init" >/dev/null 2>&1
+    git commit -m "ab init" >/dev/null 2>&1
   )
 }
 
@@ -141,7 +178,7 @@ init_hub() {
     git config user.email test@example.com
     git config user.name "Agentboard Test"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
+    git commit -m "ab init" >/dev/null 2>&1
   )
 }
 
@@ -162,7 +199,7 @@ test_single_repo_branch_inference() {
   assert_contains "$output" "billing -> repos [repo-primary]"
   assert_contains "$output" "auth-session"
   assert_contains "$output" "confidence: medium"
-  assert_contains "$output" "agentboard new-stream auth-session --domain auth --type feature --repo repo-primary"
+  assert_contains "$output" "ab new-stream auth-session --domain auth --type feature --repo repo-primary"
 }
 
 test_apply_domains_creates_stubs() {
@@ -198,7 +235,7 @@ test_default_branch_dirty_worktree_inference() {
   assert_contains "$output" "auth-errors-fix"
   assert_contains "$output" "branch: main"
   assert_contains "$output" "confidence: high"
-  assert_contains "$output" "agentboard new-stream auth-errors-fix --domain auth --type bug --repo repo-primary"
+  assert_contains "$output" "ab new-stream auth-errors-fix --domain auth --type bug --repo repo-primary"
 }
 
 test_hub_bootstrap_references_and_high_confidence_streams() {
@@ -217,7 +254,7 @@ test_hub_bootstrap_references_and_high_confidence_streams() {
   assert_contains "$output" "auth-hardening"
   assert_contains "$output" "confidence: high"
   assert_contains "$output" "billing-bug"
-  assert_contains "$output" "agentboard new-stream billing-bug --domain billing --type bug --repo frontend"
+  assert_contains "$output" "ab new-stream billing-bug --domain billing --type bug --repo frontend"
 
   assert_file_contains "$dir/.platform/backend.md" 'Repo role: backend'
   assert_file_contains "$dir/.platform/backend.md" 'Stack hint: django'
@@ -305,6 +342,58 @@ test_local_context_artifacts_are_listed() {
   assert_file_contains "$ref_file" '`openapi.yaml`'
 }
 
+test_full_workflow_stream_lifecycle() {
+  local dir
+  dir="$(mktemp -d)"
+  make_single_repo_fixture "$dir"
+  init_project "$dir"
+
+  (
+    cd "$dir"
+    "$AGENTBOARD" new-domain auth >/dev/null
+    "$AGENTBOARD" new-stream login --domain auth --base-branch main --branch feat/login >/dev/null
+  )
+
+  [[ -f "$dir/.platform/work/login.md" ]] || fail "stream file not created"
+  assert_file_contains "$dir/.platform/work/ACTIVE.md" "login"
+
+  local cp_out
+  cp_out="$(cd "$dir"; "$AGENTBOARD" checkpoint login --what "initial auth scaffolding" --next "wire up tokens")"
+  assert_contains "$cp_out" "Checkpoint saved"
+  assert_file_contains "$dir/.platform/work/login.md" "initial auth scaffolding"
+
+  local close_out
+  close_out="$(cd "$dir"; "$AGENTBOARD" close login)"
+  assert_contains "$close_out" "Harvest checklist"
+
+  local sf="$dir/.platform/work/login.md"
+  local tmp; tmp="$(mktemp)"
+  awk '/^closure_approved:/ { print "closure_approved: true"; next } { print }' "$sf" > "$tmp" && mv "$tmp" "$sf"
+
+  (cd "$dir"; "$AGENTBOARD" close login --confirm >/dev/null)
+  [[ ! -f "$dir/.platform/work/login.md" ]] || fail "stream still present after --confirm"
+  [[ -f "$dir/.platform/work/archive/login.md" ]] || fail "stream not archived"
+  assert_file_contains "$dir/.platform/memory/log.md" "closed stream login"
+}
+
+test_brief_renders_active_stream() {
+  local dir output
+  dir="$(mktemp -d)"
+  make_single_repo_fixture "$dir"
+  init_project "$dir"
+
+  (
+    cd "$dir"
+    "$AGENTBOARD" new-domain auth >/dev/null
+    "$AGENTBOARD" new-stream login --domain auth >/dev/null
+  )
+
+  output="$(cd "$dir"; "$AGENTBOARD" brief)"
+  assert_contains "$output" "login"
+  assert_contains "$output" "Active"
+}
+
+ALL_TESTS="
 test_single_repo_branch_inference
 test_apply_domains_creates_stubs
 test_default_branch_dirty_worktree_inference
@@ -313,5 +402,49 @@ test_unknown_repo_safe_fallback
 test_node_backend_role_hint
 test_ios_role_hint_safe_defaults
 test_local_context_artifacts_are_listed
+test_full_workflow_stream_lifecycle
+test_brief_renders_active_stream
+"
 
-printf 'PASS: integration\n'
+TESTS_RUN=0
+FAILED=0
+
+for t in $ALL_TESTS; do
+  if [[ -n "$FILTER" ]]; then
+    case "$t" in
+      *${FILTER}*) ;;
+      *) continue ;;
+    esac
+  fi
+  TESTS_RUN=$((TESTS_RUN + 1))
+  if [[ "$VERBOSE" -eq 1 ]]; then
+    printf 'RUN: %s\n' "$t"
+  fi
+  set +e
+  ( set -e; "$t" )
+  status=$?
+  set -e
+  if [[ "$status" -eq 0 ]]; then
+    if [[ "$VERBOSE" -eq 1 ]]; then
+      printf '  ok %s\n' "$t"
+    fi
+  else
+    FAILED=$((FAILED + 1))
+    if [[ "$VERBOSE" -eq 1 ]]; then
+      printf '  FAIL %s\n' "$t"
+    fi
+    printf 'FAIL: integration.sh -> %s\n' "$t" >&2
+  fi
+done
+
+if [[ "$TESTS_RUN" -eq 0 ]]; then
+  printf 'integration.sh: no tests match filter: %s\n' "$FILTER" >&2
+  exit 1
+fi
+
+if [[ "$FAILED" -gt 0 ]]; then
+  printf 'FAIL: integration (%d of %d tests failed)\n' "$FAILED" "$TESTS_RUN" >&2
+  exit 1
+fi
+
+printf 'PASS: integration (%d tests)\n' "$TESTS_RUN"

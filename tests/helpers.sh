@@ -3,7 +3,7 @@
 set -euo pipefail
 
 TEST_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$TEST_ROOT/bin/agentboard"
+source "$TEST_ROOT/bin/ab"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -61,7 +61,7 @@ init_project_fixture() {
   local dir="$1"
   (
     cd "$dir"
-    printf '\n\n' | "$TEST_ROOT/bin/agentboard" init >/dev/null 2>&1
+    printf '\n\n' | "$TEST_ROOT/bin/ab" init >/dev/null 2>&1
   )
 }
 
@@ -69,7 +69,7 @@ init_hub_fixture() {
   local dir="$1"
   (
     cd "$dir"
-    printf '\n\nY\n' | "$TEST_ROOT/bin/agentboard" init >/dev/null 2>&1
+    printf '\n\nY\n' | "$TEST_ROOT/bin/ab" init >/dev/null 2>&1
   )
 }
 
@@ -97,7 +97,7 @@ run_cli_capture() {
   set +e
   (
     cd "$dir" || exit 1
-    "$TEST_ROOT/bin/agentboard" "$@"
+    "$TEST_ROOT/bin/ab" "$@"
   ) >"$tmp" 2>&1
   status=$?
   captured="$(cat "$tmp")"

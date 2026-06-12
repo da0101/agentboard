@@ -4,10 +4,10 @@ cmd_update() {
     [[ "$arg" == "--dry-run" ]] && dry_run=1
   done
 
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
   require_templates
 
-  printf '\n%s%sagentboard update%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '\n%s%sab update%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   if (( dry_run )); then
     printf '%s  Dry-run mode — no files will be changed.%s\n' "$C_DIM" "$C_RESET"
   fi
@@ -140,12 +140,18 @@ cmd_update() {
   local sc_src="$TEMPLATES_PLATFORM/scripts/sync-context.sh"
   local sc_dst="./.platform/scripts/sync-context.sh"
   local repos_file="./.platform/repos.md"
-  if [[ -f "$sc_src" ]] && [[ -f "$sc_dst" ]]; then
+  if [[ -f "$sc_src" ]]; then
     if (( dry_run )); then
-      printf '  %s~%s scripts/sync-context.sh\n' "$C_YELLOW" "$C_RESET"
+      if [[ -f "$sc_dst" ]]; then
+        printf '  %s~%s scripts/sync-context.sh\n' "$C_YELLOW" "$C_RESET"
+      else
+        printf '  %s+%s scripts/sync-context.sh  %s(would add)%s\n' "$C_GREEN" "$C_RESET" "$C_DIM" "$C_RESET"
+      fi
     else
+      local sc_is_new=0
+      [[ -f "$sc_dst" ]] || sc_is_new=1
+      mkdir -p "./.platform/scripts"
       cp "$sc_src" "$sc_dst"
-      chmod +x "$sc_dst"
       if [[ -f "$repos_file" ]]; then
         local sync_paths="" repo_row repo_id repo_path repo_stack repo_ref repo_abs repo_name current_repo
         current_repo="$(pwd)"
@@ -158,10 +164,44 @@ cmd_update() {
           write_sync_repos_array "$sc_dst" "$sync_paths"
         fi
       fi
-      printf '  %s↻%s %sscripts/sync-context.sh%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET"
+      chmod +x "$sc_dst"
+      if (( sc_is_new )); then
+        printf '  %s+%s %sscripts/sync-context.sh%s  %s(new)%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+      else
+        printf '  %s↻%s %sscripts/sync-context.sh%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET"
+      fi
     fi
     updated=$((updated + 1))
   fi
+
+  # scripts/{codex-ab,gemini-ab,session-track.sh} — always upsert.
+  # These are the provider wrappers and the shared session-tracking helper:
+  # pure protocol, no per-project content. Upgrading them propagates the
+  # event-capture / observability improvements to existing projects.
+  local wrap_src wrap_dst wname
+  for wname in codex-ab gemini-ab session-track.sh aliases.sh; do
+    wrap_src="$TEMPLATES_PLATFORM/scripts/$wname"
+    wrap_dst="./.platform/scripts/$wname"
+    [[ -f "$wrap_src" ]] || continue
+    if (( dry_run )); then
+      if [[ -f "$wrap_dst" ]]; then
+        printf '  %s~%s scripts/%s\n' "$C_YELLOW" "$C_RESET" "$wname"
+      else
+        printf '  %s+%s scripts/%s  %s(would add)%s\n' "$C_GREEN" "$C_RESET" "$wname" "$C_DIM" "$C_RESET"
+      fi
+    else
+      local wrap_is_new=0
+      [[ -f "$wrap_dst" ]] || wrap_is_new=1
+      cp "$wrap_src" "$wrap_dst"
+      chmod +x "$wrap_dst"
+      if (( wrap_is_new )); then
+        printf '  %s+%s %sscripts/%s%s  %s(new)%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$wname" "$C_RESET" "$C_DIM" "$C_RESET"
+      else
+        printf '  %s↻%s %sscripts/%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$wname" "$C_RESET"
+      fi
+    fi
+    updated=$((updated + 1))
+  done
 
   # scripts/hooks/ — always upsert (no project-specific content; propagate bug fixes)
   if [[ -d "$TEMPLATES_PLATFORM/scripts/hooks" ]]; then
@@ -212,7 +252,7 @@ cmd_update() {
       local basename="${af#memory/}"
       local legacy="./.platform/$basename"
       if [[ -f "$legacy" && ! -f "$dst" ]]; then
-        printf '  %s↷%s %s%s%s  %s(legacy %s present at root — run `agentboard migrate-layout --apply` first)%s\n' \
+        printf '  %s↷%s %s%s%s  %s(legacy %s present at root — run `ab migrate-layout --apply` first)%s\n' \
           "$C_YELLOW" "$C_RESET" "$C_CYAN" "$af" "$C_RESET" "$C_DIM" "$basename" "$C_RESET"
         skipped=$((skipped + 1))
         continue
@@ -257,6 +297,32 @@ cmd_update() {
     fi
   fi
 
+  local gitignore="./.gitignore"
+  if (( dry_run )); then
+    if agentboard_runtime_gitignore_is_current "$gitignore"; then
+      printf '  %s↷%s %s.gitignore%s  %s(runtime block present)%s\n' \
+        "$C_YELLOW" "$C_RESET" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+      skipped=$((skipped + 1))
+    else
+      printf '  %s+%s .gitignore  %s(would add/update ab runtime ignore block)%s\n' \
+        "$C_GREEN" "$C_RESET" "$C_DIM" "$C_RESET"
+      added=$((added + 1))
+    fi
+  else
+    local had_runtime_block=0
+    agentboard_runtime_gitignore_is_current "$gitignore" && had_runtime_block=1
+    ensure_agentboard_runtime_gitignore "$gitignore"
+    if (( had_runtime_block )); then
+      printf '  %s↻%s %s.gitignore%s  %s(runtime block refreshed)%s\n' \
+        "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+      updated=$((updated + 1))
+    else
+      printf '  %s+%s %s.gitignore%s  %s(ab runtime block)%s\n' \
+        "$C_GREEN" "$C_RESET" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+      added=$((added + 1))
+    fi
+  fi
+
   # -------------------------------------------------------------------------
   # Summary
   # -------------------------------------------------------------------------
@@ -282,4 +348,3 @@ cmd_update() {
   fi
   say
 }
-

@@ -2,7 +2,7 @@ cmd_add_repo() {
   local template_dir="./.platform/templates/repo"
   [[ -d "$template_dir" ]] || die "$template_dir not found. add-repo requires a multi-repo project."
   local repo_path="${1:-}"
-  [[ -n "$repo_path" ]] || die "Usage: agentboard add-repo <path-to-repo>"
+  [[ -n "$repo_path" ]] || die "Usage: ab add-repo <path-to-repo>"
   [[ -d "$repo_path" ]] || die "$repo_path does not exist"
 
   local existing=""
@@ -43,7 +43,7 @@ cmd_install() {
         shift
         ;;
       *)
-        die "Usage: agentboard install [--dir <bin-dir>] [--shell zsh|bash|fish] [--dry-run]"
+        die "Usage: ab install [--dir <bin-dir>] [--shell zsh|bash|fish] [--dry-run]"
         ;;
     esac
   done
@@ -57,12 +57,12 @@ cmd_install() {
   esac
 
   local source_bin install_path rc_file path_snippet
-  source_bin="$AGENTBOARD_ROOT/bin/agentboard"
-  install_path="$bin_dir/agentboard"
+  source_bin="$AGENTBOARD_ROOT/bin/ab"
+  install_path="$bin_dir/ab"
   rc_file="$(shell_rc_file "$shell_name")"
   path_snippet="$(shell_path_snippet "$shell_name" "$bin_dir")"
 
-  printf '\n%s%sagentboard install%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '\n%s%sab install%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   if (( dry_run )); then
     printf '%sDry-run mode — no files will be changed.%s\n' "$C_DIM" "$C_RESET"
   fi

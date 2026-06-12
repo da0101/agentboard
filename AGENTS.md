@@ -38,6 +38,16 @@ For `--cumulative-in` / `--cumulative-out` pass your **current session totals** 
 
 This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `agentboard handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
 
+### Reasoning annotation — after significant edits (mandatory)
+
+After every non-trivial Write or Edit, log WHY so the next agent understands:
+
+```bash
+agentboard log-reason [<file>] "<one sentence why>"
+```
+
+Skip for: formatting, typo fixes, obvious renames. Required for: refactors, deletions, new abstractions, architectural choices.
+
 ### Stream closure — before archiving (mandatory harvest ritual)
 
 When a stream is done, **do not just archive the file**. Run the two-step close to feed project memory:
@@ -61,10 +71,9 @@ agentboard close <stream-slug> --confirm
 
 This is the compounding ritual. Each close adds durable knowledge so the next agent running `agentboard brief` inherits what you learned, without you being there to explain it.
 
-### Long session fallback — `agentboard watch` (optional)
+### Long session fallback — `agentboard watch` (recommended for Codex/Gemini sessions)
 
-For heavy sessions where checkpoints may be forgotten, the user can start a
-background watcher:
+For sessions where checkpoints may be forgotten, start a background watcher:
 
 ```bash
 agentboard watch &
@@ -77,6 +86,9 @@ explicit checkpoints with specific `--what` / `--next`. The watcher skips
 ticks when it sees a manual checkpoint happened in the last 5 minutes, so it
 never clobbers fresh state. Stop with `agentboard watch --stop`.
 
+> **Codex / Gemini:** start `agentboard watch &` at the beginning of every
+> session — it's the closest equivalent to Claude Code's auto-checkpoint hooks.
+
 ### New task bootstrap (before any non-trivial task — mandatory)
 
 When the user gives a task not already tracked in `ACTIVE.md`, **stop and complete these steps before any research, planning, or code**:
@@ -88,6 +100,12 @@ When the user gives a task not already tracked in `ACTIVE.md`, **stop and comple
 4. **Add a row to `work/ACTIVE.md`** — slug / type / in-progress / agent / date.
 5. **Update `work/BRIEF.md`** — point to new primary stream + list domain file under "Relevant context".
 6. Only then proceed to triage → research → propose → execute.
+
+**Research-first new stream rule.** If the request is a new stream, research is always required before planning or implementation. Scale the depth to risk, but include local context and targeted external research every time. Present the research-backed phased plan, risks, mitigations, alternatives, tests, rollback path, and open questions; wait for human validation/approval before implementation. If implementation diverges from the approved plan, pause and ask.
+
+**Worktree branch rule.** Before implementation starts on any feature, bugfix, or hotfix stream, create or enter a separate Git worktree for every touched repo. Use `feature/<slug>` or `bugfix/<slug>` from `develop`; use `hotfix/<slug>` from `master` only when the user explicitly says hotfix. Install each repo's development dependencies in its worktree, identify the local dev command and localhost port(s), and record them in the stream file before coding or QA.
+
+**Manual QA plan rule.** At the end of any implementation, bug fix, debugging task, or feature work that requires human behavior verification, include a structured `## 🧪 Manual QA Plan` in the final response. Cover scope, environment, test data, happy path, bug repro/regression steps, edge cases, browser/device checks when relevant, accessibility checks when relevant, and evidence to capture. If manual QA is not relevant, state `Manual QA: not required` and why.
 
 > **Non-negotiable.** Skipping this means context is lost when the session ends. Trivial single-file fixes are the only exception.
 
@@ -108,6 +126,20 @@ Whenever the user asks to audit, analyze, or check the state of a stream or its 
 
 This applies even when resuming after context compaction. A compressed context summary is NOT a substitute for reading the protocol spec.
 
+## Commit Gate — Never commit without explicit user request
+
+**Never run `git commit` or `git push` unless the user explicitly asked for it in this conversation turn.**
+
+"Tests pass" is not a request to commit. "Looks good" is not a request to commit. "Done" is not a request to commit.
+
+If you have completed work and believe it is ready: say what you did and ask "Ready to commit?" — then wait. The user decides.
+
+**Enforcement:**
+- **Claude Code** — `bash-guard.sh` PreToolUse hook blocks the commit and shows an approval dialog. If you see the dialog and the user did not ask for a commit, deny it.
+- **Codex / Gemini** — no hook; this instruction is your only guard. Violating it is a hard failure.
+
+---
+
 ## Stream Closure — Human Approval Required
 
 **Only the human/owner declares a stream complete.** You never self-declare completion. You may say "I believe this is done — here is the evidence" and propose closure, but the final decision belongs to the developer. No exceptions.
@@ -117,7 +149,10 @@ This applies even when resuming after context compaction. A compressed context s
 2. Wait for explicit human sign-off.
 3. Verify the stream file has `closure_approved: true` before archiving.
 
-**Enforcement:** Claude Code enforces this mechanically via `platform-closure-gate.js` (PreToolUse hook — blocks any edit to `ACTIVE.md` that removes a stream row without `closure_approved: true` in the stream file). Codex CLI and Gemini CLI have no hook system — this rule must be followed through instruction discipline alone. The absence of a mechanical gate does not make it optional.
+**Enforcement:** Three layers, all providers:
+- **Git pre-commit hook** — blocks any commit that removes a stream row from `ACTIVE.md` without `closure_approved: true`. Fires regardless of which AI tool made the edit.
+- **Claude Code only** — `platform-closure-gate.js` blocks the edit itself (PreToolUse), before the file is even written.
+- **Codex / Gemini** — no PreToolUse hooks; rely on this instruction. The git hook is the mechanical backstop.
 
 Full protocol: `.platform/workflow.md` → "Stream Closure Protocol".
 

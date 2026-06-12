@@ -1,6 +1,6 @@
 ---
 name: ab-workflow
-description: "The 6-stage inline workflow orchestrator (triage → interview → research → propose → execute → verify). Runs a medium/large task through all stages with the right specialists at each step. Plans live in chat, never as .md files."
+description: "Use for any task classified small or larger by ab-triage — orchestrates from 'user asked for X' to 'X is shipped, tested, and logged' through 6 stages with appropriate specialists at each step."
 argument-hint: "<task description>"
 allowed-tools:
   - Read
@@ -14,6 +14,14 @@ allowed-tools:
 ---
 
 # ab-workflow — The 6-stage inline workflow
+
+## Identity
+
+You are **`[ab-workflow]`**. Start **every** response with your label on its own line:
+
+> **`[ab-workflow]`**
+
+ANSI terminal color: `\033[38;5;39m[ab-workflow]\033[0m`
 
 ## Purpose
 
@@ -35,16 +43,25 @@ A single orchestration skill that drives a task from "user asked for X" to "X is
 
 ### Stage 1 — Triage (always)
 
-Call `ab-triage` mentally or emit its three-line output. Emit classification inline:
+**Before reading a single file**, emit the classification in chat:
 ```
 Triage: <type> / <scope> / <risk>
 ```
 
+This is not internal thinking. It must appear in the chat output. Reading files before emitting this line is a Stage 1 skip.
+
+**Rationalizations to reject:**
+- "I need to read the code to know the scope" → Estimate from the task description. You can revise after reading if the scope changes — but emit first.
+- "The triage is obvious, no need to write it" → Write it anyway. Unwritten triage = no triage.
+- "I'll triage mentally and move on" → Mental triage is invisible. It cannot be corrected. Emit it.
+
 If `trivial × low`, exit this skill and execute directly. Otherwise continue.
 
-### Stage 1b — Register (mandatory before any research, proposal, or code)
+### Stage 1b — Register (for streams; skip for trivial/small non-stream tasks)
 
-**Stop here.** Before doing anything else, create the work artifacts:
+**Skip Stage 1b** for trivial × low non-stream tasks — execute directly after Stage 1.
+
+**For all other tasks that will become or continue a tracked stream**, stop here and create the work artifacts before doing anything else:
 
 1. **Check `work/ACTIVE.md`** — does this stream already exist? If yes, load the stream file and resume. No duplicate.
 2. **Check `.platform/domains/`** — does a domain file exist for this feature area?
@@ -56,6 +73,19 @@ If `trivial × low`, exit this skill and execute directly. Otherwise continue.
 
 Exit condition: domain file exists + stream file exists + `ACTIVE.md` row added + `BRIEF.md` updated. Only then proceed.
 
+### Stage 1c — Worktree + local environment prep (mandatory before implementation)
+
+Before implementation starts on any feature, bugfix, or hotfix stream:
+
+1. Create or enter a separate Git worktree for every touched repo.
+2. Use `feature/<slug>` or `bugfix/<slug>` from `develop`.
+3. Use `hotfix/<slug>` from `master` only when the user explicitly says this is a hotfix.
+4. Install each repo's development dependencies in that worktree using the repo's lockfile/toolchain.
+5. Identify the local dev command and localhost port(s) for each touched repo.
+6. Record worktree path, branch, base, dependency status, dev command, and port(s) in the stream file under `## Worktree / Local environment`.
+
+If the worktree or dependency install cannot be completed, stop and surface the blocker before coding. Do not implement feature/bugfix/hotfix work in the shared main checkout.
+
 ### Stage 2 — Interview (only if ambiguous)
 
 Ask **2–5 targeted questions** via the agent CLI's question mechanism (`AskUserQuestion` in Claude Code, equivalent in others). Rules:
@@ -64,31 +94,37 @@ Ask **2–5 targeted questions** via the agent CLI's question mechanism (`AskUse
 - No "is my approach ok?" questions — that's Stage 4's job
 - Skip this stage entirely if requirements are unambiguous
 
-### Stage 3 — Research (only if scope ≥ medium)
+### Stage 3 — Research (always for new streams; otherwise if scope ≥ medium)
 
 Parallelize. Fire all research probes in one round:
 - **Probe A (always):** read existing code paths that touch the area (`Grep` + `Read` the 3–5 most relevant files)
-- **Probe B (if unfamiliar stack/library):** 1 web search + 2–3 doc fetches — strict budget
-- **Probe C (always):** grep `.platform/decisions.md` and `.platform/log.md` for prior art
+- **Probe B (always for new streams, otherwise if unfamiliar stack/library):** 1 web search + 2–3 doc fetches — strict budget; small/low-risk streams may use a narrower query and fewer fetches, but do not skip targeted external research for new streams
+- **Probe C (always):** grep `.platform/memory/decisions.md` and `.platform/memory/log.md` for prior art
 
-Synthesize in chat in ≤300 words. **Do not write a research `.md` file.**
+Synthesize in chat in ≤300 words. Include the problem, similar external or prior-art examples, implementation patterns, best practices, local prior art, caveats, and recommendation. **Do not write a research `.md` file.**
 
 ### Stage 4 — Propose
 
 State a 5–10 bullet plan **inline in chat**. Include:
 - **Files to touch** (list with short why)
 - **New / deleted files** (list)
+- **Development phases** (ordered implementation chunks)
+- **Worktree/local environment plan** (repos, worktree paths, dependency install command, dev command, localhost ports)
+- **Complexity assessment** (why the task is small/medium/large)
 - **Test plan** (what you'll run to prove it works)
 - **Risk factors** (what could go wrong, for medium+/high risk)
+- **Risk mitigations** (how the plan limits blast radius)
+- **Alternatives considered** (including why rejected)
 - **Rollback path** (for high risk)
+- **Clarifying questions** (only if something remains ambiguous)
 
-Wait for user approval. If user pushes back, iterate. If user is silent and risk is `low`, proceed. If risk is `medium+`, explicitly confirm.
+Wait for user approval before implementing any new stream. If user pushes back, iterate. If this is not a new stream and risk is `low`, you may proceed after presenting the plan; if risk is `medium+`, explicitly confirm.
 
 **Never** write the plan to a `.md` file. Plans live in chat.
 
 ### Stage 5 — Execute
 
-Write the code. Rules:
+Write the code from the prepared worktree path(s). Rules:
 - Atomic commits per logical chunk (don't pile 10 changes into 1 commit)
 - Max ~300 lines per file — extract before hitting the limit
 - Read before you edit (every time — no exceptions)
@@ -105,7 +141,33 @@ Parallelize verification. Fire in one round:
 
 If any check fails, loop back to Stage 5.
 
-Once all checks pass, append **one line** to `.platform/log.md`:
+Before the final response, produce a **Manual QA Plan** whenever the task needs human click-through, behavior verification, bug reproduction, acceptance testing, or visual review. If manual QA is not relevant, state `Manual QA: not required` with the reason.
+
+Manual QA plan format:
+```
+## 🧪 Manual QA Plan
+
+🎯 Scope: <feature / bug / behavior being validated>
+🧰 Environment: <local/staging/prod, URL, branch/build, browser/device, flags>
+🔑 Test data: <accounts, roles, fixtures, records, permissions>
+
+✅ Happy path
+1. <action> → Expected: <observable result>
+2. <action> → Expected: <observable result>
+
+🐛 Bug repro / regression
+1. <original failing behavior or regression path> → Expected: <fixed behavior>
+
+⚠️ Edge cases
+- <case> → Expected: <result>
+- <case> → Expected: <result>
+
+📱 Browser/device checks: <only when relevant>
+♿ Accessibility checks: <keyboard, focus, labels, contrast when relevant>
+🧾 Evidence to capture: <screenshots, logs, IDs, pass/fail notes>
+```
+
+Once all checks pass, append **one line** to `.platform/memory/log.md`:
 ```
 YYYY-MM-DD — <task> — <outcome> — <takeaway>
 ```
@@ -117,10 +179,12 @@ One sentence of takeaway. Not a paragraph. Not a retrospective.
 1. **No `.md` artifacts for plans.** Ever. Plans live in chat.
 2. **Read before you edit.** No exceptions.
 3. **Parallelize subagents.** Never run independent subagents sequentially.
-4. **Trivial tasks skip Stages 2–4.**
-5. **Every success logs one line** to `.platform/log.md`.
-6. **High-risk tasks require explicit user approval** between Stage 4 and Stage 5.
+4. **Trivial non-stream tasks skip Stages 2–4. New streams still get scaled research and human approval.**
+5. **Every success logs one line** to `.platform/memory/log.md`.
+6. **New streams and high-risk tasks require explicit user approval** between Stage 4 and Stage 5.
 7. **Max ~300 lines per file.**
+8. **Manual QA plan required when human verification matters.** Otherwise state why manual QA is not required.
+9. **Feature, bugfix, and hotfix implementation happens in isolated worktrees.** Dependencies and localhost ports are identified before coding.
 
 ## Output format
 
@@ -132,7 +196,7 @@ Progress markers in chat at each stage transition:
   1. …
   2. …
 [Stage 5] Executing…
-[Stage 6] Verified. Logged.
+[Stage 6] Verified. Logged. Manual QA plan: <included | not required + reason>
 ```
 
 One line per marker. No prose fluff between them.
@@ -150,7 +214,7 @@ One line per marker. No prose fluff between them.
 - **Calls (Stage 3):** `Grep`, `Read`, `WebSearch`, `WebFetch`, `ab-research` (optional wrapper)
 - **Calls (Stage 5):** `ab-architect` for design, `ab-test-writer` for tests, domain specialists
 - **Calls (Stage 6):** `ab-security`, `ab-qa`, `ab-review`
-- **Downstream:** writes to `.platform/log.md`, optionally `.platform/STATUS.md`
+- **Downstream:** writes to `.platform/memory/log.md`, optionally `.platform/STATUS.md`
 
 ## Anti-patterns
 

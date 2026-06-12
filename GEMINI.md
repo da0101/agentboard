@@ -11,24 +11,57 @@ agentboard/
 ├── README.md              ← user-facing docs
 ├── CLAUDE.md              ← rules for working on agentboard itself (Claude)
 ├── GEMINI.md              ← this file — rules for working on agentboard itself (Gemini)
-├── LICENSE                ← MIT
+├── CHEATSHEET.md          ← command reference
+├── MIGRATION_GUIDE.md     ← upgrade path for older layouts
+├── CONTRIBUTING.md
+├── LICENSE
 ├── bin/
-│   └── agentboard         ← bash CLI (init / sync / claim / release / log / status / add-repo)
-└── templates/
-    ├── platform/          ← copied into <project>/.platform/ by `init`
-    │   ├── ONBOARDING.md      (verbatim)
-    │   ├── workflow.md        (verbatim)
-    │   ├── STATUS.md          (skeletal — placeholders)
-    │   ├── architecture.md    (skeletal — placeholders)
-    │   ├── decisions.md       (skeletal — placeholders)
-    │   ├── repos.md           (skeletal — placeholders)
-    │   ├── log.md             (skeletal — placeholders)
-    │   ├── conventions/       (EMPTY — LLM writes per-project)
-    │   ├── templates/repo/    (verbatim — per-repo scaffold)
-    │   └── scripts/sync-context.sh (verbatim)
-    └── root/
-        ├── CLAUDE.md.template ← activation prompt dropped at project root by `init`
-        └── GEMINI.md.template ← activation prompt dropped at project root by `init`
+│   └── agentboard         ← entry point; delegates to lib/
+├── lib/agentboard/
+│   ├── core.sh            ← library loader
+│   ├── core/
+│   │   ├── base.sh            (shared utilities, colors, die/ok helpers)
+│   │   ├── project_state.sh   (reads .platform/ state)
+│   │   ├── project_render.sh  (renders briefs, repo references, registry tables)
+│   │   ├── project_detection.sh
+│   │   ├── bootstrap_repos.sh
+│   │   └── bootstrap_domains.sh
+│   └── commands/
+│       ├── init.sh / install.sh / update.sh
+│       ├── streams.sh         (new-stream, new-domain)
+│       ├── stream_resolve.sh  (resolve, current-stream, next-action)
+│       ├── handoff.sh / handoff_render.sh  (handoff packet)
+│       ├── checkpoint.sh / progress.sh / close.sh
+│       ├── usage.sh           (log, summary, dashboard, learn — requires sqlite3)
+│       ├── watch.sh / watch_poll.sh / watch_install.sh / watch_status.sh
+│       │                      (git watcher — scheduler requires launchctl/schtasks)
+│       ├── doctor.sh / bootstrap.sh / brief.sh
+│       └── …
+├── templates/
+│   ├── platform/          ← copied into <project>/.platform/ by `init`
+│   │   ├── ACTIVATE.md / ACTIVATE-HUB.md  (activation protocol)
+│   │   ├── ONBOARDING.md      (verbatim)
+│   │   ├── workflow.md        (verbatim)
+│   │   ├── STATUS.md          (skeletal — placeholders)
+│   │   ├── architecture.md    (skeletal — placeholders)
+│   │   ├── repos.md / repos.hub.md
+│   │   ├── memory/            (decisions, log, learnings, gotchas, playbook, open-questions, BACKLOG)
+│   │   ├── agents/            (commands.md, context-organization.md, skill-labels.md, …)
+│   │   ├── domains/TEMPLATE.md
+│   │   ├── work/              (BRIEF.md, ACTIVE.md, TEMPLATE.md, archive/)
+│   │   ├── conventions/       (EMPTY — LLM writes per-project)
+│   │   ├── scripts/sync-context.sh (verbatim)
+│   │   └── scripts/hooks/     (bash-guard.sh, platform-closure-gate.js, platform-bootstrap.sh)
+│   ├── root/              ← root entry files dropped by `init`
+│   │   ├── CLAUDE.md.template / CLAUDE.md.hub.template
+│   │   ├── AGENTS.md.template
+│   │   └── GEMINI.md.template
+│   ├── skills/            ← ab-* skill pack installed into .claude/skills/
+│   └── codex/             ← Codex agent configs
+└── tests/
+    ├── unit.sh
+    ├── integration.sh
+    └── helpers.sh
 ```
 
 ## The activation contract
@@ -52,11 +85,13 @@ The single most important design decision:
 | `ONBOARDING.md` | verbatim | Reading path is the same for every project |
 | `sync-context.sh` | verbatim | Only `REPOS=()` array is per-project |
 | `templates/repo/*` | verbatim | Generic per-repo scaffold |
+| `scripts/hooks/*` | verbatim | Mechanical enforcement — not project-specific |
+| `agents/*.md` | verbatim | Context-org and skill-label guides are universal |
 | `STATUS.md` | placeholder | `{{PROJECT_NAME}}`, `{{DESCRIPTION}}`, `{{TODAY}}` |
 | `architecture.md` | placeholder | Structure is generic, content is LLM-written |
-| `decisions.md` | placeholder | Structure is generic, content is LLM-written |
+| `memory/decisions.md` | placeholder | Structure is generic, content is LLM-written |
 | `repos.md` | placeholder | Structure is generic, content is LLM-written |
-| `log.md` | placeholder | Just the header + first seeded line |
+| `memory/log.md` | placeholder | Just the header + first seeded line |
 | `conventions/` | EMPTY | LLM writes one file per detected stack during activation |
 | Root `GEMINI.md.template` | special | The activation prompt itself — replaced post-activation |
 
@@ -74,33 +109,49 @@ The single most important design decision:
 - Adding / removing hard rules
 - Changing model profile recommendations
 
-### When to edit `bin/agentboard`
+### When to edit `bin/agentboard` / `lib/agentboard/`
 
-- New CLI subcommand
+- New CLI subcommand → add `lib/agentboard/commands/<cmd>.sh`, register in `bin/agentboard`
+- Core logic change → edit the relevant `lib/agentboard/core/*.sh` file
 - Changing the init flow (don't add stack-picking, ever — that's explicitly rejected)
-- Bug fix in sync / add-repo
+- Bug fix in any command → edit the corresponding `commands/*.sh` file
 
 ### Hard rules
 
+0. **Never commit or push without explicit user request.** "Tests pass" is not a request. Tell the user what you completed and ask "Ready to commit?" — then wait.
 1. **Never add stack pre-picking to `agentboard init`.** The LLM decides the stack during activation. `init` only asks project name + one-line description.
 2. **Never ship a static `conventions/{stack}.md` file.** The LLM writes those per-project, based on the user's actual code.
 3. **Templates that ship verbatim** (`workflow.md`, `ONBOARDING.md`, `sync-context.sh`, `templates/repo/*`) must be **stack-agnostic**. No React / Django / Unity examples baked in.
 4. **Placeholders use `{{UPPERCASE_SNAKE}}`.** The only three the `init` command fills are `{{PROJECT_NAME}}`, `{{DESCRIPTION}}`, `{{TODAY}}`. Everything else is filled by the LLM during activation.
 5. **`sync-context.sh` must stay bash-portable.** macOS default shell must work. No bash 4-only features, no GNU-only flags.
-6. **No runtime dependencies.** Pure file-creation. No API calls, no npm install, no Python venv. If you want the LLM to do something, write it into the activation prompt — don't call an API from the CLI.
-7. **Max ~300 lines per file** (ship the rule by following it).
+6. **The CLI core has no required runtime dependencies.** `init`, `new-stream`, `new-domain`, `checkpoint`, `handoff`, `doctor`, and `sync` are pure bash + file I/O. The git pre-commit closure gate is also pure bash. Optional features are allowed opt-in system deps: `usage` commands require `sqlite3`; the Claude Code closure gate (`platform-closure-gate.js`) requires `node`; `watch --install` requires `launchctl` (macOS) or `schtasks` (Windows). Fail gracefully with a clear message when an optional dep is absent. Never add required deps.
+7. **Max ~300 lines per bash source file** in `lib/` and `bin/`. This rule applies to executable code, not to documentation or workflow markdown — those are as long as they need to be.
 
 ## Workflow for editing this repo
 
 Follow the 6-stage workflow in `templates/platform/workflow.md`:
 1. Triage (type/scope/risk)
 2. Interview (only if ambiguous)
-3. Research (only if medium+ scope)
-4. Propose inline in chat
+3. Research (always for new streams; otherwise medium+ scope)
+4. Propose inline in chat with phases, risks, mitigations, alternatives, tests, and rollback path
 5. Execute
 6. Verify + log
 
-Plans live in chat, not `.md` files. Every successful task appends one line to a mental log (this repo doesn't have its own `.platform/log.md` — it's the kit, not a project).
+For new streams, research is mandatory even when the implementation looks small. Include targeted external research plus local context, then wait for human approval of the research-backed plan before implementation.
+
+Before implementing any feature, bugfix, or hotfix stream, work from an isolated Git worktree per touched repo. Use `feature/<slug>` or `bugfix/<slug>` from `develop`; use `hotfix/<slug>` from `master` only when the user explicitly says hotfix. Install each repo's development dependencies in its worktree, identify the local dev command and localhost port(s), and record them in the stream file before coding or QA.
+
+At the end of any implementation, bug fix, debugging task, or feature work that requires human behavior verification, include a structured `## 🧪 Manual QA Plan` in the final response. Cover scope, environment, test data, happy path, bug repro/regression steps, edge cases, browser/device checks when relevant, accessibility checks when relevant, and evidence to capture. If manual QA is not relevant, state `Manual QA: not required` and why.
+
+Plans live in chat, not `.md` files. Every successful task appends one line to `.platform/memory/log.md` (this repo dogfoods agentboard — `.platform/` is gitignored but populated locally).
+
+After every non-trivial Write or Edit, log WHY:
+
+```bash
+agentboard log-reason [<file>] "<one sentence why>"
+```
+
+Skip for: formatting, typo fixes, obvious renames.
 
 ## Reference implementation
 

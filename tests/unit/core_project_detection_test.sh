@@ -28,7 +28,7 @@ test_write_brief_stub_and_skill_description() {
   brief="$dir/BRIEF.md"
   skill="$dir/SKILL.md"
 
-  write_brief_stub "$brief" "agentboard" "auth-fix" $'auth\nbackend-auth' "planning"
+  write_brief_stub "$brief" "ab" "auth-fix" $'auth\nbackend-auth' "planning"
   assert_file_contains "$brief" '**Feature:** auth-fix'
   assert_file_contains "$brief" '.platform/domains/auth.md'
   assert_file_contains "$brief" '.platform/domains/backend-auth.md'

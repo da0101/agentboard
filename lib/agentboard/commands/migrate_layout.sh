@@ -1,5 +1,5 @@
 cmd_migrate_layout() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local apply=0 dry_run=1
   while [[ $# -gt 0 ]]; do
@@ -8,7 +8,7 @@ cmd_migrate_layout() {
       --dry-run) dry_run=1; apply=0; shift ;;
       -h|--help)
         cat <<'EOF'
-Usage: agentboard migrate-layout [--apply|--dry-run]
+Usage: ab migrate-layout [--apply|--dry-run]
 
 Upgrades an existing .platform/ directory to the current layout (memory/
 folder for accumulated knowledge). Safe to re-run: only moves files that
@@ -63,7 +63,7 @@ EOF
     if [[ -f "$dst" ]]; then
       if [[ -f "$src" ]]; then
         # Both present. If dst is an unchanged shipped placeholder (user never
-        # wrote to it — e.g. `agentboard update` just created it), overwrite
+        # wrote to it — e.g. `ab update` just created it), overwrite
         # with the real content at src. Otherwise keep both and warn.
         if _migrate_layout_is_shipped_placeholder "$dst" "$name"; then
           if (( dry_run )); then
@@ -125,9 +125,9 @@ EOF
   fi
 }
 
-# Detect whether `dst` is an unchanged shipped placeholder — i.e. `agentboard
+# Detect whether `dst` is an unchanged shipped placeholder — i.e. `ab
 # update` or `init` just created it and the user hasn't written anything.
-# We compare byte-for-byte against the template shipped in this agentboard
+# We compare byte-for-byte against the template shipped in this ab
 # install. If identical, safe to overwrite with a real root-level file.
 _migrate_layout_is_shipped_placeholder() {
   local dst="$1" name="$2"

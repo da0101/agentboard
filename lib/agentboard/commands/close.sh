@@ -1,5 +1,5 @@
 cmd_close() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local slug="${1:-}"
   if [[ -z "$slug" || "${slug:0:2}" == "--" || "$slug" == "-h" ]]; then
@@ -7,7 +7,7 @@ cmd_close() {
       _close_print_help
       return 0
     else
-      die "Usage: agentboard close <stream-slug> [--confirm] [--dry-run]"
+      die "Usage: ab close <stream-slug> [--confirm] [--dry-run]"
     fi
   fi
   shift
@@ -25,11 +25,21 @@ cmd_close() {
 
   local stream_file="./.platform/work/${slug}.md"
   [[ -f "$stream_file" ]] || die "$stream_file not found."
-  has_frontmatter "$stream_file" || die "$stream_file has no v1 frontmatter. Run 'agentboard migrate --apply' first."
+  has_frontmatter "$stream_file" || die "$stream_file has no v1 frontmatter. Run 'ab migrate --apply' first."
 
   if (( ! confirm )); then
     _close_print_harvest_prompt "$slug" "$stream_file"
     return 0
+  fi
+
+  if (( ! dry_run )); then
+    local _approved; _approved="$(frontmatter_value "$stream_file" "closure_approved")"
+    if [[ "$_approved" != "true" ]]; then
+      die "closure_approved is not set to true in $stream_file.
+  Complete the harvest checklist first:
+    ab close $slug
+  Then set  closure_approved: true  in the stream file and re-run --confirm."
+    fi
   fi
 
   local archive_dir="./.platform/work/archive"
@@ -44,6 +54,7 @@ cmd_close() {
   if (( dry_run )); then
     printf '%sWould archive%s %s → %s\n' "$C_BOLD" "$C_RESET" "$stream_file" "$archive_path"
     printf '%sWould update frontmatter:%s status=done, closure_approved=true\n' "$C_BOLD" "$C_RESET"
+    printf '%sWould update ACTIVE.md:%s remove stream row\n' "$C_BOLD" "$C_RESET"
     printf '%sWould append closure row to .platform/memory/log.md%s\n' "$C_BOLD" "$C_RESET"
     return 0
   fi
@@ -52,14 +63,18 @@ cmd_close() {
   today_str="$(today)"
   agent="${AGENTBOARD_AGENT:-${USER:-agent}}"
 
+  # Per-stream lock: don't let a concurrent checkpoint/watch interleave with
+  # the frontmatter rewrite + archive move.
+  platform_lock_acquire "stream-${slug}" || true
   replace_frontmatter_line "$stream_file" "status" "done"
   replace_frontmatter_line "$stream_file" "closure_approved" "true"
   replace_frontmatter_line "$stream_file" "updated_at" "$today_str"
 
   mv "$stream_file" "$archive_path"
+  platform_lock_release "stream-${slug}"
 
-  _close_append_log "$slug" "$archive_path" "$today_str" "$agent"
-  _close_remove_from_active_registry "$slug"
+  platform_with_lock "memory-log" _close_append_log "$slug" "$archive_path" "$today_str" "$agent"
+  platform_with_lock "active-md" _close_update_active_registry_status "$slug"
 
   ok "Stream ${C_BOLD}${slug}${C_RESET} closed and archived → ${C_CYAN}${archive_path}${C_RESET}"
   say "  ${C_DIM}If the harvest step (gotchas/playbook/questions) wasn't done before --confirm,${C_RESET}"
@@ -68,7 +83,7 @@ cmd_close() {
 
 _close_print_help() {
   cat <<'EOF'
-Usage: agentboard close <stream-slug> [--confirm] [--dry-run]
+Usage: ab close <stream-slug> [--confirm] [--dry-run]
 
 Two-step stream closure. Default run prints the harvest checklist so the
 agent can distill this stream's contribution into project memory. Then
@@ -84,14 +99,14 @@ Step 2 — finalize (--confirm):
   Moves the stream file to .platform/work/archive/<slug>.md
   Sets status=done, closure_approved=true
   Appends a closure row to .platform/memory/log.md
-  Removes the stream from work/ACTIVE.md
+  Removes the stream row from work/ACTIVE.md
 
 Flags:
   --confirm   Actually archive + log. Run AFTER the harvest step.
   --dry-run   Preview archive actions without writing.
 
 This is the compounding ritual: each close adds durable knowledge to the
-project's memory files so the next agent inherits it via `agentboard brief`.
+project's memory files so the next agent inherits it via `ab brief`.
 EOF
 }
 
@@ -135,14 +150,69 @@ ${C_BOLD}5. LEARNINGS${C_RESET} — non-obvious bug root-cause or hard-won patte
    File:   .platform/memory/learnings.md
    Add a new L-NNN block using the format at the top of that file.
 
-When the harvest is done, run:
-  ${C_BOLD}agentboard close ${slug} --confirm${C_RESET}
+When the harvest is done:
+  1. Set  closure_approved: true  in ${stream_file}
+  2. Run  ${C_BOLD}ab close ${slug} --confirm${C_RESET}
 
+Step 1 is required — --confirm will refuse to run without it.
 Skipping harvest is fine if the stream produced nothing durable — but once
 the stream is archived, its raw context is no longer in active memory. The
 only knowledge that survives is what you distilled into the files above.
 EOF
+  _close_print_domain_gap "$slug" "$stream_file"
   printf '\n'
+}
+
+# Appended to the harvest checklist. Reads domain slugs from the stream file,
+# collects files touched in stream commits, and lists any that aren't mentioned
+# in the domain file text. Pure informational — no writes.
+_close_print_domain_gap() {
+  local slug="$1" stream_file="$2"
+  local raw_domains
+  raw_domains="$(frontmatter_value "$stream_file" "domain_slugs")"
+  [[ -z "$raw_domains" || "$raw_domains" == "[]" ]] && return 0
+  command -v git >/dev/null 2>&1 || return 0
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+
+  local base_branch touched_files
+  base_branch="$(frontmatter_value "$stream_file" "base_branch")"
+  if [[ -n "$base_branch" ]] && ! is_placeholder_value "$base_branch" \
+      && git rev-parse --verify "$base_branch" >/dev/null 2>&1; then
+    touched_files="$(git log --name-only --pretty=format: "${base_branch}..HEAD" 2>/dev/null \
+      | awk 'NF' | sort -u || true)"
+  else
+    touched_files="$(git log --name-only --pretty=format: -20 2>/dev/null \
+      | awk 'NF' | sort -u || true)"
+  fi
+  [[ -n "$touched_files" ]] || return 0
+
+  local any_gap=0 ds df domain_text gap_lines fpath
+  while IFS= read -r ds; do
+    [[ -z "$ds" ]] && continue
+    df="./.platform/domains/${ds}.md"
+    [[ -f "$df" ]] || continue
+    domain_text="$(< "$df")"
+    gap_lines=""
+    while IFS= read -r fpath; do
+      [[ -z "$fpath" ]] && continue
+      printf '%s' "$domain_text" | grep -qF "$fpath" 2>/dev/null && continue
+      gap_lines="${gap_lines}   ${fpath}\n"
+    done <<< "$touched_files"
+    if [[ -n "$gap_lines" ]]; then
+      if (( any_gap == 0 )); then
+        printf '%s6. DOMAIN GAP%s  — touched files not mentioned in domain doc(s)\n' \
+          "$C_BOLD" "$C_RESET"
+        any_gap=1
+      fi
+      printf '   Domain: %s\n' "$df"
+      printf '%b' "$gap_lines"
+    fi
+  done < <(inline_array_items "$raw_domains")
+
+  if (( any_gap )); then
+    printf '%s   Update the domain doc(s) above before running --confirm.%s\n' \
+      "$C_DIM" "$C_RESET"
+  fi
 }
 
 _close_append_log() {
@@ -160,11 +230,31 @@ _close_append_log() {
   mv "$tmp" "$log"
 }
 
-_close_remove_from_active_registry() {
+_close_update_active_registry_status() {
   local slug="$1"
   local registry="./.platform/work/ACTIVE.md"
   [[ -f "$registry" ]] || return 0
   local tmp; tmp="$(mktemp)"
-  grep -v "^| *${slug} *|" "$registry" > "$tmp" || true
+  awk -F'|' -v slug="$slug" '
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    function is_stream_row(s) {
+      s = trim(s)
+      return s == slug || s ~ ("\\[" slug "\\]\\(" slug "\\.md\\)")
+    }
+    {
+      if (NF >= 5 && is_stream_row($2)) next
+      print
+    }
+  ' "$registry" | awk '
+    BEGIN { saw_stream = 0; inserted_none = 0 }
+    /^\| [^|]+ \| [^|]+ \| [^|]+ \| [^|]+ \| [^|]+ \|$/ {
+      if ($0 !~ /^\| Stream \| Type \| Status \| Agent \| Last updated \|$/) saw_stream = 1
+    }
+    /^---$/ && !saw_stream && !inserted_none {
+      print "_(none)_"
+      inserted_none = 1
+    }
+    { print }
+  ' > "$tmp"
   mv "$tmp" "$registry"
 }

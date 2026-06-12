@@ -82,8 +82,19 @@ while IFS= read -r row; do
       echo "    audit:   — not run yet"
     fi
 
-    # Show next action if defined
-    NEXT=$(awk '/^## Next action/{found=1; next} found{if(/^##/) exit; if(/^[^_[:space:]]/) {print; exit}}' "$STREAM_FILE" 2>/dev/null | head -1)
+    # Show next action if defined (read directly from stream file to avoid
+    # PATH conflicts — e.g. /usr/sbin/ab is Apache Bench on many systems)
+    NEXT="$(awk '
+      /^## Resume state/ { in_resume = 1; next }
+      in_resume && /^## / { in_resume = 0 }
+      in_resume && /^[[:space:]]*-[[:space:]]+\*\*Next action:\*\*[[:space:]]*/ {
+        sub(/^[[:space:]]*-[[:space:]]+\*\*Next action:\*\*[[:space:]]*/, "", $0)
+        if ($0 !~ /^_.*_$/ && $0 != "—" && $0 != "") { print; exit }
+      }
+      /^## Next action/ { in_legacy = 1; next }
+      in_legacy && /^## / { exit }
+      in_legacy && /^[^_[:space:]]/ { print; exit }
+    ' "$STREAM_FILE" 2>/dev/null | head -1)"
     [ -n "$NEXT" ] && echo "    next:    $NEXT"
   else
     echo "    ⚠️  stream file missing: $STREAM_FILE"

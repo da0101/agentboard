@@ -10,15 +10,19 @@ export NO_COLOR=1
 setup_watch_fixture() {
   local dir="$1"
   printf '{}\n' > "$dir/package.json"
+  mkdir -p "$dir/src" "$dir/.claude/skills/ab-debug" "$dir/.claude/skills/ab-architect"
+  printf 'export function login() {}\n' > "$dir/src/login-form.js"
+  printf '# debug skill\n' > "$dir/.claude/skills/ab-debug/SKILL.md"
+  printf '# architect skill\n' > "$dir/.claude/skills/ab-architect/SKILL.md"
   make_git_repo "$dir" main
   commit_all "$dir" initial
   init_project_fixture "$dir"
   (
     cd "$dir"
     git add -A
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth --base-branch main --branch feat/login >/dev/null
     git add -A
     git commit -m "new stream" >/dev/null 2>&1
@@ -43,10 +47,12 @@ test_watch_help() {
   setup_watch_fixture "$dir"
   run_cli_capture output "$dir" watch --help
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "Usage: agentboard watch"
+  assert_contains "$output" "Usage: ab watch"
   assert_contains "$output" "--interval"
   assert_contains "$output" "--threshold"
   assert_contains "$output" "--stop"
+  assert_contains "$output" "--install"
+  assert_contains "$output" "AGENTBOARD_WATCH_HOME"
 }
 
 test_watch_once_no_changes_does_nothing() {
@@ -79,6 +85,23 @@ test_watch_once_with_change_auto_checkpoints() {
   assert_status "$RUN_STATUS" 0
   assert_file_contains "$stream_file" "(auto-watch)"
   assert_file_contains "$stream_file" "package.json"
+}
+
+test_watch_once_ignores_untracked_only_noise() {
+  local dir output stream_file
+  dir="$(mktemp -d)"
+  setup_watch_fixture "$dir"
+  stream_file="$dir/.platform/work/login.md"
+  _age_stream_file "$stream_file"
+
+  (
+    cd "$dir"
+    printf 'temp\n' > scratch.txt
+  )
+
+  run_cli_capture output "$dir" watch --once
+  assert_status "$RUN_STATUS" 0
+  assert_file_not_contains "$stream_file" "(auto-watch)"
 }
 
 test_watch_once_skips_when_stream_fresh() {
@@ -142,7 +165,7 @@ test_watch_once_all_active_streams() {
   # Create a second active stream
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-stream payments \
+    "$TEST_ROOT/bin/ab" new-stream payments \
       --domain auth --base-branch main --branch feat/payments >/dev/null
     git add -A
     git commit -m "new stream payments" >/dev/null 2>&1
@@ -163,14 +186,89 @@ test_watch_once_all_active_streams() {
   assert_file_contains "$stream2" "(auto-watch)"
 }
 
+test_watch_prefers_stream_relevant_files_over_skill_noise() {
+  local dir output stream_file
+  dir="$(mktemp -d)"
+  setup_watch_fixture "$dir"
+  stream_file="$dir/.platform/work/login.md"
+  _age_stream_file "$stream_file"
+
+  (
+    cd "$dir"
+    printf 'skill change\n' >> .claude/skills/ab-debug/SKILL.md
+    printf 'skill change\n' >> .claude/skills/ab-architect/SKILL.md
+    printf 'feature change\n' >> src/login-form.js
+  )
+
+  run_cli_capture output "$dir" watch --once
+  assert_status "$RUN_STATUS" 0
+  assert_file_contains "$stream_file" "- **Current focus:** src/login-form.js"
+}
+
+test_watch_skips_when_only_skill_noise_is_dirty() {
+  local dir output stream_file
+  dir="$(mktemp -d)"
+  setup_watch_fixture "$dir"
+  stream_file="$dir/.platform/work/login.md"
+  _age_stream_file "$stream_file"
+
+  (
+    cd "$dir"
+    printf 'skill change\n' >> .claude/skills/ab-debug/SKILL.md
+    printf 'skill change\n' >> .claude/skills/ab-architect/SKILL.md
+  )
+
+  run_cli_capture output "$dir" watch --once
+  assert_status "$RUN_STATUS" 0
+  assert_file_not_contains "$stream_file" "(auto-watch)"
+}
+
+test_watch_skips_duplicate_snapshot_but_allows_new_edits_same_path() {
+  local dir output stream_file count_before count_after count_final
+  dir="$(mktemp -d)"
+  setup_watch_fixture "$dir"
+  stream_file="$dir/.platform/work/login.md"
+  _age_stream_file "$stream_file"
+
+  (
+    cd "$dir"
+    printf 'feature change\n' >> src/login-form.js
+  )
+
+  run_cli_capture output "$dir" watch --once
+  assert_status "$RUN_STATUS" 0
+  count_before="$(grep -c '(auto-watch)' "$stream_file")"
+  assert_eq "$count_before" "2"
+
+  _age_stream_file "$stream_file"
+  run_cli_capture output "$dir" watch --once
+  assert_status "$RUN_STATUS" 0
+  count_after="$(grep -c '(auto-watch)' "$stream_file")"
+  assert_eq "$count_after" "$count_before"
+
+  (
+    cd "$dir"
+    printf 'feature change again\n' >> src/login-form.js
+  )
+
+  _age_stream_file "$stream_file"
+  run_cli_capture output "$dir" watch --once
+  assert_status "$RUN_STATUS" 0
+  count_final="$(grep -c '(auto-watch)' "$stream_file")"
+  assert_eq "$count_final" "3"
+}
+
 test_watch_fails_when_no_active_stream() {
   local dir output
   dir="$(mktemp -d)"
   setup_watch_fixture "$dir"
   # Close/archive the only active stream so auto-detect has nothing to pick
+  local _sf="$dir/.platform/work/login.md"
+  local _tmp; _tmp="$(mktemp)"
+  awk '/^closure_approved:/ { print "closure_approved: true"; next } { print }' "$_sf" > "$_tmp" && mv "$_tmp" "$_sf"
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" close login --confirm >/dev/null
+    "$TEST_ROOT/bin/ab" close login --confirm >/dev/null
   )
   run_cli_capture output "$dir" watch --once
   assert_status "$RUN_STATUS" 1
@@ -181,11 +279,15 @@ for t in \
   test_watch_help \
   test_watch_once_no_changes_does_nothing \
   test_watch_once_with_change_auto_checkpoints \
+  test_watch_once_ignores_untracked_only_noise \
   test_watch_once_skips_when_stream_fresh \
   test_watch_rejects_unknown_flag \
   test_watch_stop_with_no_running_watcher \
   test_watch_auto_detects_single_active_stream \
   test_watch_once_all_active_streams \
+  test_watch_prefers_stream_relevant_files_over_skill_noise \
+  test_watch_skips_when_only_skill_noise_is_dirty \
+  test_watch_skips_duplicate_snapshot_but_allows_new_edits_same_path \
   test_watch_fails_when_no_active_stream; do
   printf 'RUN: %s\n' "$t" >&2
   "$t"

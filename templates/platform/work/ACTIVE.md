@@ -25,12 +25,13 @@
 | `in-progress` | Actively working | Agent |
 | `blocked` | Waiting on external input or decision | Agent or user |
 | `awaiting-verification` | Work done, needs user confirm | Agent only |
+| `closed` | Archived — row kept for history | `ab close` |
 
 **Done ritual** (when all done criteria met):
 1. Agent flips status to `awaiting-verification`
 2. Agent lists done criteria with ✅/❌ per item
 3. User confirms: "yes this is done"
 4. Agent moves `work/<slug>.md` → `work/archive/<slug>.md`
-5. Agent removes row from this file
+5. `ab close --confirm` updates row status to `closed` (row remains for history)
 6. Agent appends one line to `.platform/memory/log.md`
 7. Agent updates `memory/` if anything learned should persist

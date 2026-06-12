@@ -1,12 +1,21 @@
 cmd_checkpoint() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
+
+  # --auto mode: auto-detect active stream + pull --what from latest git commit.
+  # Fail-open (returns 0 on any skip condition). Designed to be called from the
+  # post-commit git hook so every commit is an automatic checkpoint regardless
+  # of which provider (Claude / Codex / Gemini) is driving.
+  if [[ "${1:-}" == "--auto" ]]; then
+    _checkpoint_auto_mode "${2:-}"
+    return 0
+  fi
 
   local slug="${1:-}"
   if [[ -z "$slug" || "${slug:0:2}" == "--" || "$slug" == "-h" ]]; then
     if [[ "$slug" == "-h" || "$slug" == "--help" ]]; then
       slug=""
     else
-      die "Usage: agentboard checkpoint <stream-slug> --what \"...\" --next \"...\" [--blocker \"...\"] [--focus \"...\"] [--diff] [--dry-run]"
+      die "Usage: ab checkpoint <stream-slug> --what \"...\" --next \"...\" [--blocker \"...\"] [--focus \"...\"] [--diff] [--dry-run]"
     fi
   else
     shift
@@ -17,7 +26,7 @@ cmd_checkpoint() {
 
   local what="" next_action="" blocker="" focus="" include_diff=0 dry_run=0
   local explicit_blocker=0 explicit_focus=0
-  local tokens_in="" tokens_out="" provider="" model="" complexity=""
+  local tokens_in="" tokens_out="" provider="" model="" complexity="" task_type=""
   local cum_in="" cum_out=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -56,9 +65,12 @@ cmd_checkpoint() {
       --complexity)
         [[ -n "${2:-}" ]] || die "checkpoint requires a value after --complexity"
         complexity="$2"; shift 2 ;;
+      --type)
+        [[ -n "${2:-}" ]] || die "checkpoint requires a value after --type"
+        task_type="$2"; shift 2 ;;
       -h|--help)
         cat <<'EOF'
-Usage: agentboard checkpoint <stream-slug> --what "..." --next "..." [flags]
+Usage: ab checkpoint <stream-slug> --what "..." --next "..." [flags]
 
 Overwrites the stream file's `## Resume state` block so the next agent has
 compact, current context. Also prepends a dated entry to `## Progress log`
@@ -83,12 +95,15 @@ Usage tracking (auto-log a token segment when provider + tokens given):
   --cumulative-out N       Running TOTAL output tokens since session start.
   --provider <name>        claude | codex | gemini  (or $AGENTBOARD_PROVIDER)
   --model <name>           model id (or $AGENTBOARD_MODEL)
+  --type <name>            task type for this segment (conversation | research |
+                           design | implementation | debug | audit | review |
+                           handoff | chore)
   --complexity <t>         trivial | normal | heavy  (helps 'learn' detect overkill)
 
   Use --tokens-in/out OR --cumulative-in/out, not both.
 
 After running, the next agent (Claude/Codex/Gemini) can resume by running
-`agentboard handoff <stream-slug>` and reading Resume state first.
+`ab handoff <stream-slug>` and reading Resume state first.
 EOF
         return 0 ;;
       *) die "Unknown flag for checkpoint: $1" ;;
@@ -103,8 +118,8 @@ EOF
   [[ -n "$next_action" ]] || die "checkpoint requires --next \"<one sentence>\""
 
   local stream_file="./.platform/work/${slug}.md"
-  [[ -f "$stream_file" ]] || die "$stream_file not found. Create the stream first (agentboard new-stream)."
-  has_frontmatter "$stream_file" || die "$stream_file has no v1 frontmatter. Run 'agentboard migrate --apply' first."
+  [[ -f "$stream_file" ]] || die "$stream_file not found. Create the stream first (ab new-stream)."
+  has_frontmatter "$stream_file" || die "$stream_file has no v1 frontmatter. Run 'ab migrate --apply' first."
 
   local today_str ts agent
   today_str="$(today)"
@@ -124,7 +139,7 @@ EOF
   local resume_block
   resume_block="$(cat <<EOF
 ## Resume state
-_Overwritten by \`agentboard checkpoint\` — the compact payload the next agent reads first. Keep this block under ~10 lines._
+_Overwritten by \`ab checkpoint\` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
 - **Last updated:** ${today_str} by ${agent}
 - **What just happened:** ${what}
@@ -167,25 +182,118 @@ EOF
     return 0
   fi
 
-  _checkpoint_write_resume_state "$stream_file" "$resume_block"
-  _checkpoint_prepend_progress_entry "$stream_file" "$log_entry"
-  replace_frontmatter_line "$stream_file" "updated_at" "$today_str"
+  platform_with_lock "stream-${slug}" _checkpoint_apply_writes \
+    "$stream_file" "$resume_block" "$log_entry" "$today_str"
 
   ok "Checkpoint saved to $stream_file"
   say "  ${C_DIM}next:${C_RESET} ${next_action}"
-  say "  ${C_DIM}Ready for handoff — run: agentboard handoff ${slug}${C_RESET}"
+  say "  ${C_DIM}Ready for handoff — run: ab handoff ${slug}${C_RESET}"
 
-  _checkpoint_auto_log_usage "$slug" "$tokens_in" "$tokens_out" "$cum_in" "$cum_out" "$provider" "$model" "$complexity" "$what"
+  _checkpoint_auto_log_usage "$slug" "$tokens_in" "$tokens_out" "$cum_in" "$cum_out" "$provider" "$model" "$complexity" "$task_type" "$what"
 }
 
 # Auto-log a usage segment when token counts + provider are provided.
 # Silently skips if any required field is missing — usage tracking stays optional.
 # Supports two modes: delta (--tokens-in/out) or cumulative (--cumulative-in/out
 # — CLI computes the delta).
+_checkpoint_infer_task_type() {
+  local what="$1"
+  local lower
+  lower="$(printf '%s' "$what" | tr '[:upper:]' '[:lower:]')"
+
+  case "$lower" in
+    *audit*|*review*|*analysis*)
+      printf 'audit' ;;
+    *debug*|*bug*|*fix*|*error*|*regression*|*investigat*)
+      printf 'debug' ;;
+    *design*|*architect*|*scope*|*plan*|*proposal*)
+      printf 'design' ;;
+    *research*|*doc*|*read*|*explor*)
+      printf 'research' ;;
+    *implement*|*implementation*|*code*|*test*|*refactor*|*build*|*write*)
+      printf 'implementation' ;;
+    *handoff*|*resume*|*checkpoint*)
+      printf 'handoff' ;;
+    *question*|*clarif*|*brainstorm*|*discuss*|*conversation*)
+      printf 'conversation' ;;
+    *)
+      printf 'chore' ;;
+  esac
+}
+
+_checkpoint_auto_mode() {
+  local requested_slug="${1:-}"
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+  [[ -d "./.platform" ]] || return 0
+
+  local slug="$requested_slug"
+  if [[ -z "$slug" ]]; then
+    local active=() f st
+    while IFS= read -r f; do
+      [[ -n "$f" ]] || continue
+      st="$(frontmatter_value "$f" "status" 2>/dev/null)" || continue
+      case "$st" in done|archived|closed) continue ;; esac
+      active+=("$(basename "$f" .md)")
+    done < <(stream_files 2>/dev/null)
+    (( ${#active[@]} == 1 )) || return 0
+    slug="${active[0]}"
+  fi
+
+  [[ -n "$slug" ]] || return 0
+  local stream_file="./.platform/work/${slug}.md"
+  [[ -f "$stream_file" ]] || return 0
+  has_frontmatter "$stream_file" 2>/dev/null || return 0
+
+  local head_hash commit_msg
+  head_hash="$(git rev-parse --short HEAD 2>/dev/null)" || return 0
+  commit_msg="$(git log -1 --format='%s' 2>/dev/null)" || return 0
+  [[ -n "$commit_msg" ]] || return 0
+
+  # Idempotency: if this commit hash was already auto-recorded, skip.
+  grep -qF "(auto) ${head_hash}" "$stream_file" 2>/dev/null && return 0
+
+  local today_str agent ts what
+  today_str="$(today)"
+  agent="${AGENTBOARD_AGENT:-${USER:-agent}}"
+  ts="$(date '+%Y-%m-%d %H:%M')"
+  what="(auto) ${head_hash}: ${commit_msg}"
+
+  local resume_block
+  resume_block="$(cat <<EOF
+## Resume state
+_Overwritten by \`ab checkpoint\` — the compact payload the next agent reads first. Keep this block under ~10 lines._
+
+- **Last updated:** ${today_str} by ${agent} (auto)
+- **What just happened:** ${what}
+- **Current focus:** —
+- **Next action:** (auto-saved from commit — update next action manually)
+- **Blockers:** none
+EOF
+)"
+
+  platform_with_lock "stream-${slug}" _checkpoint_apply_writes \
+    "$stream_file" "$resume_block" "${ts} — ${what}" "$today_str" 2>/dev/null || return 0
+  return 0
+}
+
+# Apply the three stream-file writes of a checkpoint as one unit. Run under
+# the per-stream advisory lock so a concurrent `ab watch --once` and a manual
+# `ab checkpoint` can't interleave their read-modify-write sequences.
+_checkpoint_apply_writes() {
+  local stream_file="$1" resume_block="$2" log_entry="$3" today_str="$4"
+  _checkpoint_write_resume_state "$stream_file" "$resume_block"
+  _checkpoint_prepend_progress_entry "$stream_file" "$log_entry"
+  replace_frontmatter_line "$stream_file" "updated_at" "$today_str"
+}
+
 _checkpoint_auto_log_usage() {
   local slug="$1" tokens_in="$2" tokens_out="$3" cum_in="$4" cum_out="$5"
-  local provider="$6" model="$7" complexity="$8" what="$9"
+  local provider="$6" model="$7" complexity="$8" task_type="$9" what="${10}"
   [[ -n "$provider" ]] || return 0
+
+  if [[ -z "$task_type" ]]; then
+    task_type="$(_checkpoint_infer_task_type "$what")"
+  fi
 
   local mode=""
   if [[ -n "$cum_in" || -n "$cum_out" ]]; then
@@ -218,6 +326,7 @@ _checkpoint_auto_log_usage() {
     log
     --provider "$provider"
     --stream "$slug"
+    --type "$task_type"
   )
   if [[ "$mode" == "cumulative" ]]; then
     usage_args+=(--cumulative-in "$cum_in" --cumulative-out "$cum_out")
@@ -225,7 +334,7 @@ _checkpoint_auto_log_usage() {
     usage_args+=(--input "$tokens_in" --output "$tokens_out")
   fi
   [[ -n "$model" ]] && usage_args+=(--model "$model")
-  [[ -n "$complexity" ]] && usage_args+=(--type "$complexity")
+  [[ -n "$complexity" ]] && usage_args+=(--complexity "$complexity")
   local note="checkpoint: ${what:0:80}"
   usage_args+=(--note "$note")
 
@@ -310,7 +419,7 @@ _checkpoint_prepend_progress_entry() {
   if ! grep -q '^## Progress log[[:space:]]*$' "$file"; then
     {
       cat "$file"
-      printf '\n## Progress log\n_Append-only. Auto-trimmed by `agentboard checkpoint` to last 10 entries._\n\n'
+      printf '\n## Progress log\n_Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._\n\n'
       cat "$entry_file"
       printf '\n'
     } > "$tmp"

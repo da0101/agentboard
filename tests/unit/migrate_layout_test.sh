@@ -107,7 +107,7 @@ test_keeps_both_when_memory_has_real_user_content() {
 
 test_overwrites_unchanged_placeholder_in_memory() {
   # When memory/X.md is byte-identical to the shipped template (e.g. an empty
-  # placeholder from `agentboard update`), migrate-layout should overwrite it
+  # placeholder from `ab update`), migrate-layout should overwrite it
   # with the real content at root instead of keeping both.
   local dir output
   dir="$(mktemp -d)"
@@ -168,7 +168,7 @@ test_help() {
   mkdir -p "$dir/.platform"
   run_cli_capture output "$dir" migrate-layout --help
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "Usage: agentboard migrate-layout"
+  assert_contains "$output" "Usage: ab migrate-layout"
   assert_contains "$output" "memory/"
 }
 

@@ -1,18 +1,18 @@
 cmd_migrate() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local apply=0
   case "${1:-}" in
     "") ;;
     --apply) apply=1 ;;
-    *) die "Usage: agentboard migrate [--apply]" ;;
+    *) die "Usage: ab migrate [--apply]" ;;
   esac
 
   local repos_file="./.platform/repos.md"
   local active="./.platform/work/ACTIVE.md"
   local brief="./.platform/work/BRIEF.md"
 
-  printf '\n%s%sagentboard migrate%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '\n%s%sab migrate%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   if (( apply )); then
     printf '%sApply mode — legacy files will be upgraded in place when inference is safe.%s\n' "$C_DIM" "$C_RESET"
   else
@@ -134,7 +134,7 @@ EOF
   done < <(domain_files)
 
   if [[ -f "$brief" ]] && is_legacy_brief_file "$brief"; then
-    warn "Legacy multi-stream BRIEF detected — leaving it as-is. Run 'agentboard brief-upgrade <stream-slug> --apply' when you want a modern single-stream brief."
+    warn "Legacy multi-stream BRIEF detected — leaving it as-is. Run 'ab brief-upgrade <stream-slug> --apply' when you want a modern single-stream brief."
     skipped=$((skipped + 1))
   fi
 
@@ -151,7 +151,7 @@ EOF
 }
 
 cmd_brief_upgrade() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local apply=0 requested_slug=""
   while [[ $# -gt 0 ]]; do
@@ -161,10 +161,10 @@ cmd_brief_upgrade() {
         shift
         ;;
       -*)
-        die "Usage: agentboard brief-upgrade [stream-slug] [--apply]"
+        die "Usage: ab brief-upgrade [stream-slug] [--apply]"
         ;;
       *)
-        [[ -z "$requested_slug" ]] || die "Usage: agentboard brief-upgrade [stream-slug] [--apply]"
+        [[ -z "$requested_slug" ]] || die "Usage: ab brief-upgrade [stream-slug] [--apply]"
         requested_slug="$1"
         shift
         ;;
@@ -218,7 +218,7 @@ cmd_brief_upgrade() {
         printf '%s\n' "  Active streams:" >&2
         printf '%s\n' "$stream_rows" | awk -F'|' '{ printf "  - %s (%s, %s)\n", $1, $2, $3 }' >&2
       fi
-      die "Usage: agentboard brief-upgrade <stream-slug> [--apply]"
+      die "Usage: ab brief-upgrade <stream-slug> [--apply]"
     fi
   fi
 
@@ -227,7 +227,7 @@ cmd_brief_upgrade() {
 
   generated="$(render_brief_from_stream "$project_name" "$slug" "${status:-planning}" "$stream_file" "$repos_file")"
 
-  printf '\n%s%sagentboard brief-upgrade%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '\n%s%sab brief-upgrade%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   if (( apply )); then
     printf '%sApply mode — work/BRIEF.md will be rewritten for stream %s.%s\n' "$C_DIM" "$slug" "$C_RESET"
     printf '%s\n' "$generated" > "$brief"

@@ -1,8 +1,8 @@
-cmd_version() { say "agentboard $VERSION"; }
+cmd_version() { say "ab $VERSION"; }
 
 cmd_help() {
   cat <<'EOF'
-agentboard — shared work-state for multi-provider AI workflows
+ab — shared work-state for multi-provider AI workflows
 
 Scaffolds a .platform/ pack plus provider-neutral entry files (CLAUDE.md,
 AGENTS.md, GEMINI.md) so Claude Code, Codex CLI, and Gemini CLI each load
@@ -11,16 +11,16 @@ Agentboard does NOT move chat history between providers — it shares files,
 not conversations.
 
 USAGE
-  agentboard <command> [args]
+  ab <command> [args]
 
 COMMANDS
-  install [--dir ...]        Install agentboard onto your PATH via a symlink
+  install [--dir ...]        Install ab onto your PATH via a symlink
   init                       Scaffold a .platform/ pack in the current directory.
                              After init, open the project in an AI CLI and say
                              "activate this project" — the LLM scans your code
                              and fills in the context pack based on what it finds.
 
-  update [--dry-run]         Update process files to the latest agentboard version.
+  update [--dry-run]         Update process files to the latest ab version.
                              Replaces: workflow.md, ONBOARDING.md, ACTIVATE.md,
                                conventions/*.md, domains/TEMPLATE.md,
                                scripts/sync-context.sh
@@ -47,6 +47,14 @@ COMMANDS
                              --agent <a>      agent owner (default: codex)
                              --repo <id>      (repeatable)
   resolve <target>           Resolve a stream, domain, or repo by canonical id
+  current-stream             Resolve the canonical current stream slug
+                             --stream <slug>   explicit slug override
+                             --session-id <id> use or remember session mapping
+                             --remember        persist session-id -> stream
+                             --quiet           print only the slug
+  next-action [slug]         Print the canonical next action for a stream
+                             --session-id <id> resolve stream from session
+                             --quiet           print only the action text
   handoff [stream-slug]      Print a low-token provider handoff packet.
                              Shows Resume state (from stream file), warns if
                              stale, appends a "for the agent reading this"
@@ -64,8 +72,28 @@ COMMANDS
                              --diff            also append git diff --stat
                              --dry-run         print changes without writing
                              --tokens-in N --tokens-out N --provider <p>
-                             [--model <m>] [--complexity <c>]
+                             [--model <m>] [--type <t>] [--complexity <c>]
                                                auto-log a usage segment
+  checkpoint --auto [slug]   Auto-checkpoint the single active stream using the
+                             latest git commit as --what. Called by the
+                             post-commit hook after every commit (all providers).
+                             Fails silently if ambiguous or not in a git repo.
+  recover <stream-slug>      Reconstruct a checkpoint from git log when context
+                             was lost without a manual checkpoint. Scans
+                             commits since the stream's last updated_at.
+                             --confirm         write the recovery checkpoint
+                             --since <ref>     override the scan range
+  events <sub>               Cross-provider tool-call event log (JSONL).
+                             Captured automatically by Claude Code hooks;
+                             Codex/Gemini can pipe into .platform/scripts/
+                             hooks/event-logger.sh from their own hooks.
+                             tail [-n N]       last N events
+                             since <ISO-ts>    events at or after timestamp
+                             stream <slug>     events tagged with stream
+                             stats             event count + top tools
+                             clear [--confirm] archive the log
+                             path              print log file path
+                             --json            raw JSONL output
   close <stream-slug>        Finalize a stream. Two-step ritual:
                              1. bare run prints the harvest checklist —
                                 distill gotchas/playbook/questions/decisions
@@ -85,6 +113,11 @@ COMMANDS
                              --stream <slug>   target stream (default: auto)
                              --once            single poll, then exit
                              --stop            stop the running watcher
+                             --install         install per-project scheduler
+                             --uninstall       remove per-project scheduler
+                             --status          report scheduler state + log path
+                             AGENTBOARD_WATCH_HOME=<dir>  isolate scheduler
+                                               files for tests / dry local runs
   install-hooks              Install Claude Code hook guards. Wires a
                              PreToolUse hook that blocks git commit / push /
                              reset --hard / rm -rf with an approval prompt.
@@ -97,6 +130,22 @@ COMMANDS
                              --base <branch>   override recorded base branch
                              --note "<text>"   one-line note to attach
                              --dry-run         print block instead of writing
+                             --json            emit a single JSON object to
+                                               stdout (status, stream,
+                                               stream_file, base_ref,
+                                               head_branch, timestamp, note,
+                                               diff_stat, dry_run). File is
+                                               still written unless --dry-run
+                                               is also passed.
+  search <query terms...>    Search .platform/ context files for relevant
+                             snippets. Each term is OR-matched (case-insensitive).
+                             Shows file path + surrounding context + full-file
+                             token estimate. Use before loading full files.
+                             -C N, --context N   context lines (default 3)
+                             -q, --quiet         file paths only
+                             --domains           domains/ only
+                             --memory            memory/ only
+                             --conventions       conventions/ only
   status                     Print .platform/STATUS.md to stdout
   add-repo <path>            Copy per-repo entry file templates to a new repo
                              Refuses to overwrite existing entry files.
@@ -105,7 +154,7 @@ COMMANDS
                              log           — record a context segment
                                --provider <name> --input <N> --output <N>
                                [--model <M>] [--stream <S>] [--repo <R>]
-                               [--type <T>] [--note <text>]
+                               [--type <T>] [--complexity <C>] [--note <text>]
                              stream <slug> — full breakdown for one stream
                              history       — last 20 segments
                              optimize      — most expensive streams/types/providers
@@ -123,4 +172,3 @@ PHILOSOPHY
   write based on your actual codebase during activation.
 EOF
 }
-

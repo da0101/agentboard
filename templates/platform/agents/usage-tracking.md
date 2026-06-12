@@ -42,7 +42,7 @@ Never wait until stream closure if context clears happened in between — that d
 Run via Bash tool:
 
 ```bash
-agentboard usage log \
+ab usage log \
   --provider claude \
   --model claude-sonnet-4-6 \
   --stream <stream-slug> \
@@ -104,22 +104,22 @@ CREATE TABLE usage (
 
 Check accumulated totals for the current stream:
 ```bash
-agentboard usage stream <stream-slug>
+ab usage stream <stream-slug>
 ```
 
 Global summary (by provider, model, repo, task type):
 ```bash
-agentboard usage summary
+ab usage summary
 ```
 
 Optimization insights (most expensive task types and streams):
 ```bash
-agentboard usage optimize
+ab usage optimize
 ```
 
 Cross-project query directly via SQLite:
 ```bash
-sqlite3 ~/.agentboard/usage.db "
+sqlite3 ~/.ab/usage.db "
   SELECT stream_slug, SUM(total_tokens) AS total, COUNT(*) AS segments
   FROM usage GROUP BY stream_slug ORDER BY total DESC LIMIT 10;"
 ```
@@ -130,7 +130,7 @@ sqlite3 ~/.agentboard/usage.db "
 
 Before beginning any task estimated at Medium scope or larger:
 
-1. Run `agentboard usage optimize` to check historical averages for this task type.
+1. Run `ab usage optimize` to check historical averages for this task type.
 2. If similar tasks averaged >80 000 tokens, propose a more surgical approach:
    - Read specific line ranges instead of full files.
    - Load only the domain files listed in `work/BRIEF.md § Relevant context`.
@@ -155,14 +155,14 @@ After enough data accumulates (5+ segments), patterns are detected automatically
 
 ```bash
 # Preview findings (no changes)
-agentboard usage learn
+ab usage learn
 
 # Write findings to .platform/memory/learnings.md (run from inside the project)
-agentboard usage learn --apply
+ab usage learn --apply
 ```
 
 ### Your responsibility as an AI agent
 
 1. **At session start** — scan `.platform/memory/learnings.md` for any `[token-optimization]` entries. Apply them immediately to your behaviour for this session.
-2. **After 10+ streams** — suggest to the user: "Run `agentboard usage learn --apply` to write token optimizations to this project."
+2. **After 10+ streams** — suggest to the user: "Run `ab usage learn --apply` to write token optimizations to this project."
 3. **Honour the rules** — if learnings.md says "use Sonnet for research tasks", do not default to Opus regardless of the model you were invoked with. State the override: "Using Sonnet per token-optimization learning."

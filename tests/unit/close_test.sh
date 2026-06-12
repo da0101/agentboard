@@ -16,9 +16,9 @@ setup_close_fixture() {
   (
     cd "$dir"
     git add .platform .claude CLAUDE.md
-    git commit -m "agentboard init" >/dev/null 2>&1
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream login \
+    git commit -m "ab init" >/dev/null 2>&1
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth --base-branch main --branch feat/login >/dev/null
   )
 }
@@ -38,10 +38,19 @@ test_close_without_confirm_prints_harvest_checklist() {
   [[ -f "$dir/.platform/work/login.md" ]] || fail "stream file was archived without --confirm"
 }
 
+_approve_stream() {
+  local dir="$1" slug="$2"
+  local sf="$dir/.platform/work/${slug}.md"
+  local tmp; tmp="$(mktemp)"
+  awk '/^closure_approved:/ { print "closure_approved: true"; next } { print }' "$sf" > "$tmp"
+  mv "$tmp" "$sf"
+}
+
 test_close_confirm_archives_stream() {
   local dir output
   dir="$(mktemp -d)"
   setup_close_fixture "$dir"
+  _approve_stream "$dir" login
   run_cli_capture output "$dir" close login --confirm
   assert_status "$RUN_STATUS" 0
   [[ ! -f "$dir/.platform/work/login.md" ]] || fail "stream file still present after --confirm"
@@ -54,6 +63,7 @@ test_close_confirm_appends_log_entry() {
   local dir output
   dir="$(mktemp -d)"
   setup_close_fixture "$dir"
+  _approve_stream "$dir" login
   run_cli_capture output "$dir" close login --confirm
   assert_status "$RUN_STATUS" 0
   assert_file_contains "$dir/.platform/memory/log.md" "closed stream login"
@@ -63,11 +73,25 @@ test_close_confirm_removes_from_active_registry() {
   local dir output
   dir="$(mktemp -d)"
   setup_close_fixture "$dir"
+  _approve_stream "$dir" login
   # Baseline: active registry lists the stream
   assert_file_contains "$dir/.platform/work/ACTIVE.md" "login"
   run_cli_capture output "$dir" close login --confirm
   assert_status "$RUN_STATUS" 0
-  assert_file_not_contains "$dir/.platform/work/ACTIVE.md" "| login |"
+  assert_file_not_contains "$dir/.platform/work/ACTIVE.md" "| [login](login.md) |"
+  assert_file_contains "$dir/.platform/work/ACTIVE.md" "_(none)_"
+}
+
+test_close_confirm_blocked_without_approval() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_close_fixture "$dir"
+  # closure_approved defaults to false — confirm should be blocked
+  run_cli_capture output "$dir" close login --confirm
+  assert_status "$RUN_STATUS" 1
+  assert_contains "$output" "closure_approved"
+  # Stream file must not have been archived
+  [[ -f "$dir/.platform/work/login.md" ]] || fail "stream was archived despite missing approval"
 }
 
 test_close_dry_run_writes_nothing() {
@@ -104,14 +128,69 @@ test_close_help() {
   setup_close_fixture "$dir"
   run_cli_capture output "$dir" close --help
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "Usage: agentboard close"
+  assert_contains "$output" "Usage: ab close"
+}
+
+test_close_harvest_shows_domain_gap() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_close_fixture "$dir"
+  # Commit a file that won't be mentioned in the auth domain doc
+  (
+    cd "$dir"
+    mkdir -p src
+    printf 'export function login() {}\n' > src/login.ts
+    git add src/login.ts
+    git commit -m "add login handler" >/dev/null 2>&1
+  )
+  run_cli_capture output "$dir" close login
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "DOMAIN GAP"
+  assert_contains "$output" "src/login.ts"
+}
+
+test_close_harvest_no_gap_when_file_mentioned_in_domain() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_close_fixture "$dir"
+  # Add the file path to the auth domain doc so it won't show as a gap
+  printf '\nsrc/auth-helper.ts\n' >> "$dir/.platform/domains/auth.md"
+  (
+    cd "$dir"
+    mkdir -p src
+    printf 'export function helper() {}\n' > src/auth-helper.ts
+    git add src/auth-helper.ts "$dir/.platform/domains/auth.md"
+    git commit -m "add auth helper" >/dev/null 2>&1
+  )
+  run_cli_capture output "$dir" close login
+  assert_status "$RUN_STATUS" 0
+  # auth-helper.ts is mentioned in domain, should not appear in gap section
+  if printf '%s' "$output" | grep -q "src/auth-helper.ts"; then
+    fail "domain gap listed a file that IS mentioned in the domain doc"
+  fi
+}
+
+# Regression test: closing a legacy plain-row stream should remove the row from
+# ACTIVE.md and restore the explicit empty-state marker.
+test_close_confirm_removes_plain_stream_row_from_active_registry() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_close_fixture "$dir"
+  _approve_stream "$dir" login
+  perl -0pi -e 's/\| \[login\]\(login\.md\) \| bug \| planning \| claude-code \| \d{4}-\d{2}-\d{2} \|/\| login \| bug \| planning \| claude-code \| 2026-01-01 \|/' "$dir/.platform/work/ACTIVE.md"
+  run_cli_capture output "$dir" close login --confirm
+  assert_status "$RUN_STATUS" 0
+  assert_file_not_contains "$dir/.platform/work/ACTIVE.md" "| login |"
+  assert_file_contains "$dir/.platform/work/ACTIVE.md" "_(none)_"
 }
 
 test_close_without_confirm_prints_harvest_checklist
 test_close_confirm_archives_stream
 test_close_confirm_appends_log_entry
 test_close_confirm_removes_from_active_registry
+test_close_confirm_blocked_without_approval
 test_close_dry_run_writes_nothing
 test_close_rejects_bad_slug
 test_close_rejects_missing_stream
 test_close_help
+test_close_confirm_removes_plain_stream_row_from_active_registry

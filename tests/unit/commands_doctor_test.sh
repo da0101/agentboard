@@ -58,13 +58,26 @@ test_doctor_passes_for_valid_streams() {
 
   (
     cd "$dir"
-    "$TEST_ROOT/bin/agentboard" new-domain auth >/dev/null
-    "$TEST_ROOT/bin/agentboard" new-stream auth-fix --domain auth --type bug --agent codex >/dev/null
+    "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
+    "$TEST_ROOT/bin/ab" new-stream auth-fix --domain auth --type bug --agent codex >/dev/null
   )
 
   run_cli_capture output "$dir" doctor
   assert_contains "$output" "Doctor passed"
 }
 
+test_doctor_warns_when_runtime_gitignore_missing() {
+  local dir output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  init_project_fixture "$dir"
+  rm -f "$dir/.gitignore"
+
+  run_cli_capture output "$dir" doctor
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "runtime block"
+}
+
 test_doctor_fails_for_missing_stream_metadata
 test_doctor_passes_for_valid_streams
+test_doctor_warns_when_runtime_gitignore_missing

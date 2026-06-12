@@ -1,7 +1,8 @@
 cmd_watch() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local interval=10 threshold=1 stream="" stop=0 once=0 quiet=0
+  local install=0 uninstall=0 status_mode=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --interval)
@@ -18,10 +19,26 @@ cmd_watch() {
       --stop) stop=1; shift ;;
       --once) once=1; shift ;;
       --quiet) quiet=1; shift ;;
+      --install) install=1; shift ;;
+      --uninstall) uninstall=1; shift ;;
+      --status) status_mode=1; shift ;;
       -h|--help) _watch_print_help; return 0 ;;
       *) die "Unknown flag for watch: $1" ;;
     esac
   done
+
+  if (( install )); then
+    _watch_install "$interval" "$threshold"
+    return $?
+  fi
+  if (( uninstall )); then
+    _watch_uninstall
+    return $?
+  fi
+  if (( status_mode )); then
+    _watch_status
+    return $?
+  fi
 
   if (( stop )); then
     _watch_stop
@@ -37,7 +54,7 @@ cmd_watch() {
       [[ -n "$_slug" ]] && streams+=("$_slug")
     done < <(_watch_active_slugs)
     if (( ${#streams[@]} == 0 )); then
-      printf '  \033[31m✖\033[0m  Could not auto-detect an active stream. Run '\''agentboard migrate --apply'\''\n     if streams lack frontmatter, or pass --stream <slug> explicitly.\n' >&2
+      printf '  \033[31m✖\033[0m  Could not auto-detect an active stream. Run '\''ab migrate --apply'\''\n     if streams lack frontmatter, or pass --stream <slug> explicitly.\n' >&2
       return 1
     fi
   fi
@@ -46,8 +63,8 @@ cmd_watch() {
   for s in "${streams[@]}"; do
     [[ "$s" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "Stream slug must be kebab-case: $s"
     sf="./.platform/work/${s}.md"
-    [[ -f "$sf" ]] || die "$sf not found. Create the stream first (agentboard new-stream)."
-    has_frontmatter "$sf" || die "$sf has no v1 frontmatter. Run 'agentboard migrate --apply' first."
+    [[ -f "$sf" ]] || die "$sf not found. Create the stream first (ab new-stream)."
+    has_frontmatter "$sf" || die "$sf has no v1 frontmatter. Run 'ab migrate --apply' first."
   done
 
   if (( once )); then
@@ -61,7 +78,7 @@ cmd_watch() {
   if [[ -f "$pid_file" ]]; then
     local existing_pid; existing_pid="$(cat "$pid_file" 2>/dev/null || echo "")"
     if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
-      die "A watch is already running (PID $existing_pid). Stop it first with: agentboard watch --stop"
+      die "A watch is already running (PID $existing_pid). Stop it first with: ab watch --stop"
     fi
     rm -f "$pid_file"
   fi
@@ -74,7 +91,7 @@ cmd_watch() {
     say "${C_BOLD}Watching${C_RESET} ${#streams[@]} streams: ${C_CYAN}${streams_label}${C_RESET} interval=${interval}min threshold=${threshold}"
   fi
   say "${C_DIM}Auto-checkpoints will fire when ≥ ${threshold} tracked file(s) changed since last poll.${C_RESET}"
-  say "${C_DIM}Stop with:  agentboard watch --stop   (or Ctrl+C in this terminal)${C_RESET}"
+  say "${C_DIM}Stop with:  ab watch --stop   (or Ctrl+C in this terminal)${C_RESET}"
 
   echo $$ > "$pid_file"
   trap "rm -f '$pid_file'; exit 0" INT TERM EXIT
@@ -89,7 +106,7 @@ cmd_watch() {
 
 _watch_print_help() {
   cat <<'EOF'
-Usage: agentboard watch [--interval MIN] [--threshold N] [--stream SLUG] [--once] [--stop]
+Usage: ab watch [--interval MIN] [--threshold N] [--stream SLUG] [--once] [--stop]
 
 Periodically polls `git status`. When ≥ threshold tracked files have changed
 since the last poll, writes a mechanical checkpoint to each active stream so
@@ -105,22 +122,37 @@ Flags:
   --once              Run a single poll + checkpoint for all active streams, then exit.
   --stop              Stop the running watcher (uses PID file).
   --quiet             No stdout lines on successful checkpoint.
+  --install           Install a per-project scheduler (launchd on macOS,
+                      systemd user timer on Linux) so the poll runs
+                      automatically every --interval minutes without needing
+                      an open shell. Uses the current --interval/--threshold.
+  --uninstall         Remove the scheduler for this project (reverse of --install).
+  --status            Report install / active state + log file size + last-run.
 
 Typical usage:
-  agentboard watch &              # background daemon watching all active streams
-  agentboard watch --once          # manual sync right before switching CLIs
-  agentboard watch --stop          # end of day
-  agentboard watch --stream foo    # watch only the 'foo' stream
+  ab watch --install      # once per project — auto-poll every 10 min
+  ab watch --status       # check it's running
+  ab watch &               # or: run in foreground for this shell
+  ab watch --once          # manual sync right before switching CLIs
+  ab watch --stop          # stop a foreground watcher
+  ab watch --uninstall     # remove the scheduler
+
+Environment:
+  AGENTBOARD_WATCH_HOME  Override the HOME-rooted scheduler/log destination.
+                         Useful for tests or local verification without
+                         touching ~/Library/LaunchAgents or ~/.config/systemd.
 
 Content written on each auto-checkpoint:
   --what   "(auto-watch) N file(s) modified since HH:MM: <list>"
   --next   (carried over from the stream's existing Resume state)
-  --focus  most-recently-modified tracked file
+  --focus  highest-ranked changed file (prefers stream-relevant paths)
 
 Skip rules:
   - If the stream file was touched in the last 5 min (e.g. the LLM just ran
     its own checkpoint), the watcher skips this tick — never clobbers fresh
     human/LLM-written state.
+  - If the tracked dirty-state snapshot hasn't materially changed since the
+    last auto-watch checkpoint, the watcher skips the duplicate tick.
   - If the stream's status is done/archived/closed, the watcher exits.
 EOF
 }
@@ -149,73 +181,4 @@ _watch_stop() {
   else
     say "${C_DIM}PID file removed; no live process was attached.${C_RESET}"
   fi
-}
-
-_watch_poll_and_checkpoint() {
-  local stream="$1" stream_file="$2" threshold="$3" quiet="${4:-0}"
-
-  [[ -f "$stream_file" ]] || return 0
-  local status
-  status="$(frontmatter_value "$stream_file" "status")"
-  case "$status" in done|archived|closed) return 0 ;; esac
-
-  # Skip if stream file was touched in the last 5 minutes (fresh manual checkpoint)
-  local mtime now
-  if [[ "$(uname)" == "Darwin" ]]; then
-    mtime="$(stat -f %m "$stream_file" 2>/dev/null || echo 0)"
-  else
-    mtime="$(stat -c %Y "$stream_file" 2>/dev/null || echo 0)"
-  fi
-  now="$(date +%s)"
-  if (( now - mtime < 300 )); then
-    return 0
-  fi
-
-  git rev-parse --git-dir >/dev/null 2>&1 || return 0
-
-  local porcelain
-  porcelain="$(git status --porcelain 2>/dev/null || true)"
-  if [[ -z "$porcelain" ]]; then
-    return 0
-  fi
-
-  local changes
-  changes="$(printf '%s\n' "$porcelain" | wc -l | tr -d ' ')"
-  [[ -z "$changes" ]] && changes=0
-  if (( changes < threshold )); then
-    return 0
-  fi
-
-  local files focus prev_next what ts
-  files="$(printf '%s\n' "$porcelain" | awk '
-    NR <= 5 {
-      line = $0
-      sub(/^.{2}[[:space:]]?/, "", line)
-      printf "%s%s", (printed ? ", " : ""), line
-      printed = 1
-    }
-  ')"
-  focus="$(printf '%s\n' "$porcelain" | awk '
-    NR == 1 {
-      line = $0
-      sub(/^.{2}[[:space:]]?/, "", line)
-      print line
-      exit
-    }
-  ')"
-  prev_next="$(stream_resume_field "$stream_file" "Next action" 2>/dev/null || true)"
-  [[ -z "$prev_next" || "$prev_next" == "_not set_" ]] && prev_next="(continue — auto-watch update)"
-  ts="$(date '+%H:%M')"
-  what="(auto-watch) ${changes} file(s) modified since ${ts}: ${files}"
-
-  if cmd_checkpoint "$stream" \
-      --what "$what" \
-      --next "$prev_next" \
-      --focus "${focus:-—}" >/dev/null 2>&1; then
-    if (( ! quiet )); then
-      printf '%s[watch %s] checkpoint: %s%s\n' "$C_DIM" "$ts" "$what" "$C_RESET" >&2
-    fi
-    return 0
-  fi
-  return 1
 }

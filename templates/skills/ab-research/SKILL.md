@@ -1,6 +1,6 @@
 ---
 name: ab-research
-description: "Bounded research protocol. 1 web search + 2–3 fetches + 3–5 code reads max. Produces a ≤300-word synthesis in chat (never a .md file). Use before proposing a plan for medium+ scope tasks."
+description: "Bounded research protocol. 1 web search + 2–3 fetches + 3–5 code reads max. Produces a ≤300-word synthesis in chat (never a .md file). Use before proposing a plan for any new stream or medium+ scope task."
 argument-hint: "<research question — what do I need to know before proposing>"
 allowed-tools:
   - Read
@@ -27,14 +27,15 @@ Get just enough context to propose a credible plan without burning tokens on an 
 
 ## When to use
 
-- Before proposing a plan for `medium` or larger tasks (Stage 3 of `ab-workflow`)
+- Before proposing a plan for any new stream, regardless of size (Stage 3 of `ab-workflow`)
+- Before proposing a plan for `medium` or larger non-stream tasks
 - When you hit an unfamiliar library / framework / pattern mid-execution
 - When the user asks "research X" explicitly
 - When existing code paths are suspiciously empty or the domain is unclear
 
 ## When NOT to use
 
-- Trivial tasks (just execute)
+- Trivial non-stream tasks (just execute)
 - Questions the user could answer in one sentence (ask them)
 - Curiosity / exploration without a specific output (use `Explore` agent instead)
 - When the answer is already in `.platform/memory/decisions.md` or `conventions/` (read that first, free)
@@ -62,7 +63,7 @@ If the answer is there, you're done. Emit the finding + source and exit.
 In **one round** of parallel tool calls:
 
 - **Code probe:** `Grep` for 2–3 key symbols in the project source tree, `Read` the top 3–5 matches
-- **Web probe:** exactly 1 `WebSearch` with a precise query
+- **Web probe:** exactly 1 `WebSearch` with a precise query. For new streams, always run this; for small/low-risk streams, keep it narrow.
 - **Docs probe:** up to 3 `WebFetch` calls for the most promising results from the web search (or directly for known doc URLs)
 
 **Hard budget ceiling:** 1 search + 3 fetches + 5 reads. If you blow the budget, stop and synthesize what you have.
@@ -81,6 +82,8 @@ Evidence:
 - <source 3 + what it said, 1 line>
 
 Caveats / unknowns: <1–2 bullets, only if real>
+
+Implementation patterns / best practices: <1–2 sentences, especially for new streams>
 
 Recommendation: <what this means for the proposed plan, 1–2 sentences>
 ```

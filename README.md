@@ -57,6 +57,10 @@ The design split is deliberate:
 - **Generic, shipped verbatim:** workflow rules, onboarding path, sync script, work tracking protocol, repo templates, hooks
 - **Project-specific, written during activation:** architecture, decisions, repos, domain files, conventions, current priorities
 
+### When NOT to use Agentboard
+
+Agentboard earns its keep when context has to survive **across providers** (Claude Code + Codex + Gemini on the same work) or **across repos** (a hub coordinating several codebases). That's where shared stream files, handoffs, and the memory pack do something no single tool does. If you're a solo developer using only Claude Code on a single repo, there's real overlap with what you already get natively — `CLAUDE.md`, auto-memory, and built-in session resumption cover much of the same ground, and the checkpoint/log-reason discipline may feel like ceremony. It still buys you structured workstream history and a portable context pack if you later add a second provider or repo, but if that's not on your horizon, native memory alone may be enough.
+
 ---
 
 ## Quick start
@@ -242,7 +246,8 @@ your-project/
 ├── AGENTS.md
 ├── GEMINI.md
 ├── .claude/
-│   └── settings.json
+│   ├── settings.json
+│   └── skills/            (ab-* skill pack)
 ├── .agents/
 │   └── skills/
 └── .platform/
@@ -251,12 +256,16 @@ your-project/
     ├── workflow.md
     ├── STATUS.md
     ├── architecture.md
-    ├── decisions.md
     ├── repos.md
-    ├── log.md
-    ├── BACKLOG.md
-    ├── learnings.md
-    ├── agents/
+    ├── agents/            (commands.md, context-organization.md, skill-labels.md, …)
+    ├── memory/
+    │   ├── decisions.md
+    │   ├── log.md
+    │   ├── learnings.md
+    │   ├── gotchas.md
+    │   ├── playbook.md
+    │   ├── open-questions.md
+    │   └── BACKLOG.md
     ├── domains/
     │   └── TEMPLATE.md
     ├── work/
@@ -264,8 +273,6 @@ your-project/
     │   ├── ACTIVE.md
     │   ├── TEMPLATE.md
     │   └── archive/
-    ├── sessions/
-    │   └── ACTIVE.md
     ├── scripts/
     │   ├── sync-context.sh
     │   └── hooks/
@@ -298,7 +305,13 @@ agentboard doctor
 agentboard new-domain <slug> [repo-id ...] [--repo <repo-id>]
 agentboard new-stream <slug> --domain <domain-slug> [--domain <domain-slug> ...] [--type feature] [--agent codex] [--repo repo-primary] [--repo <repo-id> ...]
 agentboard resolve <stream-slug|stream-id|domain-slug|domain-id|repo-id>
-agentboard handoff [stream-slug]
+agentboard handoff [stream-slug] [--budget <N|Nk>]
+agentboard checkpoint <slug> --what "..." --next "..." [--provider <p>] [--type <t>] [--diff]
+agentboard close <slug>
+agentboard close <slug> --confirm
+agentboard brief [--all]
+agentboard watch [--interval <n>] [--once] [--install] [--uninstall] [--status]
+agentboard install-hooks [--force] [--dry-run] [--aliases]
 agentboard progress <stream-slug> [--base <branch>] [--note "<text>"] [--dry-run]
 agentboard status
 agentboard add-repo <path>
@@ -307,6 +320,7 @@ agentboard usage summary
 agentboard usage history
 agentboard usage stream <stream-slug>
 agentboard usage dashboard [--today|--week|--month]
+agentboard usage optimize
 agentboard usage learn [--apply]
 agentboard version
 agentboard help
@@ -325,11 +339,17 @@ agentboard help
 - `new-domain` bootstraps a domain file with metadata and can assign multiple repo IDs up front
 - `new-stream` bootstraps a stream file, registers it in `work/ACTIVE.md`, and seeds `work/BRIEF.md` when the brief is still a placeholder; repeat `--domain` and `--repo` when the stream spans multiple areas or repos
 - `resolve` turns a canonical stream/domain/repo reference into the exact file or repo record to load
-- `handoff` prints the minimum file load order, repo scope, and current-state summary another LLM needs to resume a stream without a full re-brief
+- `handoff` prints the minimum file load order, repo scope, and current-state summary another LLM needs to resume a stream without a full re-brief; `--budget` drops secondary domains when token count is tight
+- `checkpoint` saves a compact "where we are" snapshot into the stream file before a context clear, provider switch, or session end; overwrites `## Resume state` and prepends a trimmed `## Progress log` entry
+- `close` runs in two steps: first call prints the harvest checklist (distill gotchas/decisions/learnings into `.platform/memory/`); second call with `--confirm` archives the stream and logs closure
+- `brief` prints the compact session-start briefing: active streams, recent gotchas, open questions, top usage pattern; run this at the start of every session
+- `watch` background poller that auto-checkpoints the active stream whenever tracked files change via `git status`; `--install` registers a per-project scheduler (launchd on macOS, systemd on Linux); `--aliases` on `install-hooks` wires `codex`/`gemini` CLI through the project wrappers globally
+- `install-hooks` installs the full hook stack: Claude Code PreToolUse bash-guard, git pre-commit closure gate, git post-commit activity log, and Codex/Gemini provider wrappers; `--aliases` writes shell functions to `~/.zshrc`/`~/.bashrc` so `codex` and `gemini` auto-route through the project wrappers
 - `progress` appends a git-diff summary (`git diff --stat <base>...HEAD`) to the stream's `## Progress log` section, stamped with timestamp and branch; use this instead of hand-typing what changed
 - `status` prints `.platform/STATUS.md`
 - `add-repo` scaffolds entry files into a sibling repo in hub mode and refuses to overwrite existing root entry files
 - `usage log` records a token segment to `~/.agentboard/usage.db`; `usage summary/history/stream/dashboard/learn` aggregate and visualise the data — see `CHEATSHEET.md` for the full reference
+- `usage optimize` surfaces optimization insights from the same database: most expensive task types and streams, provider efficiency comparison, largest individual segments, and streams that need finer checkpointing
 
 ---
 

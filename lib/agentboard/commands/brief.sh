@@ -1,5 +1,5 @@
 cmd_brief() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local show_all=0
   while [[ $# -gt 0 ]]; do
@@ -7,7 +7,7 @@ cmd_brief() {
       --all) show_all=1; shift ;;
       -h|--help)
         cat <<'EOF'
-Usage: agentboard brief [--all]
+Usage: ab brief [--all]
 
 Prints a compact project-state view for a fresh agent. Two screens max:
   - Active streams + next actions
@@ -44,22 +44,61 @@ EOF
 _brief_active_streams() {
   local file count=0
   local -a rows=()
+  local _today_brief; _today_brief="$(today)"
   while IFS= read -r file; do
-    local status slug agent next
+    local status slug agent next updated
     status="$(frontmatter_value "$file" "status")"
     case "$status" in done|archived|closed) continue ;; esac
     slug="$(frontmatter_value "$file" "slug")"
     agent="$(frontmatter_value "$file" "agent_owner")"
     next="$(stream_next_action "$file")"
+    updated="$(frontmatter_value "$file" "updated_at")"
     [[ -z "$next" ]] && next="—"
     rows+=("$(printf '   %s%s%s  (%s, %s)  → %s' \
       "$C_BOLD" "$slug" "$C_RESET" "${status:-?}" "${agent:-?}" "$next")")
+    if [[ -n "$updated" ]] && ! is_placeholder_value "$updated" \
+        && [[ "$updated" != "$_today_brief" ]]; then
+      rows+=("$(printf '   %s⚠  checkpoint stale (last: %s) — run: ab checkpoint %s%s' \
+        "$C_YELLOW" "$updated" "$slug" "$C_RESET")")
+    fi
+    # Always show which domain files this stream touches, then flag any stale ones
+    local _domain_slugs _ds _df _ddate _stale_domains="" _domain_list=""
+    _domain_slugs="$(frontmatter_value "$file" "domain_slugs")"
+    while IFS= read -r _ds; do
+      [[ -z "$_ds" ]] && continue
+      _df="./.platform/domains/${_ds}.md"
+      [[ -f "$_df" ]] || continue
+      _domain_list="${_domain_list:+${_domain_list}, }${_ds}"
+    done < <(inline_array_items "$_domain_slugs")
+    if [[ -n "$_domain_list" ]]; then
+      rows+=("$(printf '   %sdomain(s): %s%s' "$C_DIM" "$_domain_list" "$C_RESET")")
+    fi
+    # Domain staleness: warn if any domain file was last touched before this stream started
+    local _created_at
+    _created_at="$(frontmatter_value "$file" "created_at")"
+    if [[ -n "$_created_at" ]] && ! is_placeholder_value "$_created_at" \
+        && command -v git >/dev/null 2>&1; then
+      while IFS= read -r _ds; do
+        [[ -z "$_ds" ]] && continue
+        _df="./.platform/domains/${_ds}.md"
+        [[ -f "$_df" ]] || continue
+        git_file_has_worktree_changes "$_df" && continue
+        _ddate="$(git log -1 --format="%ai" -- "$_df" 2>/dev/null | awk '{print $1}' || true)"
+        if [[ -n "$_ddate" && "$_ddate" < "$_created_at" ]]; then
+          _stale_domains="${_stale_domains:+${_stale_domains}, }${_ds}"
+        fi
+      done < <(inline_array_items "$_domain_slugs")
+      if [[ -n "$_stale_domains" ]]; then
+        rows+=("$(printf '   %s⚠  domain(s) not updated since stream start: %s%s' \
+          "$C_YELLOW" "$_stale_domains" "$C_RESET")")
+      fi
+    fi
     count=$((count + 1))
   done < <(stream_files)
 
-  printf '%s🔥 Active streams (%d)%s\n' "$C_BOLD" "$count" "$C_RESET"
+  printf '%sActive streams (%d)%s\n' "$C_BOLD" "$count" "$C_RESET"
   if (( count == 0 )); then
-    printf '%s   (none — run `agentboard new-stream` to start)%s\n\n' "$C_DIM" "$C_RESET"
+    printf '%s   (no active streams — run `ab new-stream` to start)%s\n\n' "$C_DIM" "$C_RESET"
     return 0
   fi
   if (( ${#rows[@]} > 0 )); then
@@ -73,9 +112,9 @@ _brief_gotchas() {
   local show_all="$1" file="./.platform/memory/gotchas.md" limit=5
   (( show_all )) && limit=99999
 
-  printf '%s⚠️  Gotchas%s\n' "$C_BOLD" "$C_RESET"
+  printf '%sGotchas%s\n' "$C_BOLD" "$C_RESET"
   if [[ ! -f "$file" ]]; then
-    printf '%s   (no gotchas.md yet — agentboard update will add it)%s\n\n' "$C_DIM" "$C_RESET"
+    printf '%s   (no gotchas.md yet — ab update will add it)%s\n\n' "$C_DIM" "$C_RESET"
     return 0
   fi
 
@@ -93,7 +132,7 @@ _brief_gotchas() {
 
   local total=$(( ${#red[@]} + ${#yellow[@]} + ${#green[@]} ))
   if (( total == 0 )); then
-    printf '%s   (none yet — gotchas accumulate as streams close via `agentboard close`)%s\n\n' "$C_DIM" "$C_RESET"
+    printf '%s   (none yet — gotchas accumulate as streams close via `ab close`)%s\n\n' "$C_DIM" "$C_RESET"
     return 0
   fi
 
@@ -101,22 +140,37 @@ _brief_gotchas() {
   if (( ${#red[@]} > 0 )); then
     for item in "${red[@]}"; do
       (( printed < limit )) || break
-      printf '   %s\n' "$item"
+      printf '   %s\n' "$(_brief_render_gotcha_item "$item")"
       printed=$((printed + 1))
     done
   fi
   if (( ${#yellow[@]} > 0 )); then
     for item in "${yellow[@]}"; do
       (( printed < limit )) || break
-      printf '   %s\n' "$item"
+      printf '   %s\n' "$(_brief_render_gotcha_item "$item")"
+      printed=$((printed + 1))
+    done
+  fi
+  if (( ${#green[@]} > 0 )); then
+    for item in "${green[@]}"; do
+      (( printed < limit )) || break
+      printf '   %s\n' "$(_brief_render_gotcha_item "$item")"
       printed=$((printed + 1))
     done
   fi
   if (( printed < total )); then
-    printf '%s   ... %d more — `agentboard brief --all` to see them%s\n' \
+    printf '%s   ... %d more — `ab brief --all` to see them%s\n' \
       "$C_DIM" $(( total - printed )) "$C_RESET"
   fi
   printf '\n'
+}
+
+_brief_render_gotcha_item() {
+  local item="$1"
+  item="${item/🔴/📌}"
+  item="${item/🟡/💡}"
+  item="${item/🟢/📝}"
+  printf '%s\n' "$item"
 }
 
 _brief_open_questions() {
@@ -125,7 +179,7 @@ _brief_open_questions() {
 
   printf '%s❓ Open questions%s\n' "$C_BOLD" "$C_RESET"
   if [[ ! -f "$file" ]]; then
-    printf '%s   (no open-questions.md yet — agentboard update will add it)%s\n\n' "$C_DIM" "$C_RESET"
+    printf '%s   (no open-questions.md yet — ab update will add it)%s\n\n' "$C_DIM" "$C_RESET"
     return 0
   fi
 
@@ -157,10 +211,10 @@ _brief_open_questions() {
 }
 
 _brief_usage_insight() {
-  local db="${AGENTBOARD_USAGE_DB:-$HOME/.agentboard/usage.db}"
+  local db="${AGENTBOARD_USAGE_DB:-$HOME/.ab/usage.db}"
   printf '%s💡 Usage pattern%s\n' "$C_BOLD" "$C_RESET"
   if ! command -v sqlite3 >/dev/null 2>&1 || [[ ! -f "$db" ]]; then
-    printf '%s   (no usage data yet — run `agentboard usage learn` once data accumulates)%s\n\n' \
+    printf '%s   (no usage data yet — run `ab usage learn` once data accumulates)%s\n\n' \
       "$C_DIM" "$C_RESET"
     return 0
   fi
@@ -171,18 +225,26 @@ _brief_usage_insight() {
       "$C_DIM" "${count:-0}" "$C_RESET"
     return 0
   fi
-  local top_model top_type
+  local top_model top_type generic_count
   top_model="$(sqlite3 "$db" \
     "SELECT model FROM usage WHERE model != '' GROUP BY model ORDER BY SUM(total_tokens) DESC LIMIT 1;" \
     2>/dev/null || true)"
   top_type="$(sqlite3 "$db" \
-    "SELECT type FROM usage WHERE type != '' GROUP BY type ORDER BY COUNT(*) DESC LIMIT 1;" \
+    "SELECT task_type FROM usage WHERE task_type != '' GROUP BY task_type ORDER BY SUM(total_tokens) DESC LIMIT 1;" \
     2>/dev/null || true)"
+  generic_count="$(sqlite3 "$db" \
+    "SELECT COUNT(*) FROM usage WHERE lower(COALESCE(task_type,'')) IN ('normal','heavy','trivial','small','medium','large','xl');" \
+    2>/dev/null || echo 0)"
+  if [[ -n "$generic_count" && "$generic_count" -gt 0 ]]; then
+    printf '   %s%d usage row(s) still use generic labels like normal/heavy — run `ab usage learn` and checkpoint with `--type`%s\n\n' \
+      "$C_DIM" "$generic_count" "$C_RESET"
+    return 0
+  fi
   if [[ -n "$top_model" && -n "$top_type" ]]; then
-    printf '   Most tokens spent: %s%s%s on %s%s%s tasks (run `agentboard usage learn` for details)\n\n' \
+    printf '   Most tokens spent: %s%s%s on %s%s%s tasks (run `ab usage learn` for details)\n\n' \
       "$C_BOLD" "$top_model" "$C_RESET" "$C_BOLD" "$top_type" "$C_RESET"
   else
-    printf '%s   (data present — run `agentboard usage learn` for findings)%s\n\n' \
+    printf '%s   (data present — run `ab usage learn` for findings)%s\n\n' \
       "$C_DIM" "$C_RESET"
   fi
 }

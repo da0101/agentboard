@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT/helpers.sh"
+
+export NO_COLOR=1
+
+test_codex_wrapper_has_effort_selection() {
+  local codex="$TEST_ROOT/templates/platform/scripts/codex-ab"
+  grep -q "_ab_effort" "$codex" \
+    || fail "codex-ab does not define _ab_effort"
+  grep -q "model_reasoning_effort" "$codex" \
+    || fail "codex-ab does not pass model_reasoning_effort to codex"
+}
+
+test_gemini_wrapper_has_model_selection() {
+  local gemini="$TEST_ROOT/templates/platform/scripts/gemini-ab"
+  grep -q "_ab_model" "$gemini" \
+    || fail "gemini-ab does not define _ab_model"
+  grep -q "\-\-model" "$gemini" \
+    || fail "gemini-ab does not pass --model to gemini"
+}
+
+test_codex_defaults_to_medium_non_tty() {
+  local codex="$TEST_ROOT/templates/platform/scripts/codex-ab"
+  grep -q '_ab_effort="medium"' "$codex" \
+    || fail "codex-ab does not default _ab_effort to medium"
+}
+
+test_gemini_defaults_to_flash_non_tty() {
+  local gemini="$TEST_ROOT/templates/platform/scripts/gemini-ab"
+  grep -q '_ab_model="gemini-2.5-flash"' "$gemini" \
+    || fail "gemini-ab does not default _ab_model to gemini-2.5-flash"
+}
+
+test_sessionstart_includes_effort_codex() {
+  local codex="$TEST_ROOT/templates/platform/scripts/codex-ab"
+  grep -q 'SessionStart' "$codex" \
+    || fail "codex-ab does not emit SessionStart"
+  grep 'SessionStart' "$codex" | grep -q 'effort' \
+    || fail "codex-ab SessionStart event does not include effort"
+}
+
+test_sessionstart_includes_model_gemini() {
+  local gemini="$TEST_ROOT/templates/platform/scripts/gemini-ab"
+  grep -q 'SessionStart' "$gemini" \
+    || fail "gemini-ab does not emit SessionStart"
+  grep 'SessionStart' "$gemini" | grep -q 'model' \
+    || fail "gemini-ab SessionStart event does not include model"
+}
+
+test_codex_exports_agentboard_model() {
+  local codex="$TEST_ROOT/templates/platform/scripts/codex-ab"
+  grep -q 'AGENTBOARD_MODEL' "$codex" \
+    || fail "codex-ab does not export AGENTBOARD_MODEL"
+  grep -q 'gpt-5.4' "$codex" \
+    || fail "codex-ab does not encode model name in AGENTBOARD_MODEL"
+  grep -q '_ab_effort' "$codex" | grep -q 'AGENTBOARD_MODEL' 2>/dev/null || \
+  grep 'AGENTBOARD_MODEL' "$codex" | grep -q '_ab_effort' \
+    || fail "codex-ab does not encode effort in AGENTBOARD_MODEL"
+}
+
+test_gemini_exports_agentboard_model() {
+  local gemini="$TEST_ROOT/templates/platform/scripts/gemini-ab"
+  grep -q 'AGENTBOARD_MODEL' "$gemini" \
+    || fail "gemini-ab does not export AGENTBOARD_MODEL"
+  grep 'AGENTBOARD_MODEL' "$gemini" | grep -q '_ab_model' \
+    || fail "gemini-ab does not assign _ab_model to AGENTBOARD_MODEL"
+}
+
+test_codex_wrapper_has_effort_selection
+test_gemini_wrapper_has_model_selection
+test_codex_defaults_to_medium_non_tty
+test_gemini_defaults_to_flash_non_tty
+test_sessionstart_includes_effort_codex
+test_sessionstart_includes_model_gemini
+test_codex_exports_agentboard_model
+test_gemini_exports_agentboard_model

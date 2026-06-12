@@ -1,6 +1,6 @@
 # Skill Labels — Visual Identity System
 
-Every agentboard skill announces itself at the start of each response with a labeled blockquote:
+Every ab skill announces itself at the start of each response with a labeled blockquote:
 
 > **`[ab-research]`**
 

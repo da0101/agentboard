@@ -1,5 +1,5 @@
 cmd_bootstrap() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local apply_domains=0
   while [[ $# -gt 0 ]]; do
@@ -9,7 +9,7 @@ cmd_bootstrap() {
         shift
         ;;
       *)
-        die "Usage: agentboard bootstrap [--apply-domains]"
+        die "Usage: ab bootstrap [--apply-domains]"
         ;;
     esac
   done
@@ -27,7 +27,7 @@ cmd_bootstrap() {
     is_hub=1
   fi
 
-  printf '\n%s%sagentboard bootstrap%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '\n%s%sab bootstrap%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   printf '%sGenerate low-risk starter context from the repo layout. This does not invent feature state.%s\n' \
     "$C_DIM" "$C_RESET"
   say
@@ -114,7 +114,7 @@ cmd_bootstrap() {
       fi
     done < <(printf '%s\n' "$inferred_domain_rows" | awk -F'|' '!seen[$1]++ { print $1 "|" $2 }')
     if (( !apply_domains )); then
-      printf '  %sRun %sagentboard bootstrap --apply-domains%s to scaffold the missing inferred domain stubs.%s\n' \
+      printf '  %sRun %sab bootstrap --apply-domains%s to scaffold the missing inferred domain stubs.%s\n' \
         "$C_DIM" "$C_BOLD" "$C_RESET$C_DIM" "$C_RESET"
     elif (( domain_created == 0 )); then
       printf '  %sNo new inferred domains needed to be created.%s\n' "$C_DIM" "$C_RESET"
@@ -138,7 +138,7 @@ cmd_bootstrap() {
       printf '     type: %s\n' "$stream_type"
       printf '     repos: [%s]\n' "$repo_id"
       printf '     domains: [%s]\n' "$domain_slugs_csv"
-      printf '     next: %sagentboard new-stream %s%s --type %s --repo %s%s\n' \
+      printf '     next: %sab new-stream %s%s --type %s --repo %s%s\n' \
         "$C_BOLD" "$stream_slug" "$domain_flags" "$stream_type" "$repo_id" "$C_RESET"
     done <<< "$stream_suggestions"
     say
@@ -167,11 +167,11 @@ cmd_bootstrap() {
   if (( is_hub )); then
     printf '  1. Review %s.platform/repos.md%s and the new repo reference stubs.\n' "$C_CYAN" "$C_RESET"
     printf '  2. Review inferred domains/streams above and apply what is real.\n'
-    printf '  3. Run %sagentboard doctor%s to verify the shared state.\n' "$C_BOLD" "$C_RESET"
+    printf '  3. Run %sab doctor%s to verify the shared state.\n' "$C_BOLD" "$C_RESET"
   else
     printf '  1. Review %s.platform/repos.md%s and %s.platform/*.md%s.\n' "$C_CYAN" "$C_RESET" "$C_CYAN" "$C_RESET"
     printf '  2. Review inferred domains/streams above and apply what is real.\n'
-    printf '  3. Run %sagentboard doctor%s, then create real domains/streams as needed.\n' "$C_BOLD" "$C_RESET"
+    printf '  3. Run %sab doctor%s, then create real domains/streams as needed.\n' "$C_BOLD" "$C_RESET"
   fi
   say
 }

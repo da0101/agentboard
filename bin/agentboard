@@ -6,6 +6,12 @@
 
 set -euo pipefail
 
+# bash 5.2 turned on patsub_replacement by default, which makes '&' in
+# ${var//pat/repl} expand to the matched text (sed-style). This codebase is
+# written for bash 3.2 semantics where '&' is literal — e.g. the XML escaping
+# in watch_install.sh. Restore the literal behavior everywhere.
+shopt -u patsub_replacement 2>/dev/null || true
+
 # Resolve symlinks so AGENTBOARD_ROOT points to the real repo, not /usr/local
 _SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$_SOURCE" ]; do
@@ -21,7 +27,7 @@ TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
 TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
 TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
 
-VERSION="1.5.1"
+VERSION="1.12.0"
 
 
 source "$AGENTBOARD_ROOT/lib/agentboard/core.sh"
@@ -32,15 +38,31 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/migrate_layout.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/session.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/doctor.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/stream_resolve.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/handoff.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/handoff_render.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/progress.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/checkpoint.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/recover.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/events.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/daemon.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/lock.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/log_reason.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/search.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_poll.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_install.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_status.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/install_hooks.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/system_setup.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/update.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage_log.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage_report.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage_learn.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage_dashboard.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/help.sh"
 
 # -----------------------------------------------------------------------------
@@ -115,9 +137,17 @@ main() {
     new-domain)  cmd_new_domain "$@" ;;
     new-stream)  cmd_new_stream "$@" ;;
     resolve)     cmd_resolve "$@" ;;
+    current-stream) cmd_current_stream "$@" ;;
+    next-action) cmd_next_action "$@" ;;
     handoff)     cmd_handoff "$@" ;;
     progress)    cmd_progress "$@" ;;
     checkpoint)  cmd_checkpoint "$@" ;;
+    recover)     cmd_recover "$@" ;;
+    events)      cmd_events "$@" ;;
+    daemon)      cmd_daemon "$@" ;;
+    lock)        cmd_lock "$@" ;;
+    log-reason)  cmd_log_reason "$@" ;;
+    search)      cmd_search "$@" ;;
     close)       cmd_close "$@" ;;
     brief)       cmd_brief "$@" ;;
     watch)       cmd_watch "$@" ;;

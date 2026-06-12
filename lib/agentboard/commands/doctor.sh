@@ -1,5 +1,5 @@
 cmd_doctor() {
-  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'agentboard init' first."
+  [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local errors=0 warnings=0
   local brief="./.platform/work/BRIEF.md"
@@ -19,7 +19,7 @@ cmd_doctor() {
     repo_rows="$(repo_rows_from_registry "$repos_file")"
   fi
 
-  printf '\n%s%sagentboard doctor%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '\n%s%sab doctor%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
 
   if [[ -f "$brief" ]]; then
     ok "work/BRIEF.md present"
@@ -42,8 +42,10 @@ cmd_doctor() {
     errors=$((errors + 1))
   fi
 
+  local _not_yet_activated=0
   if [[ -f "$root_claude" ]] && grep -q "NOT YET ACTIVATED" "$root_claude"; then
     ok "Activation stub detected — sync check skipped until activation"
+    _not_yet_activated=1
   elif [[ -x "$sync_script" ]]; then
     local sync_output=""
     if sync_output="$("$sync_script" 2>&1)"; then
@@ -56,6 +58,20 @@ cmd_doctor() {
   else
     warn "sync-context.sh missing or not executable"
     warnings=$((warnings + 1))
+  fi
+
+  # Activation quality: only meaningful after activation has run
+  if (( _not_yet_activated == 0 )); then
+    local arch_file="./.platform/architecture.md"
+    local conv_dir="./.platform/conventions"
+    if [[ -f "$arch_file" ]] && grep -q '{{' "$arch_file" 2>/dev/null; then
+      warn "architecture.md still has unfilled {{PLACEHOLDER}} content — run activation ('activate this project')"
+      warnings=$((warnings + 1))
+    fi
+    if [[ -d "$conv_dir" ]] && [[ -z "$(ls -A "$conv_dir" 2>/dev/null)" ]]; then
+      warn "conventions/ is empty — activation should write at least one stack conventions file"
+      warnings=$((warnings + 1))
+    fi
   fi
 
   local seen_stream_ids="" seen_domain_ids=""
@@ -274,7 +290,7 @@ cmd_doctor() {
 
   if [[ -f "$brief" ]] && ! brief_is_placeholder "$brief"; then
     if is_legacy_brief_file "$brief"; then
-      warn "work/BRIEF.md uses the legacy multi-stream format. Keep using it for now, or run 'agentboard brief-upgrade <stream-slug> --apply' when you settle on one active feature brief."
+      warn "work/BRIEF.md uses the legacy multi-stream format. Keep using it for now, or run 'ab brief-upgrade <stream-slug> --apply' when you settle on one active feature brief."
       warnings=$((warnings + 1))
     else
     local brief_stream=""
@@ -357,6 +373,67 @@ cmd_doctor() {
     fi
   fi
 
+  # Git hooks + provider wrappers
+  if [[ -d "./.git" ]]; then
+    local hook
+    for hook in pre-commit post-commit; do
+      local hook_file="./.git/hooks/$hook"
+      if [[ -f "$hook_file" ]] && grep -q "ab" "$hook_file" 2>/dev/null; then
+        ok "Git $hook hook installed"
+      else
+        warn "Git $hook hook not installed — run 'ab install-hooks'"
+        warnings=$((warnings + 1))
+      fi
+    done
+
+    # Auto-checkpoint: post-commit hook must call `ab checkpoint --auto`
+    # for the cross-provider self-healing story to work. Git hooks run for every
+    # provider, so this is the one enforcement point that covers Codex/Gemini.
+    local post_commit="./.git/hooks/post-commit"
+    if [[ -f "$post_commit" ]] && grep -q "ab checkpoint --auto" "$post_commit" 2>/dev/null; then
+      ok "Auto-checkpoint wired into post-commit hook"
+    else
+      warn "Post-commit hook does not call 'ab checkpoint --auto' — auto-checkpoint disabled. Run 'ab update' to refresh hooks."
+      warnings=$((warnings + 1))
+    fi
+  fi
+
+  for _w in codex-ab gemini-ab; do
+    local wp="./.platform/scripts/$_w"
+    if [[ -x "$wp" ]]; then
+      ok "Provider wrapper $_w present and executable"
+    elif [[ -f "$wp" ]]; then
+      warn "Provider wrapper $wp exists but is not executable — run chmod +x"
+      warnings=$((warnings + 1))
+    else
+      warn "Provider wrapper $wp missing — run 'ab install-hooks'"
+      warnings=$((warnings + 1))
+    fi
+  done
+
+  # Alias presence check — only warn when codex/gemini are installed but wrappers not hooked
+  for _cli in codex gemini; do
+    if command -v "$_cli" >/dev/null 2>&1; then
+      local _alias_found=0
+      for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
+        [[ -f "$rc" ]] && grep -q "agentboard:aliases" "$rc" 2>/dev/null && _alias_found=1
+      done
+      if (( _alias_found == 0 )); then
+        warn "$_cli is in PATH but ab shell functions not installed — run 'ab install-hooks --aliases'"
+        warnings=$((warnings + 1))
+      else
+        ok "Shell function for $_cli installed"
+      fi
+    fi
+  done
+
+  if agentboard_runtime_gitignore_is_current "./.gitignore"; then
+    ok "Runtime artifacts ignored in .gitignore"
+  else
+    warn ".gitignore is missing the ab runtime block (.platform/events.jsonl, .daemon-port, .file-locks.json, watcher/session state). Run 'ab update' to install it."
+    warnings=$((warnings + 1))
+  fi
+
   say
   if (( errors > 0 )); then
     printf '%s%sDoctor found issues%s\n' "$C_BOLD" "$C_RED" "$C_RESET"
@@ -373,4 +450,3 @@ cmd_doctor() {
     "$C_BOLD" "$warnings" "$C_RESET"
   say
 }
-
