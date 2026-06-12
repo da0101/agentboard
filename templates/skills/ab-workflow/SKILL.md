@@ -176,6 +176,7 @@ One sentence of takeaway. Not a paragraph. Not a retrospective.
 7. **Max ~300 lines per file.**
 8. **Manual QA plan required when human verification matters.** Otherwise state why manual QA is not required.
 9. **Feature, bugfix, and hotfix implementation happens in isolated worktrees.** Dependencies and localhost ports are identified before coding.
+10. **Workflow script self-audit — mandatory before every `Workflow()` call.** Before submitting any workflow script, scan every `agent(` call in the script and verify it has an explicit `model:` parameter. Fix any that are missing before calling `Workflow()`. No exceptions — omitting `model` makes every agent inherit the caller's tier, turning a 10-agent fan-out into a 10× token burn for no quality gain. Rule of thumb: research/audit/review/test-writing → `"sonnet"` · implementation/architecture → `"opus"` · trivial mechanical transforms → `"haiku"`.
 
 ## Output format
 
@@ -199,34 +200,6 @@ One line per marker. No prose fluff between them.
 - **High-risk task with no tests in the area** — stop, propose writing tests first as a separate chunk
 - **You can't find any relevant code paths** — confirm with user that the feature area exists
 
-## Model profile
-
-**Orchestrator model:** inherits from the caller (set by the user at
-session start — typically Sonnet or Opus).
-
-**Subagents in workflow scripts — pass `model` explicitly on every
-`agent()` call. Never omit it (omission inherits the caller's model
-and multiplies its cost by the agent count):**
-
-| Stage work type | Model |
-|---|---|
-| Research, audit, review, test writing, doc writing | `sonnet` |
-| Architecture design, hard decisions, deviation handling | `opus` |
-| Code implementation, complex multi-file fixes | `opus` |
-| Mechanical transforms — renaming, formatting, trivial edits | `haiku` |
-
-```js
-// correct — explicit per-agent model
-agent("research X",      { label: "research",  model: "sonnet" })
-agent("compare options", { label: "compare",   model: "sonnet" })
-agent("implement Y",     { label: "impl",      model: "opus"   })
-agent("write tests",     { label: "tests",     model: "sonnet" })
-agent("rename variable", { label: "rename",    model: "haiku"  })
-
-// wrong — omitting model inherits caller tier for every agent
-agent("research X")   // ← becomes Opus if caller is Opus
-```
-
 ## Integration
 
 - **Upstream:** called by the main agent when a task is classified `small+` by `ab-triage`
@@ -242,3 +215,4 @@ agent("research X")   // ← becomes Opus if caller is Opus
 3. **Writing the plan to `PLAN.md`.** No. Chat only.
 4. **Running tests AFTER committing.** Tests pass before the commit, not after.
 5. **Logging more than one line per task.** One line. Rolling history.
+6. **Submitting a workflow script with bare `agent()` calls.** `agent("do X")` with no `model:` is a token bomb — it inherits Opus from the caller and multiplies it by every agent in the fan-out. Always write `agent("do X", { model: "sonnet" })`. The self-audit in rule #10 catches these before they fire.
