@@ -19,10 +19,10 @@ _graphify_maybe_prompt() {
   fi
 
   say
-  printf '  Running graphify…\n'
+  printf '  Running graphify (AST-only, no API key needed)…\n'
   local dest_dir="$target/.platform/graphify"
 
-  graphify . 2>&1 | sed 's/^/  /'
+  graphify update . --force --no-cluster 2>&1 | sed 's/^/  /'
   local graphify_exit="${PIPESTATUS[0]}"
 
   if (( graphify_exit == 0 )); then
@@ -30,8 +30,8 @@ _graphify_maybe_prompt() {
     if [[ -d "graphify-out" ]]; then
       cp -R "graphify-out/." "$dest_dir/"
       rm -rf "graphify-out"
-      ok "Knowledge graph → ${C_CYAN}.platform/graphify/${C_RESET}"
-      dim "  Open graph.html in a browser, or ask the LLM about GRAPH_REPORT.md."
+      ok "Knowledge graph → ${C_CYAN}.platform/graphify/graph.json${C_RESET}"
+      dim "  Ask the AI agent to query graph.json for structural analysis."
     else
       dim "  graphify completed but produced no graphify-out/ directory — skipped."
     fi

@@ -11,7 +11,7 @@ ROLES_DIR="$TEST_ROOT/templates/platform/roles"
 INDEX="$ROLES_DIR/INDEX.md"
 
 # The shipped role pack — alphabetical, one slug per word.
-EXPECTED_SLUGS="backend-architect code-auditor data-analyst debugger devops-engineer feature-builder frontend-engineer pair-programmer perf-engineer product-manager qa-engineer refactor-architect security-engineer startup-mvp tech-advisor tech-writer"
+EXPECTED_SLUGS="backend-architect code-auditor code-cleanup-engineer data-analyst debugger devops-engineer feature-builder frontend-engineer pair-programmer perf-engineer product-manager qa-engineer refactor-architect security-engineer startup-mvp tech-advisor tech-writer"
 
 # pack_role_files — one role file path per line, skipping INDEX.md
 pack_role_files() {

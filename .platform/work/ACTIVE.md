@@ -5,7 +5,7 @@
 
 | Stream | Type | Status | Agent | Last updated |
 |---|---|---|---|---|
-_(none)_
+| code-cleanup-skill-role | feature | awaiting-verification | codex | 2026-06-13 |
 ---
 
 ## Session start protocol

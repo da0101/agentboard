@@ -1,15 +1,21 @@
 # ab-graphify
 
-Graphify maps your entire codebase into a queryable knowledge graph stored at
-`.platform/graphify/`. Use this skill to build or refresh the graph, and to
-reference it during research.
+Graphify maps your entire codebase into a queryable structural knowledge graph stored at
+`.platform/graphify/`. Use this skill to build or refresh the graph, and to reference it
+during research.
+
+**Mode: AST-only (no API key, no LLM, free).** This produces a structural graph — what
+calls what, import chains, god nodes, import cycles — without any semantic extraction.
+This is the right mode for AI agent use. Agents query the graph directly; no human-facing
+report is needed.
 
 ## What it produces
 
-After running, `.platform/graphify/` contains:
-- `graph.html` — interactive browser visualization (click nodes, filter, search)
-- `GRAPH_REPORT.md` — key concepts, cross-cutting patterns, surprising connections, suggested questions
-- `graph.json` — the full graph; query it any time without re-reading source files
+After running, `.platform/graphify/graph.json` contains:
+- All nodes (files, functions, classes) and edges (calls, imports, references)
+- God nodes — most-connected abstractions in the codebase
+- Community clusters — groups of files that belong together
+- Import cycles — circular dependencies
 
 ## When to suggest running graphify
 
@@ -19,15 +25,10 @@ After running, `.platform/graphify/` contains:
 
 ## How to invoke
 
-Run via your shell tool (works in Claude Code, Codex, Gemini CLI, and any other AI agent):
+No API key needed. Works in Claude Code, Codex CLI, Gemini CLI, and any other AI agent:
 
 ```bash
-graphify .
-```
-
-If graphify outputs to `graphify-out/` (its default), move the output:
-
-```bash
+graphify update . --force --no-cluster
 mkdir -p .platform/graphify
 cp -R graphify-out/. .platform/graphify/
 rm -rf graphify-out
@@ -35,16 +36,23 @@ rm -rf graphify-out
 
 ## How to use the output
 
-During `ab-research`, read `.platform/graphify/GRAPH_REPORT.md` **first** — it surfaces
-cross-cutting patterns and surprising connections that grep misses. Use `graph.json`
-for precise dependency queries.
+During `ab-research`, query `.platform/graphify/graph.json` to find structural connections:
+
+```bash
+# Find shortest path between two components
+graphify path "ComponentA" "ComponentB" --graph .platform/graphify/graph.json
+
+# Explain a node and its neighbors
+graphify explain "function_name" --graph .platform/graphify/graph.json
+```
+
+Or ask the AI agent: "look at graph.json and tell me what calls X" — the agent can
+read and reason over graph.json directly.
 
 ## Not installed?
-
-If `graphify` is not found, tell the user:
 
 ```bash
 uv tool install graphifyy && graphify install
 ```
 
-Then re-run `graphify .` from the project root.
+Then re-run the commands above.

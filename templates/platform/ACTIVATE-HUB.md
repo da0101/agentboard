@@ -78,6 +78,26 @@ Based on scan + interview, generate these files. Hub-scope means: cross-repo arc
 
 **`.platform/memory/log.md`** — append one line: `{{TODAY}} — ab activation (hub mode) — .platform/ pack filled from sibling-repo scan + interview — <one-sentence summary of what you learned>`
 
+## Step 3b — Knowledge graph (optional)
+
+If `graphify --version` returns a version number, build a structural knowledge graph for each real sibling repo
+(AST-only — no API key, no LLM, free):
+
+```bash
+cd <sibling-repo>
+graphify update . --force --no-cluster
+mkdir -p <hub-root>/.platform/graphify/<repo-slug>
+cp -R graphify-out/. <hub-root>/.platform/graphify/<repo-slug>/ && rm -rf graphify-out
+```
+
+This writes `<hub-root>/.platform/graphify/<repo-slug>/graph.json` — a structural map of
+the sibling repo (god nodes, import cycles, cross-cutting connections). Reference it during
+`ab-research` to understand what calls what without grepping individual files. No
+GRAPH_REPORT.md is generated in AST-only mode; agents query graph.json directly.
+
+If graphify is not installed, suggest: `uv tool install graphifyy && graphify install`
+then skip this step.
+
 ## Step 4 — Install or update the root `CLAUDE.md` **(never delete existing content)**
 
 Check whether `CLAUDE.md` already exists at the hub root.
@@ -200,6 +220,8 @@ These live in `.claude/skills/` (Claude Code auto-loads them). They are additive
 | `ab-qa` | Real-browser / manual QA pass with reproducible repro steps. Required for UI changes. |
 | `ab-review` | Pre-PR code review across spec / quality / security / tests. |
 | `ab-debug` | Root-cause bug investigation. Hypothesis-test-narrow loop. |
+| `ab-cleanup` | Deep cleanup for a codebase, feature, path, file, or function. Scans first, batches safe changes, preserves behavior. |
+| `ab-graphify` | Build or refresh the codebase knowledge graph. Query `.platform/graphify/graph.json` during research. |
 
 Read each skill's `SKILL.md` on first use to understand its protocol.
 

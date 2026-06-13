@@ -113,11 +113,11 @@ cmd_update() {
       sk_dst_x="$skills_dir_codex/$sk_name"
       local skill_updated=0
       for sk_dst in "$sk_dst_c" "$sk_dst_a" "$sk_dst_x"; do
-        [[ -d "$sk_dst" ]] || continue
+        [[ -d "$(dirname "$sk_dst")" ]] || continue
         if (( dry_run )); then
           printf '  %s~%s skills/%s\n' "$C_YELLOW" "$C_RESET" "$sk_name"
         else
-          cp -R "$sk_src/." "$sk_dst/"
+          mkdir -p "$sk_dst" && cp -R "$sk_src/." "$sk_dst/"
           printf '  %s↻%s %sskills/%s%s\n' "$C_GREEN" "$C_RESET" "$C_CYAN" "$sk_name" "$C_RESET"
         fi
         skill_updated=1
