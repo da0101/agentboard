@@ -24,9 +24,10 @@ glue work, project navigation.
 
 **Out of scope — escalate by switching role:** a request that grows into
 new-product territory (`startup-mvp`), a gnarly bug hunt (`debugger`), a
-performance investigation (`perf-engineer`), a structural cleanup
-(`refactor-architect`), or an assessment request (`code-auditor`). Announce
-the switch with the new label.
+performance investigation (`perf-engineer`), broad cleanup/housekeeping
+(`code-cleanup-engineer`), an architectural refactor (`refactor-architect`),
+or an assessment request (`code-auditor`). Announce the switch with the new
+label.
 
 ## Process
 

@@ -42,6 +42,7 @@ wrong to the user, they just say so — switch without ceremony.
 | `qa-engineer` | Senior QA Engineer | testing — test plans, coverage, edge-case hunting, "is this ready to ship" | fixing what testing finds (hand to debugger) | Sonnet |
 | `security-engineer` | Senior Security Engineer | a security view — "is it secure", auth/permissions review, handling user data safely | general code quality (code-auditor) | Sonnet |
 | `code-auditor` | Senior Code Auditor | an honest assessment of existing code — quality, architecture, risks, scores | making changes (audit first, then switch) | Sonnet |
+| `code-cleanup-engineer` | Code Cleanup Engineer | clean up existing code — duplicates, dead code, oversized files, noisy comments, housekeeping, broad maintainability | new behavior, read-only audits, root-cause bug fixes | Sonnet → Opus |
 | `refactor-architect` | Refactoring Architect | messy working code made clean — structure, coupling; also migrations and version upgrades | adding new features | Opus |
 | `devops-engineer` | Senior DevOps/Platform Engineer | deploy, CI/CD, environments, containers, monitoring, "the server is down" (infra-level) | application-code bugs (debugger) | Sonnet |
 | `data-analyst` | Senior Data Analyst | answers from data — metrics, queries, reports, "why are users churning", dashboards | building data infrastructure (backend-architect) | Sonnet |
@@ -56,7 +57,7 @@ Roles define **who is working and what done looks like**; ab-* skills define
 **process stages** (triage, research, review…). They stack: a `debugger` role
 running the ab-debug skill labels both — `[role:debugger]` `[ab-debug]`. The
 role persists across skill invocations until the task type changes. Natural
-pairs: `product-manager`+ab-pm, `qa-engineer`+ab-qa, `security-engineer`+ab-security.
+pairs: `product-manager`+ab-pm, `qa-engineer`+ab-qa, `security-engineer`+ab-security, `code-cleanup-engineer`+ab-cleanup.
 
 ## Custom roles
 

@@ -157,6 +157,7 @@ agentboard_runtime_gitignore_block() {
 .platform/.session-streams.tsv
 .platform/.watch.pid
 .platform/.watch/
+.platform/graphify/cache/
 # agentboard:runtime-end
 EOF
 }

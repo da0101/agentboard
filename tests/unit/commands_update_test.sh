@@ -75,6 +75,7 @@ test_update_installs_runtime_gitignore_block() {
   assert_file_contains "$dir/.gitignore" "# agentboard:runtime-begin"
   assert_file_contains "$dir/.gitignore" ".platform/events.jsonl"
   assert_file_contains "$dir/.gitignore" ".platform/.session-streams.tsv"
+  assert_file_contains "$dir/.gitignore" ".platform/graphify/cache/"
 }
 
 test_update_restores_missing_sync_context_script() {

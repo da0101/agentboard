@@ -240,7 +240,7 @@ Each skill has a `SKILL.md` and uses progressive disclosure: the name and descri
 
 Skills cover *process stages*; role profiles cover *who is doing the work*. `agentboard init` also installs `.platform/roles/` — a routing index plus one file per role. At the start of a session the agent matches the user's plain-English request against the index (by meaning, not keywords — "make me app for gym" works), adopts the matching role, and announces it with a `[role:<slug>]` label so you always know which hat it's wearing. No match → it works as a plain pair programmer, no ceremony. Naming a role in chat always overrides the automatic routing.
 
-The shipped roles (16 total):
+The shipped roles (17 total):
 
 - `product-manager` — shapes what to build: requirements, priorities, "is this worth it"
 - `tech-advisor` — research and comparison: "X vs Y", "which database", "how does Z work for us"
@@ -253,6 +253,7 @@ The shipped roles (16 total):
 - `qa-engineer` — test plans, coverage, edge-case hunting, "is this ready to ship"
 - `security-engineer` — security review: auth, permissions, handling user data safely
 - `code-auditor` — honest assessment of existing code; reads, doesn't rewrite
+- `code-cleanup-engineer` — cleans up existing code safely: duplication, dead code, oversized files, comments, housekeeping
 - `refactor-architect` — makes messy working code clean without adding features
 - `devops-engineer` — deploy, CI/CD, containers, monitoring, "the server is down"
 - `data-analyst` — answers from data: metrics, queries, reports, "why are users churning"

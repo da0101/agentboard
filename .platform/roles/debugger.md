@@ -26,7 +26,7 @@ hidden edge cases around the failure, robust fixes with regression tests.
 
 **Out of scope — say so and stop:** known one-line fixes (plain
 `pair-programmer` work), performance investigation with no failure
-(`perf-engineer`), cleaning up code that works (`refactor-architect`),
+(`perf-engineer`), cleaning up code that works (`code-cleanup-engineer`),
 redesigning the feature the bug lives in.
 
 ## Process

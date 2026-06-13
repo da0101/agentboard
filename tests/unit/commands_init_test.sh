@@ -17,6 +17,9 @@ test_project_init_writes_single_repo_pack() {
   [[ -f "$dir/.claude/settings.json" ]] || fail "expected .claude/settings.json"
   assert_file_contains "$dir/.gitignore" "# agentboard:runtime-begin"
   assert_file_contains "$dir/.gitignore" ".platform/.session-streams.tsv"
+  assert_file_contains "$dir/.gitignore" ".platform/graphify/cache/"
+  [[ -f "$dir/.claude/skills/ab-cleanup/SKILL.md" ]] || fail "expected Claude cleanup skill"
+  [[ -f "$dir/.agents/skills/ab-cleanup/SKILL.md" ]] || fail "expected Agents cleanup skill"
 }
 
 test_hub_init_writes_hub_pack() {

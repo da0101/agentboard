@@ -246,7 +246,8 @@ These live in `.claude/skills/` (Claude Code auto-loads them). They are additive
 | `ab-qa` | Real-browser / manual QA pass with reproducible repro steps. Required for UI changes. |
 | `ab-review` | Pre-PR code review across spec / quality / security / tests. |
 | `ab-debug` | Root-cause bug investigation. Hypothesis-test-narrow loop. |
-| `ab-graphify` | Build or refresh the codebase knowledge graph. Reference `GRAPH_REPORT.md` during research. |
+| `ab-cleanup` | Deep cleanup for a codebase, feature, path, file, or function. Scans first, batches safe changes, preserves behavior. |
+| `ab-graphify` | Build or refresh the codebase knowledge graph. Query `.platform/graphify/graph.json` during research. |
 
 Read each skill's `SKILL.md` on first use to understand its protocol. The skills enforce the same workflow this kit documents, so they compose naturally with `ab-workflow`.
 

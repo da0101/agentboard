@@ -33,4 +33,5 @@ dist/
 .platform/.session-streams.tsv
 .platform/.watch.pid
 .platform/.watch/
+.platform/graphify/cache/
 # agentboard:runtime-end

@@ -67,3 +67,4 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 2026-06-11 — role profiles pack — shipped 16 role files + INDEX.md routing table; roles activate by intent-matching not keywords; pair-programmer is the silent fallback (v1.13.0)
 2026-06-11 — ab rescan command — new CLI command + RESCAN.md protocol; agent re-reads codebase and updates domains/architecture/conventions/STATUS without touching decisions/ACTIVE/BRIEF (v1.14.0)
 2026-06-12 — model-tier system — every role and skill file now carries explicit model guidance; ab-workflow hard rule #10 requires self-audit of all agent() calls for missing model: param before Workflow() submission; workflow.md + CLAUDE.md templates add Fable tier and workflow-agent warning (v1.15.0)
+2026-06-13 — code cleanup skill/role — added `ab-cleanup` and `code-cleanup-engineer`, wired role routing/provider skill lists, carried main-side Graphify source/runtime files forward, and ignored `.platform/graphify/cache/`
