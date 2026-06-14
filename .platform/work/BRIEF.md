@@ -4,36 +4,35 @@
 > 30-second orientation: what we're building, why, and where we stand.
 > Replace entirely when the active feature changes. Keep ≤60 lines.
 
-**Feature:** qa-self-heal-maestro
+**Feature:** silicon-valley-mindset
 **Status:** awaiting-verification
-**Stream file:** `.platform/work/qa-self-heal-maestro.md`
+**Stream file:** `.platform/work/silicon-valley-mindset.md`
 
 ---
 
 ## What we're building
 
-We are adding an Agentboard QA self-heal capability: reusable guidance so Claude Code, Codex CLI, and Gemini CLI can drive an app with tools such as Maestro, explore flows, stress practical limits, ingest reports, and fix safe findings in a bounded loop.
+We are adding a durable Agentboard mindset rule so PM and engineering agents approach product work like leading Silicon Valley product teams: ambitious, future-facing, user-obsessed, craft-driven, and execution-minded.
 
 ## Why
 
-Users want agents to perform deep app QA beyond static tests: click through UI, drill into edge cases, exercise backend/API/rate-limit boundaries, collect evidence, feed findings back into the coding loop, and stop when the remaining work is unsafe or no longer worth automating.
+The owner wants every agent to raise the bar beyond basic task completion: think ahead, build for standout product quality, and push toward innovative, best-in-class outcomes without losing execution discipline.
 
 ## What done looks like
 
-- A research-backed plan is approved before implementation.
-- The workflow has explicit safety bounds for local/staging vs production and third-party calls.
-- Any new skill/role/template content is shipped through existing Agentboard init/update paths.
-- Tests verify role/skill/template integrity and any changed install/update behavior.
+- The rule appears in shipped process/role templates read by future Claude, Codex, and Gemini sessions.
+- PM and engineering roles frame work through user value, product differentiation, craft, and future leverage.
+- The rule includes guardrails against vague hype or unapproved scope creep.
+- Tests or contract checks cover the shipped wording if appropriate.
 
 ## Architecture decisions locked
 
-- QA self-heal must be bounded and evidence-driven, not an open-ended rewrite loop.
-- External tools such as Maestro are optional project capabilities, not mandatory dependencies for every Agentboard install.
-- Existing approval gates for new streams, commits, releases, and stream closure remain intact.
+- Ambition must be paired with disciplined scope, tests, and approval gates.
+- "Silicon Valley mindset" means best-in-class product thinking and execution, not adding unapproved features.
 
 ## Current state
 
-Implementation is complete in `/private/tmp/agentboard-qa-self-heal` on `feature/qa-self-heal-maestro`; awaiting user review/sign-off. Focused QA/role/install/update tests pass. Full aggregate `bash tests/unit.sh` reproduces an existing daemon-start race in 3 daemon-dependent files, while those files pass individually.
+Implementation is complete in `/private/tmp/agentboard-silicon-valley-mindset` on `feature/silicon-valley-mindset`. Focused contract tests pass; the full unit suite has unrelated daemon startup failures in `daemon_test.sh`, `lock_test.sh`, and `log_reason_test.sh`.
 
 See `work/ACTIVE.md` for stream status.
 
@@ -41,19 +40,18 @@ See `work/ACTIVE.md` for stream status.
 
 > Only load files relevant to the next task. Do not auto-load archived streams.
 
-**Primary stream:** `.platform/work/qa-self-heal-maestro.md`
-**Domain:** `.platform/domains/qa-self-heal.md`
+**Primary stream:** `.platform/work/silicon-valley-mindset.md`
+**Domain:** `.platform/domains/product-engineering-mindset.md`
 **Do not load:** unrelated archived stream files
 **Never load:** `work/archive/*`
 
 ## Key files
 
 - `.platform/work/ACTIVE.md`
-- `.platform/work/qa-self-heal-maestro.md`
-- `.platform/domains/qa-self-heal.md`
-- `templates/skills/`
-- `templates/platform/roles/`
+- `.platform/work/silicon-valley-mindset.md`
+- `.platform/domains/product-engineering-mindset.md`
 - `templates/platform/workflow.md`
+- `templates/platform/roles/`
 - `templates/root/AGENTS.md.template`
 - `templates/root/CLAUDE.md.template`
 - `templates/root/GEMINI.md.template`

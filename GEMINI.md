@@ -119,13 +119,19 @@ The single most important design decision:
 ### Hard rules
 
 0. **Never commit or push without explicit user request.** "Tests pass" is not a request. Tell the user what you completed and ask "Ready to commit?" — then wait.
-1. **Never add stack pre-picking to `agentboard init`.** The LLM decides the stack during activation. `init` only asks project name + one-line description.
-2. **Never ship a static `conventions/{stack}.md` file.** The LLM writes those per-project, based on the user's actual code.
-3. **Templates that ship verbatim** (`workflow.md`, `ONBOARDING.md`, `sync-context.sh`, `templates/repo/*`) must be **stack-agnostic**. No React / Django / Unity examples baked in.
-4. **Placeholders use `{{UPPERCASE_SNAKE}}`.** The only three the `init` command fills are `{{PROJECT_NAME}}`, `{{DESCRIPTION}}`, `{{TODAY}}`. Everything else is filled by the LLM during activation.
-5. **`sync-context.sh` must stay bash-portable.** macOS default shell must work. No bash 4-only features, no GNU-only flags.
-6. **The CLI core has no required runtime dependencies.** `init`, `new-stream`, `new-domain`, `checkpoint`, `handoff`, `doctor`, and `sync` are pure bash + file I/O. The git pre-commit closure gate is also pure bash. Optional features are allowed opt-in system deps: `usage` commands require `sqlite3`; the Claude Code closure gate (`platform-closure-gate.js`) requires `node`; `watch --install` requires `launchctl` (macOS) or `schtasks` (Windows). Fail gracefully with a clear message when an optional dep is absent. Never add required deps.
-7. **Max ~300 lines per bash source file** in `lib/` and `bin/`. This rule applies to executable code, not to documentation or workflow markdown — those are as long as they need to be.
+1. **Think like a best-in-class Silicon Valley product team.** PMs, engineers,
+   and all agent roles must be user-obsessed, future-facing, innovative,
+   craft-driven, fast, and rigorous. Raise the bar beyond basic task
+   completion, but convert ambition into scoped slices, explicit tradeoffs,
+   maintainable implementation, tests, rollback thinking, and human approval
+   for any scope change.
+2. **Never add stack pre-picking to `agentboard init`.** The LLM decides the stack during activation. `init` only asks project name + one-line description.
+3. **Never ship a static `conventions/{stack}.md` file.** The LLM writes those per-project, based on the user's actual code.
+4. **Templates that ship verbatim** (`workflow.md`, `ONBOARDING.md`, `sync-context.sh`, `templates/repo/*`) must be **stack-agnostic**. No React / Django / Unity examples baked in.
+5. **Placeholders use `{{UPPERCASE_SNAKE}}`.** The only three the `init` command fills are `{{PROJECT_NAME}}`, `{{DESCRIPTION}}`, `{{TODAY}}`. Everything else is filled by the LLM during activation.
+6. **`sync-context.sh` must stay bash-portable.** macOS default shell must work. No bash 4-only features, no GNU-only flags.
+7. **The CLI core has no required runtime dependencies.** `init`, `new-stream`, `new-domain`, `checkpoint`, `handoff`, `doctor`, and `sync` are pure bash + file I/O. The git pre-commit closure gate is also pure bash. Optional features are allowed opt-in system deps: `usage` commands require `sqlite3`; the Claude Code closure gate (`platform-closure-gate.js`) requires `node`; `watch --install` requires `launchctl` (macOS) or `schtasks` (Windows). Fail gracefully with a clear message when an optional dep is absent. Never add required deps.
+8. **Max ~300 lines per bash source file** in `lib/` and `bin/`. This rule applies to executable code, not to documentation or workflow markdown — those are as long as they need to be.
 
 ## Workflow for editing this repo
 

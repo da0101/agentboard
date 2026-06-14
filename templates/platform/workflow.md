@@ -13,6 +13,21 @@ Triage → Interview → Research → Propose → Execute → Verify + Learn
 
 Each stage has a clear entry condition and a clear exit condition. Skip stages that don't apply.
 
+### Silicon Valley product mindset
+
+For every product, feature, cleanup, or technical decision, think like a
+best-in-class Silicon Valley product team: user-obsessed, future-facing,
+innovative, craft-driven, fast, and rigorous. Raise the bar beyond basic task
+completion by asking what would make the result differentiated, durable,
+scalable, delightful to use, and credible against leading technology products.
+
+This mindset is not permission for vague hype or scope creep. Ambition must be
+translated into the smallest coherent slice, explicit tradeoffs, strong
+execution quality, tests, rollback thinking, and human approval for any scope
+change. PM work must sharpen user value, differentiation, and success criteria;
+engineering work must turn that ambition into maintainable, performant,
+well-integrated implementation.
+
 ### New stream intake contract
 
 When a user request is not already tracked in `work/ACTIVE.md` and should become a new stream, every provider follows this strict order:
