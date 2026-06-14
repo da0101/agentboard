@@ -244,6 +244,7 @@ These live in `.claude/skills/` (Claude Code auto-loads them). They are additive
 | `ab-test-writer` | Writes comprehensive unit tests with edge-case enumeration by feature type. |
 | `ab-security` | Security audit against OWASP checklist. Required for auth/payment/tenant-data changes. |
 | `ab-qa` | Real-browser / manual QA pass with reproducible repro steps. Required for UI changes. |
+| `ab-qa-self-heal` | Agent-driven app QA and bounded self-healing with Maestro, browser automation, project test runners, capped limit probes, report ingestion, focused fixes, and reruns. |
 | `ab-review` | Pre-PR code review across spec / quality / security / tests. |
 | `ab-debug` | Root-cause bug investigation. Hypothesis-test-narrow loop. |
 | `ab-cleanup` | Deep cleanup for a codebase, feature, path, file, or function. Scans first, batches safe changes, preserves behavior. |

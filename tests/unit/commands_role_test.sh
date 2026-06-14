@@ -7,7 +7,7 @@ source "$ROOT/helpers.sh"
 
 export NO_COLOR=1
 
-ALL_ROLE_SLUGS="backend-architect code-auditor code-cleanup-engineer data-analyst debugger devops-engineer feature-builder frontend-engineer pair-programmer perf-engineer product-manager qa-engineer refactor-architect security-engineer startup-mvp tech-advisor tech-writer"
+ALL_ROLE_SLUGS="backend-architect code-auditor code-cleanup-engineer data-analyst debugger devops-engineer feature-builder frontend-engineer pair-programmer perf-engineer product-manager qa-automation-engineer qa-engineer refactor-architect security-engineer startup-mvp tech-advisor tech-writer"
 
 # ---------------------------------------------------------------------------
 # ab role list
@@ -170,13 +170,13 @@ test_update_restores_deleted_role_pack() {
 
   for fname in INDEX.md backend-architect.md code-auditor.md code-cleanup-engineer.md \
     data-analyst.md debugger.md devops-engineer.md feature-builder.md frontend-engineer.md \
-    pair-programmer.md perf-engineer.md product-manager.md qa-engineer.md \
+    pair-programmer.md perf-engineer.md product-manager.md qa-automation-engineer.md qa-engineer.md \
     refactor-architect.md security-engineer.md startup-mvp.md \
     tech-advisor.md tech-writer.md; do
     [[ -f "$dir/.platform/roles/$fname" ]] || fail "update did not restore roles/$fname"
   done
   count="$(ls "$dir/.platform/roles" | wc -l | tr -d ' ')"
-  assert_eq "$count" "18"
+  assert_eq "$count" "19"
 
   run_cli_capture output "$dir" role list
   assert_status "$RUN_STATUS" 0

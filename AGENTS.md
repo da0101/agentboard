@@ -160,7 +160,7 @@ Full protocol: `.platform/workflow.md` → "Stream Closure Protocol".
 
 Installed into `.agents/skills/` by `agentboard init`.
 
-`ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-review`, `ab-debug`, `ab-cleanup`, `ab-graphify`
+`ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-qa-self-heal`, `ab-review`, `ab-debug`, `ab-cleanup`, `ab-graphify`
 
 Read each skill's `SKILL.md` on first use to understand its protocol.
 

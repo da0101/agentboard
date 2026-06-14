@@ -20,6 +20,8 @@ test_project_init_writes_single_repo_pack() {
   assert_file_contains "$dir/.gitignore" ".platform/graphify/cache/"
   [[ -f "$dir/.claude/skills/ab-cleanup/SKILL.md" ]] || fail "expected Claude cleanup skill"
   [[ -f "$dir/.agents/skills/ab-cleanup/SKILL.md" ]] || fail "expected Agents cleanup skill"
+  [[ -f "$dir/.claude/skills/ab-qa-self-heal/SKILL.md" ]] || fail "expected Claude QA self-heal skill"
+  [[ -f "$dir/.agents/skills/ab-qa-self-heal/SKILL.md" ]] || fail "expected Agents QA self-heal skill"
 }
 
 test_hub_init_writes_hub_pack() {

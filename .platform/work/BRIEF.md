@@ -4,36 +4,36 @@
 > 30-second orientation: what we're building, why, and where we stand.
 > Replace entirely when the active feature changes. Keep ≤60 lines.
 
-**Feature:** code-cleanup-skill-role
+**Feature:** qa-self-heal-maestro
 **Status:** awaiting-verification
-**Stream file:** `.platform/work/code-cleanup-skill-role.md`
+**Stream file:** `.platform/work/qa-self-heal-maestro.md`
 
 ---
 
 ## What we're building
 
-We are adding an Agentboard cleanup capability: a reusable skill plus the right role/routing so Claude Code, Codex CLI, and Gemini CLI can respond consistently when asked to clean up a whole codebase or a targeted path/feature/file/folder.
+We are adding an Agentboard QA self-heal capability: reusable guidance so Claude Code, Codex CLI, and Gemini CLI can drive an app with tools such as Maestro, explore flows, stress practical limits, ingest reports, and fix safe findings in a bounded loop.
 
 ## Why
 
-Cleanup requests should trigger a disciplined scan-first workflow for duplication, dead code, oversized files, noisy comments, avoidable complexity, performance opportunities, and general housekeeping without unsafe broad rewrites.
+Users want agents to perform deep app QA beyond static tests: click through UI, drill into edge cases, exercise backend/API/rate-limit boundaries, collect evidence, feed findings back into the coding loop, and stop when the remaining work is unsafe or no longer worth automating.
 
 ## What done looks like
 
 - A research-backed plan is approved before implementation.
-- The skill and role/routing are shipped through the same template/update paths as the existing role and skill packs.
-- Tests verify role/skill pack integrity and any install/update behavior touched.
-- The stream records verification evidence and durable memory updates.
+- The workflow has explicit safety bounds for local/staging vs production and third-party calls.
+- Any new skill/role/template content is shipped through existing Agentboard init/update paths.
+- Tests verify role/skill/template integrity and any changed install/update behavior.
 
 ## Architecture decisions locked
 
-- Roles define who is working and what done looks like; `ab-*` skills define process stages and workflows.
-- Shipped skills live under `templates/skills/` and sync into provider-specific skill dirs.
-- Shipped roles live under `templates/platform/roles/`, with `INDEX.md` as the routing source.
+- QA self-heal must be bounded and evidence-driven, not an open-ended rewrite loop.
+- External tools such as Maestro are optional project capabilities, not mandatory dependencies for every Agentboard install.
+- Existing approval gates for new streams, commits, releases, and stream closure remain intact.
 
 ## Current state
 
-Implementation is verified in `/Users/danilulmashev/Documents/GitHub/agentboard-code-cleanup-skill-role` on `feature/code-cleanup-skill-role`; awaiting user review/sign-off.
+Implementation is complete in `/private/tmp/agentboard-qa-self-heal` on `feature/qa-self-heal-maestro`; awaiting user review/sign-off. Focused QA/role/install/update tests pass. Full aggregate `bash tests/unit.sh` reproduces an existing daemon-start race in 3 daemon-dependent files, while those files pass individually.
 
 See `work/ACTIVE.md` for stream status.
 
@@ -41,18 +41,20 @@ See `work/ACTIVE.md` for stream status.
 
 > Only load files relevant to the next task. Do not auto-load archived streams.
 
-**Primary stream:** `.platform/work/code-cleanup-skill-role.md`
-**Domain:** `.platform/domains/agent-roles-skills.md`
+**Primary stream:** `.platform/work/qa-self-heal-maestro.md`
+**Domain:** `.platform/domains/qa-self-heal.md`
 **Do not load:** unrelated archived stream files
 **Never load:** `work/archive/*`
 
 ## Key files
 
 - `.platform/work/ACTIVE.md`
-- `.platform/work/code-cleanup-skill-role.md`
-- `.platform/domains/agent-roles-skills.md`
+- `.platform/work/qa-self-heal-maestro.md`
+- `.platform/domains/qa-self-heal.md`
 - `templates/skills/`
 - `templates/platform/roles/`
-- `lib/agentboard/commands/init.sh`
-- `lib/agentboard/commands/update.sh`
+- `templates/platform/workflow.md`
+- `templates/root/AGENTS.md.template`
+- `templates/root/CLAUDE.md.template`
+- `templates/root/GEMINI.md.template`
 - `.platform/memory/log.md`

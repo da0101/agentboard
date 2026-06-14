@@ -88,7 +88,7 @@ Name agents with a persona — e.g., "Max the Mapper", "Kai the Coder". Full rul
 
 Installed additively into `.claude/skills/` by `ab init`. Prefixed `ab-` so they never collide with gstack / pre-existing skills.
 
-`ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-review`, `ab-debug`, `ab-cleanup`, `ab-graphify`
+`ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-qa-self-heal`, `ab-review`, `ab-debug`, `ab-cleanup`, `ab-graphify`
 
 Read each skill's `SKILL.md` on first use to understand its protocol.
 
