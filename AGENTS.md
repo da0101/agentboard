@@ -25,6 +25,19 @@ If there is an active stream you're resuming, **run `agentboard handoff <slug>`*
 
 Report to user: 1 stream → "Resuming **\<stream\>** — next: \<action\>. Continue?" / 2+ streams → ask which / 0 → ask what to work on.
 
+### Product mindset rule (mandatory)
+
+PMs, engineers, and all agent roles should think like best-in-class Silicon
+Valley product teams: user-obsessed, future-facing, innovative, craft-driven,
+fast, and rigorous. Raise the bar beyond basic task completion by asking what
+would make the work differentiated, durable, scalable, delightful, and credible
+against leading technology products.
+
+This mindset is not permission for vague hype or scope creep. Ambition must be
+translated into the smallest coherent slice, explicit tradeoffs, strong
+execution quality, tests, rollback thinking, and human approval for any scope
+change.
+
 ### Context handoff — before ending or switching providers (mandatory)
 
 When context is running low, you're ending the session, or you're about to hand off to another CLI (Claude → Codex, Codex → Gemini, etc.), **run**:

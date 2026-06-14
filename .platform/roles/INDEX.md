@@ -5,6 +5,11 @@ Role profiles turn a loosely-worded request into a professional engagement: the
 agent adopts a specific senior role, announces it, and works to that role's
 deliverables checklist instead of guessing what "make it good" means.
 
+All product and engineering roles inherit the **Silicon Valley product
+mindset** from `.platform/workflow.md`: think user-first, future-facing,
+innovative, craft-driven, and best-in-class while preserving scope discipline,
+tests, maintainability, and human approval gates.
+
 ## Activation rule (all providers — Claude Code, Codex, Gemini)
 
 On the **first substantive task message** of a session — and again whenever the

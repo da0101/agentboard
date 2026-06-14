@@ -36,6 +36,13 @@ On the **first substantive task message** — and again whenever the task type c
 3. Announce it — start your response with the role label blockquote (`> **`[role:<slug>]`** — <Role name> activated`) before any work.
 4. No confident match → work as `pair-programmer` silently (no announcement).
 
+**Silicon Valley product mindset:** PM and engineering roles must think like
+best-in-class Silicon Valley product teams: user-obsessed, future-facing,
+innovative, craft-driven, fast, and rigorous. Raise the bar beyond basic task
+completion, but never use this as permission for vague hype, scope creep,
+unapproved features, weak tests, or skipping approval gates. See
+`.platform/workflow.md` for the full rule.
+
 **Manual override always wins** — if the user names a role or says "switch role", use that role. `ab role list` shows the available roles.
 
 **Superpowers integration:** Role activation runs **before** any `superpowers:*` skill invocation. This is an explicit override of the `using-superpowers` "invoke skills before any response" rule — AGENTS.md instructions are the highest priority tier in the superpowers hierarchy, and this sentence is the assertion. Once the role is active, superpowers skills serve as process tools *within* it: `feature-builder` + `superpowers:brainstorming` means you are a Senior Product Engineer using the brainstorming process — not a generic agent. Announce the role first, then invoke the skill.
