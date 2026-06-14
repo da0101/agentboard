@@ -57,3 +57,106 @@ _Append-only. `ab checkpoint` prepends a dated line and auto-trims to the last 1
 
 ## Open questions
 _Things blocked on user input. Remove when resolved._
+
+---
+
+## 🔍 Audit — 2026-06-14
+
+> Run via Stream / Feature Analysis Protocol — 1 read-only repo audit.
+
+# 📋 code-cleanup-skill-role — Audit Snapshot
+
+> **Stream:** `code-cleanup-skill-role` · **Date:** 2026-06-14 · **Status:** 🟢 awaiting-verification
+> **Repos touched:** repo-primary (`agentboard`)
+
+---
+
+## ⚡ At-a-Glance Scorecard
+
+| | 🖥️ agentboard |
+|---|:---:|
+| **Implementation** | 🟢 |
+| **Tests**          | 🟢 |
+| **Security**       | 🟢 |
+| **Code Quality**   | 🟢 |
+
+> **Bottom line:** Cleanup role/skill is present in shipped templates and provider runtime copies, with Graphify/cache contracts covered and no blocking findings.
+
+---
+
+## 🔄 How the Feature Works (End-to-End)
+
+```
+User asks to clean up repo/path/file/function
+  -> .platform/roles/INDEX.md routes to code-cleanup-engineer
+  -> ab-cleanup scans target before editing
+  -> agent ranks findings, batches safe behavior-preserving work
+  -> tests/lints/manual QA verify preservation before report
+```
+
+---
+
+## 🛡️ Security
+
+| Severity | Repo | Finding |
+|:---:|---|---|
+| 🟢 Clean | agentboard | Cleanup stream is protocol/template content only; no secrets, auth/data paths, new dependencies, or executable command behavior added. Behavior-preservation and approval rules are explicit at `templates/skills/ab-cleanup/SKILL.md:20` and `templates/skills/ab-cleanup/SKILL.md:94`. |
+
+---
+
+## 🧪 Test Coverage
+
+### agentboard
+| Area | Tested? | File |
+|---|:---:|---|
+| Cleanup skill/role Graphify contract | ✅ Strong | tests/unit/cleanup_graphify_contract_test.sh:10 |
+| Fresh init installs cleanup skill copies | ✅ Strong | tests/unit/cleanup_graphify_contract_test.sh:46 |
+| Runtime cache ignore | ✅ Strong | tests/unit/commands_init_test.sh:20 |
+| Update restores runtime gitignore block | ✅ Strong | tests/unit/commands_update_test.sh:73 |
+| Role pack integrity | ✅ Strong | tests/unit/roles_pack_test.sh:14 |
+
+---
+
+## ✅ Implementation Status
+
+### agentboard
+| Component | Status | Location |
+|---|:---:|---|
+| `ab-cleanup` shipped skill | ✅ Done | templates/skills/ab-cleanup/SKILL.md:1 |
+| Provider installed skill copies | ✅ Done | .claude/skills/ab-cleanup/SKILL.md:1 / .agents/skills/ab-cleanup/SKILL.md:1 |
+| `code-cleanup-engineer` role | ✅ Done | templates/platform/roles/code-cleanup-engineer.md:1 |
+| Role routing | ✅ Done | templates/platform/roles/INDEX.md:46 |
+| Cleanup scan/safety workflow | ✅ Done | templates/skills/ab-cleanup/SKILL.md:37 |
+| Graphify JSON contract | ✅ Done | templates/skills/ab-cleanup/SKILL.md:66 |
+| Graphify cache ignored | ✅ Done | .gitignore:36 |
+| Durable decision | ✅ Done | .platform/memory/decisions.md:46 |
+
+---
+
+## 🔧 Open Issues
+
+### 🔴 Must Fix (blocking)
+| # | Repo | Issue |
+|---|---|---|
+| — | — | None |
+
+### 🟡 Should Fix Soon
+| # | Repo | Issue | Location |
+|---|---|---|---|
+| — | — | None | — |
+
+### ⚪ Known Limitations (document, not block)
+| # | Limitation |
+|---|---|
+| 1 | Cleanup skill defines the workflow and routing; it does not run a cleanup by itself until a future user request targets a repo/path. |
+| 2 | Stream remains in `awaiting-verification`; closure/archive still requires explicit owner sign-off and `closure_approved: true`. |
+
+---
+
+## 🎯 Close Checklist / Priority Order
+
+  ☑  1. 🧪  Cleanup Graphify/role/install contracts pass.
+  ☑  2. 🐛  No blocking correctness issues found.
+  ☑  3. 🔍  Stream audit anchored here.
+  ☑  4. ⚡  No runtime performance code changed.
+  □  5. ✅  Keep stream active until owner explicitly approves closure.

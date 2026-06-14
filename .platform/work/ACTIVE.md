@@ -6,6 +6,7 @@
 | Stream | Type | Status | Agent | Last updated |
 |---|---|---|---|---|
 | code-cleanup-skill-role | feature | awaiting-verification | codex | 2026-06-13 |
+| qa-self-heal-maestro | feature | awaiting-verification | codex | 2026-06-14 |
 ---
 
 ## Session start protocol
