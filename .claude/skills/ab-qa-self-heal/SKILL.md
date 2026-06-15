@@ -105,6 +105,10 @@ Create a short plan with:
 
 Use the narrowest project command that gives useful evidence.
 
+Maintain a chronological QA Execution Journal while you drive the app. Record
+each tap/click/type/navigation/inspection/command as it happens, even when the
+step passes. Do not wait until the end and summarize from memory.
+
 Maestro examples when the project provides them:
 
 - Start MCP for exploratory actions if available.
@@ -171,6 +175,23 @@ Loop cap:
 | Round | Command/tool | Result | Evidence |
 |---|---|---|---|
 
+## QA Execution Journal
+Path: `.platform/work/qa/<stream-slug>-execution-journal.md`
+
+### Timeline
+| # | Time | Tool | Action | Observation | Expected | Actual | Status | Evidence |
+|---|---|---|---|---|---|---|---|---|
+
+### Bugs, fixes, and retests
+| Bug / behavior | Evidence | Diagnosis | Fix or escalation | Retest | Outcome |
+|---|---|---|---|---|---|
+
+### Successful paths
+- <flow that passed> — evidence: <ref>
+
+### Human requests / blockers
+- <missing credential/file/decision or "None">
+
 ### Findings
 | Severity | Layer | Finding | Repro | Evidence | Status |
 |---|---|---|---|---|---|
@@ -201,6 +222,9 @@ When Maestro is present:
 - Capture screenshots before and after surprising UI states.
 - Save reports under a project-local ignored artifact directory when the repo has one.
 - Mirror stable exploratory journeys into the Manual QA artifact so a human tester or Maestro agent can rerun the same steps without relying on chat history.
+- Mirror every interactive action into the QA Execution Journal so the next
+  human or agent can see exactly what was tried, what passed, what failed, what
+  was fixed, and what was retested.
 
 ## Hard rules
 
@@ -211,9 +235,10 @@ When Maestro is present:
 5. Do not convert every exploratory click into a test. Only stable, valuable regressions become automation.
 6. Do not weaken tests or assertions to make the report green.
 7. Do not finish a human/app-driving QA stream without a durable `.platform/work/qa/<stream-slug>-manual-qa.md` artifact or a stream-file `Manual QA: not required — <specific reason>` entry.
+8. Do not finish an interactive LLM-driven QA stream without `.platform/work/qa/<stream-slug>-execution-journal.md` documenting the chronological steps, observations, bugs, fixes, retests, successful paths, blockers, and evidence.
 
 ## Integration
 
 - **Upstream:** `ab-workflow` Stage 6, user-requested Maestro/browser/manual QA, or a release-hardening pass.
 - **Pairs with:** `qa-automation-engineer` role, `ab-debug` for root-cause bugs, `ab-security` for exploit risk, `ab-review` before merge.
-- **Outputs:** evidence-backed QA self-heal report, scoped fixes, focused regression artifacts, Manual QA artifact.
+- **Outputs:** evidence-backed QA self-heal report, scoped fixes, focused regression artifacts, Manual QA artifact, QA Execution Journal.

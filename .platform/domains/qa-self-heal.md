@@ -25,7 +25,10 @@ This domain defines how Agentboard should guide agents through automated app-dri
 
 - Target apps may be web, mobile, desktop, or API-backed UI flows; Agentboard should provide a generic protocol that lets the agent adapt to the project’s actual test runner and app driver.
 - Maestro is one concrete driver for app navigation; Browser/Playwright or API-level tools may complement it when the app surface is not mobile-only.
-- Reports must be readable by the next agent: failures, reproduction steps, logs, screenshots/videos if available, suspected layer, fix attempts, and stopping rationale.
+- Reports and execution journals must be readable by the next agent: every
+  interactive step taken, observations, failures, successful paths,
+  reproduction steps, logs, screenshots/videos if available, suspected layer,
+  fix attempts, human requests/blockers, retests, and stopping rationale.
 
 ## API contract locked
 
@@ -34,6 +37,10 @@ This domain defines how Agentboard should guide agents through automated app-dri
 - Rate-limit/backend/API stress must use configured local/staging environments, synthetic data, and project-defined safety caps.
 - Any new shipped role or skill must remain provider-neutral and must be installed through the existing template/update pipeline.
 - The workflow must preserve existing human approval gates for new streams, commits, releases, and stream closure.
+- LLM-driven interactive QA must produce a chronological execution journal, not
+  only a final summary. The journal records what happened from the agent's
+  perspective so QA evidence, odd behavior, and successful flows survive
+  handoff.
 
 ## Key files
 
@@ -56,3 +63,6 @@ This domain defines how Agentboard should guide agents through automated app-dri
 - QA self-healing is a controlled loop, not permission for open-ended rewrites.
 - External app drivers such as Maestro are optional project capabilities; Agentboard should detect/document how to use them rather than hard-require them for every project.
 - Reports and evidence are first-class outputs because the next agent must understand what was tested, fixed, skipped, or stopped.
+- Execution journals are first-class outputs for Maestro/browser/app-driving QA
+  because they expose the exact QA pipeline behavior, including successful
+  tests and failed/fixed paths.

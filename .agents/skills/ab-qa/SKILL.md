@@ -188,6 +188,43 @@ This artifact is required when human/app-driving verification matters and is a g
 ✅ Signoff: <tester, date, PASS/FAIL/BLOCKED, remaining risk>
 ```
 
+If you personally drive the app with Browser, Playwright, Maestro, MCP, or
+another interactive tool, also create or update:
+
+```
+.platform/work/qa/<stream-slug>-execution-journal.md
+```
+
+The execution journal records what actually happened, including successful
+tests:
+
+```
+## 🧾 QA Execution Journal
+
+Scope:
+Environment:
+Driver/tooling:
+Manual QA artifact followed:
+Safety limits:
+
+### Timeline
+| # | Time | Tool | Action | Observation | Expected | Actual | Status | Evidence |
+|---|---|---|---|---|---|---|---|---|
+
+### Bugs, fixes, and retests
+| Bug / behavior | Evidence | Diagnosis | Fix or escalation | Retest | Outcome |
+|---|---|---|---|---|---|
+
+### Successful paths
+- <flow that passed> — evidence: <ref>
+
+### Human requests / blockers
+- <missing credential/file/decision or "None">
+
+### Remaining risk
+- <risk or "None known">
+```
+
 ### Step 8 — Decide
 
 - **READY TO SHIP:** all acceptance criteria pass, no critical/high findings
@@ -219,6 +256,7 @@ This artifact is required when human/app-driving verification matters and is a g
 5. **Record the environment.** Non-reproducible bugs are noise.
 6. **The verdict is one of three.** READY / NEEDS FIXES / BLOCKED. No "mostly ready".
 7. **Manual QA artifact is required for human/app-driving verification.** If not relevant, the stream file must record `Manual QA: not required — <specific reason>`.
+8. **Execution journal is required when you drive the app interactively.** Record every action, observation, failure, fix, retest, blocker, skipped check, and successful path.
 
 ## Model profile
 

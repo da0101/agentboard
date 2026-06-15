@@ -26,6 +26,7 @@ _Nothing yet._
 ## Medium
 
 | medium | knowledge-archive | Design and implement an Obsidian-inspired archive/learning layer for closed streams, QA artifacts, and long logs: keep active work hot, retain recent archive, harvest durable lessons into memory, compact old raw artifacts to cold storage, maintain searchable indexes, and evaluate SQLite FTS before any optional RAG/vector DB. | manual-qa-artifact-gate | 2026-06-15 |
+| medium | stream-close | Fix `agentboard close --confirm` so it performs the full closure protocol: archive stream-scoped Manual QA and execution journal artifacts, update archived stream references, and reset `BRIEF.md` away from the closed stream. | qa-execution-journal | 2026-06-15 |
 
 ---
 

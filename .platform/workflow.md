@@ -216,6 +216,22 @@ Default path:
 
 The artifact is not a planning `.md`; it is a required QA deliverable. It must be precise enough for someone who did not implement the work to execute it manually, and precise enough for a Maestro/browser/app-driving agent to translate into actions. If manual QA is not relevant, the stream file must explicitly record `Manual QA: not required — <specific reason>`. Do not delete Manual QA artifacts; when a stream closes, archive them with the stream under `.platform/work/archive/qa/`.
 
+When the agent itself drives the app with Maestro, Browser, Playwright, MCP, or
+another interactive tool, it must also create a chronological QA Execution
+Journal. The Manual QA artifact says what should be tested; the execution
+journal says what actually happened from the agent's perspective.
+
+Execution journal default path:
+```
+.platform/work/qa/<stream-slug>-execution-journal.md
+```
+
+Execution journals are required for LLM-driven interactive QA even when every
+test passes. They must record successful paths as well as failures, fixes,
+human blockers, skipped checks, retests, and remaining risks. Do not delete
+execution journals; when a stream closes, archive them with the stream under
+`.platform/work/archive/qa/`.
+
 Use this structure:
 
 ```
@@ -242,6 +258,37 @@ Use this structure:
 🧾 Evidence to capture: <screenshots, logs, IDs, pass/fail notes>
 🤖 Maestro / automation notes: <stable selectors, flow boundaries, caps, artifacts>
 ✅ Signoff: <tester, date, PASS/FAIL/BLOCKED, remaining risk>
+```
+
+Execution journal structure:
+
+```
+## 🧾 QA Execution Journal
+
+Scope:
+Environment:
+Driver/tooling: <Maestro MCP/CLI, Browser, Playwright, app runner, API client>
+Manual QA artifact followed: <path>
+Safety limits:
+
+### Timeline
+| # | Time | Tool | Action | Observation | Expected | Actual | Status | Evidence |
+|---|---|---|---|---|---|---|---|---|
+| 1 | <time> | <tool> | <opened app / clicked / typed / inspected / ran command> | <what the agent saw> | <expected> | <actual> | PASS/FAIL/BLOCKED/SKIPPED | <screenshot/log/report/ref> |
+
+### Bugs, fixes, and retests
+| Bug / behavior | Evidence | Diagnosis | Fix or escalation | Retest | Outcome |
+|---|---|---|---|---|---|
+| <issue or "None"> | <ref> | <cause or suspected layer> | <files changed / human asked / deferred> | <step rerun> | <PASS/FAIL/BLOCKED> |
+
+### Successful paths
+- <flow that passed> — evidence: <ref>
+
+### Human requests / blockers
+- <missing credential/file/decision or "None">
+
+### Remaining risk
+- <risk or "None known">
 ```
 
 Rules:
@@ -290,13 +337,13 @@ Run this checklist **every time a stream reaches done** — before archiving the
 > **Why:** skipping this leaves stale docs for the next session/agent. Completed features must be fully reflected in all reference files before the stream is archived.
 
 1. **Verify done criteria** — open the stream file (`work/<slug>.md`), confirm every checkbox is ticked.
-2. **Verify Manual QA artifact gate** — if human/app-driving verification matters, confirm `.platform/work/qa/<stream-slug>-manual-qa.md` exists, has exact steps plus expected results, and records pass/fail/evidence expectations. If not relevant, confirm the stream file records `Manual QA: not required — <specific reason>`.
+2. **Verify Manual QA artifact gate** — if human/app-driving verification matters, confirm `.platform/work/qa/<stream-slug>-manual-qa.md` exists, has exact steps plus expected results, and records pass/fail/evidence expectations. If not relevant, confirm the stream file records `Manual QA: not required — <specific reason>`. If an LLM/agent drove the app with Maestro, Browser, Playwright, MCP, or another interactive tool, also confirm `.platform/work/qa/<stream-slug>-execution-journal.md` exists and records the chronological steps, observations, bugs, fixes, retests, successful paths, evidence, and blockers.
 3. **Update STATUS files** — for every repo the stream touched, mark features ✓ Done, update Last touched date, remove from Immediate priorities.
 4. **Update domain file** — open `.platform/domains/<name>.md` if one exists. Update file paths, API shapes, cross-repo touch-points that changed.
 5. **Deep-reference file check** — for every repo the stream touched, make an explicit YES/NO decision on whether the per-repo reference file (e.g. `backend.md`, `admin.md`) is now stale. Ask: *"Would a new developer or agent reading this file today take a wrong path?"* Update if YES. Skip if NO. This catches: new URL routes, removed fields, stack changes, patterns that no longer apply. State the decision in chat either way.
 6. **Update architecture.md** — if the stream changed system topology (new endpoints, new data flows, auth changes), update the relevant section.
 7. **Unblock downstream streams** — flip any `pending (blocked on this)` stream in `ACTIVE.md` to `ready-to-plan`.
-8. **Archive the stream file and QA artifact** — first check: does the stream file have `closure_approved: true`? If not, **STOP**. Do not archive. Ask the owner to set it. Only when `closure_approved: true` is present: move `work/<slug>.md` → `work/archive/<slug>.md`; if `.platform/work/qa/<slug>-manual-qa.md` exists, move it to `.platform/work/archive/qa/<slug>-manual-qa.md` and keep the archived stream pointing to it. Remove the stream from `ACTIVE.md`, reset `BRIEF.md`. **Remove the closed stream from `BRIEF.md` entirely — do NOT add a "Previously completed" section.** Completed work belongs in `log.md` only. `BRIEF.md` must only ever list active streams.
+8. **Archive the stream file and QA artifacts** — first check: does the stream file have `closure_approved: true`? If not, **STOP**. Do not archive. Ask the owner to set it. Only when `closure_approved: true` is present: move `work/<slug>.md` → `work/archive/<slug>.md`; if `.platform/work/qa/<slug>-manual-qa.md` exists, move it to `.platform/work/archive/qa/<slug>-manual-qa.md`; if `.platform/work/qa/<slug>-execution-journal.md` exists, move it to `.platform/work/archive/qa/<slug>-execution-journal.md`; keep the archived stream pointing to archived QA files. Remove the stream from `ACTIVE.md`, reset `BRIEF.md`. **Remove the closed stream from `BRIEF.md` entirely — do NOT add a "Previously completed" section.** Completed work belongs in `log.md` only. `BRIEF.md` must only ever list active streams.
 9. **Log token usage** — run `ab usage log` to record the total token investment for this stream (aggregate from session reports).
 10. **Append to log.md** — one line: `YYYY-MM-DD — <stream> — <outcome> — <takeaway>`.
 11. **Learnings check** — any non-obvious bugs surfaced? Confirm they are in `learnings.md`. Add if missing.
@@ -487,7 +534,7 @@ Repeat until the scorecard is all 🟢:
 
 ## Hard rules
 
-1. **No `.md` artifacts for plans.** Plans live in chat. Only write `.md` files when they're genuinely reusable (specs, docs, conventions). **`work/` stream files and `.platform/work/qa/<stream-slug>-manual-qa.md` QA artifacts are exceptions — they are mandatory operational state, not plan documents. Always create required stream files (Stage 1b) and QA artifacts (Stage 6) before shipping.**
+1. **No `.md` artifacts for plans.** Plans live in chat. Only write `.md` files when they're genuinely reusable (specs, docs, conventions). **`work/` stream files, `.platform/work/qa/<stream-slug>-manual-qa.md` QA artifacts, and `.platform/work/qa/<stream-slug>-execution-journal.md` QA execution journals are exceptions — they are mandatory operational state, not plan documents. Always create required stream files (Stage 1b) and QA artifacts/journals (Stage 6) before shipping.**
 2. **Max ~300 lines per file.** Extract components before hitting the limit.
 3. **Trivial tasks skip to Stage 5.** Don't bureaucratize small work.
 4. **Parallelize subagents.** Never run independent subagents sequentially.

@@ -24,6 +24,10 @@ test_qa_self_heal_skill_exists_in_all_installed_locations() {
     assert_file_contains "$file" "## Manual QA Artifact"
     assert_file_contains "$file" ".platform/work/qa/<stream-slug>-manual-qa.md"
     assert_file_contains "$file" "human tester or Maestro agent"
+    assert_file_contains "$file" "## QA Execution Journal"
+    assert_file_contains "$file" ".platform/work/qa/<stream-slug>-execution-journal.md"
+    assert_file_contains "$file" "Maintain a chronological QA Execution Journal"
+    assert_file_contains "$file" "Successful paths"
   done
 }
 
@@ -38,6 +42,9 @@ test_qa_self_heal_role_routes_to_bounded_automation() {
     assert_file_contains "$file" "Self-heal narrowly"
     assert_file_contains "$file" "Bound the loop"
     assert_file_contains "$file" "Production or third-party stress needs explicit"
+    assert_file_contains "$file" "QA Execution Journal"
+    assert_file_contains "$file" ".platform/work/qa/<stream-slug>-execution-journal.md"
+    assert_file_contains "$file" "No invisible app-driving"
   done
 }
 

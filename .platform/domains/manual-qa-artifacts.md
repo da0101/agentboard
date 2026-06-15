@@ -16,7 +16,9 @@ Defines the required manual QA artifact workflow for Agentboard streams. A
 manual QA plan in chat is no longer enough for shippable work that needs human
 or app-driving verification: agents must create a durable markdown QA manual
 with explicit step-by-step coverage before commit, push, release, or stream
-closure.
+closure. When an LLM drives an app with Maestro, browser automation, or another
+interactive tool, the workflow must also capture a QA execution journal: what
+the agent actually did, saw, fixed, retested, skipped, and escalated.
 
 ## Source of truth
 
@@ -28,6 +30,8 @@ closure.
   Maestro/app-driving agents.
 - Stream files record the artifact path and verification status.
 - Closed stream QA artifacts are archived under `.platform/work/archive/qa/`.
+- QA execution journals are stored beside the manual QA artifact and archived
+  with the same retention rules.
 
 ## API contract locked
 
@@ -45,6 +49,10 @@ closure.
   `.platform/work/archive/qa/` for regression reference.
 - For multi-repo or app-driving work, the artifact must identify the target app,
   local/staging URL, accounts/fixtures, and any safety caps.
+- App-driving QA must include an execution journal with chronological steps,
+  observations, bugs/errors, diagnosis, fixes, human requests/blockers,
+  retests, pass/fail outcomes, and evidence links. Successful tests are
+  documented too.
 - The gate must be provider-neutral and live in shipped templates, not only the
   local Agentboard repo.
 
@@ -62,5 +70,7 @@ closure.
 - `.platform/roles/qa-engineer.md`
 - `.platform/roles/qa-automation-engineer.md`
 - `.platform/work/qa/<stream-slug>-manual-qa.md`
+- `.platform/work/qa/<stream-slug>-execution-journal.md`
 - `.platform/work/archive/qa/<stream-slug>-manual-qa.md`
+- `.platform/work/archive/qa/<stream-slug>-execution-journal.md`
 - `tests/unit/workflow_contract_test.sh`
