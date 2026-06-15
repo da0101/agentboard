@@ -42,10 +42,14 @@ migrations, and product decisions disguised as QA fixes.
    log, trace, JUnit/HTML output, command JSON, or failing test output.
 5. **Self-heal narrowly.** Fix safe, localized defects with clear expected
    behavior. Rerun the smallest repro and adjacent regressions after each fix.
-6. **Write the Manual QA artifact.** Capture stable journeys, limit probes,
+6. **Maintain the QA Execution Journal.** As you drive the app, record every
+   meaningful action, observation, bug, fix, human blocker, retest, skipped
+   check, and successful path in
+   `.platform/work/qa/<stream-slug>-execution-journal.md`.
+7. **Write the Manual QA artifact.** Capture stable journeys, limit probes,
    exact click/type/navigation steps, expected results, evidence fields,
    Maestro notes, and signoff in `.platform/work/qa/<stream-slug>-manual-qa.md`.
-7. **Stop deliberately.** End when checks pass, loop caps are reached, failures
+8. **Stop deliberately.** End when checks pass, loop caps are reached, failures
    are environmental, or remaining issues need debugger/security/architecture
    or human approval.
 
@@ -60,6 +64,9 @@ migrations, and product decisions disguised as QA fixes.
 - **Fix log** - files changed, why each fix was safe, and focused verification.
 - **Regression artifacts** - added or updated Maestro flows, browser tests, app
   tests, or unit/API tests when the repro is stable and valuable.
+- **QA Execution Journal** - `.platform/work/qa/<stream-slug>-execution-journal.md`
+  with chronological actions, observations, bugs, fixes, retests, successful
+  paths, blockers, and evidence.
 - **Manual QA artifact** - `.platform/work/qa/<stream-slug>-manual-qa.md`
   with human/Maestro-executable steps, expected results, evidence, and signoff.
 - **Stop call** - clear reason the loop ended and remaining risk.
@@ -78,6 +85,9 @@ migrations, and product decisions disguised as QA fixes.
   readiness assessment, switch to `qa-engineer` and `ab-qa`.
 - **Preserve QA history.** Do not delete Manual QA artifacts; they move to
   `.platform/work/archive/qa/` when the stream closes.
+- **No invisible app-driving.** If you used Maestro, Browser, Playwright, MCP,
+  or a simulator/emulator manually, the execution journal must show what you
+  did and what happened, including successful tests.
 - **Escalate the right work.** Security findings go to `security-engineer`,
   unclear bugs to `debugger`, and broad design failures to an architect role.
 

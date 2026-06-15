@@ -4,44 +4,30 @@
 > 30-second orientation: what we're building, why, and where we stand.
 > Replace entirely when the active feature changes. Keep ≤60 lines.
 
-**Feature:** active stream review
-**Status:** two streams awaiting verification
-**Stream file:** see `.platform/work/ACTIVE.md`
+**Feature:** active streams
+**Status:** awaiting-verification
+**Stream file:** `.platform/work/ACTIVE.md`
 
 ---
 
-## What we're building
+## Active streams
 
-No single primary implementation stream is active. The Manual QA artifact gate
-and Silicon Valley product mindset streams are closed and archived.
-
-## Why
-
-The remaining active rows are prior streams that are still awaiting owner
-verification:
-
-- `code-cleanup-skill-role`
-- `qa-self-heal-maestro`
+- `code-cleanup-skill-role` — awaiting verification.
+- `qa-self-heal-maestro` — awaiting verification.
 
 ## Current state
 
-Recent completed streams:
-
-- `manual-qa-artifact-gate` archived at
-  `.platform/work/archive/manual-qa-artifact-gate.md`
-- `silicon-valley-mindset` archived at
-  `.platform/work/archive/silicon-valley-mindset.md`
-
-Manual QA artifact evidence for the QA gate stream is archived at:
-
-- `.platform/work/archive/qa/manual-qa-artifact-gate-manual-qa.md`
+`qa-execution-journal` was approved by the owner and archived on 2026-06-15.
+The remaining active streams are both awaiting owner verification before any
+commit, push, merge, release, or closure.
 
 ## Relevant context
 
 > Only load files relevant to the next task. Do not auto-load archived streams.
 
-**Active streams:** `.platform/work/ACTIVE.md`
-**Do not load:** `work/archive/*` unless explicitly asked or closing/auditing
+**Primary stream:** choose from `.platform/work/ACTIVE.md`
+**Domains:** load only the domain listed by the selected stream handoff
+**Do not load:** unrelated `work/archive/*`
 **Never load:** unrelated `BACKLOG.md` or `learnings.md` at session start
 
 ## Key files

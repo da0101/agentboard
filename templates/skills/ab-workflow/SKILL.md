@@ -136,6 +136,12 @@ Before the final response, create or update a durable **Manual QA artifact** whe
 
 The Manual QA artifact is a hard gate before commit, push, merge, release, or stream closure. If manual QA is not relevant, record `Manual QA: not required — <specific reason>` in the stream file and mention that reason in the final response.
 
+If the agent drove the app with Maestro, Browser, Playwright, MCP, or another
+interactive tool, also create a **QA Execution Journal** at
+`.platform/work/qa/<stream-slug>-execution-journal.md`. The Manual QA artifact
+records what should be tested; the execution journal records what the agent
+actually did, observed, fixed, retested, skipped, and escalated.
+
 Manual QA artifact format:
 ```
 ## 🧪 Manual QA Artifact
@@ -163,6 +169,36 @@ Manual QA artifact format:
 ✅ Signoff: <tester, date, PASS/FAIL/BLOCKED, remaining risk>
 ```
 
+QA execution journal format:
+```
+## 🧾 QA Execution Journal
+
+Scope:
+Environment:
+Driver/tooling: <Maestro MCP/CLI, Browser, Playwright, app runner, API client>
+Manual QA artifact followed: <path>
+Safety limits:
+
+### Timeline
+| # | Time | Tool | Action | Observation | Expected | Actual | Status | Evidence |
+|---|---|---|---|---|---|---|---|---|
+| 1 | <time> | <tool> | <opened app / clicked / typed / inspected / ran command> | <what the agent saw> | <expected> | <actual> | PASS/FAIL/BLOCKED/SKIPPED | <screenshot/log/report/ref> |
+
+### Bugs, fixes, and retests
+| Bug / behavior | Evidence | Diagnosis | Fix or escalation | Retest | Outcome |
+|---|---|---|---|---|---|
+| <issue or "None"> | <ref> | <cause or suspected layer> | <files changed / human asked / deferred> | <step rerun> | <PASS/FAIL/BLOCKED> |
+
+### Successful paths
+- <flow that passed> — evidence: <ref>
+
+### Human requests / blockers
+- <missing credential/file/decision or "None">
+
+### Remaining risk
+- <risk or "None known">
+```
+
 Once all checks pass, append **one line** to `.platform/memory/log.md`:
 ```
 YYYY-MM-DD — <task> — <outcome> — <takeaway>
@@ -172,14 +208,14 @@ One sentence of takeaway. Not a paragraph. Not a retrospective.
 
 ## Hard rules (non-negotiable)
 
-1. **No `.md` artifacts for plans.** Plans live in chat. Stream files and `.platform/work/qa/<stream-slug>-manual-qa.md` QA artifacts are required operational state, not plan documents.
+1. **No `.md` artifacts for plans.** Plans live in chat. Stream files, `.platform/work/qa/<stream-slug>-manual-qa.md` QA artifacts, and `.platform/work/qa/<stream-slug>-execution-journal.md` execution journals are required operational state, not plan documents.
 2. **Read before you edit.** No exceptions.
 3. **Parallelize subagents.** Never run independent subagents sequentially.
 4. **Trivial non-stream tasks skip Stages 2–4. New streams still get scaled research and human approval.**
 5. **Every success logs one line** to `.platform/memory/log.md`.
 6. **New streams and high-risk tasks require explicit user approval** between Stage 4 and Stage 5.
 7. **Max ~300 lines per file.**
-8. **Manual QA artifact required when human verification matters.** Otherwise record why manual QA is not required in the stream file.
+8. **Manual QA artifact required when human verification matters.** Otherwise record why manual QA is not required in the stream file. Interactive LLM-driven QA also requires a QA Execution Journal.
 9. **Feature, bugfix, and hotfix implementation happens in isolated worktrees.** Dependencies and localhost ports are identified before coding.
 10. **Workflow script self-audit — mandatory before every `Workflow()` call.** Before submitting any workflow script, scan every `agent(` call in the script and verify it has an explicit `model:` parameter. Fix any that are missing before calling `Workflow()`. No exceptions — omitting `model` makes every agent inherit the caller's tier, turning a 10-agent fan-out into a 10× token burn for no quality gain. Rule of thumb: research/audit/review/test-writing → `"sonnet"` · implementation/architecture → `"opus"` · trivial mechanical transforms → `"haiku"`.
 
@@ -193,7 +229,7 @@ Progress markers in chat at each stage transition:
   1. …
   2. …
 [Stage 5] Executing…
-[Stage 6] Verified. Logged. Manual QA artifact: <path | not required + reason>
+[Stage 6] Verified. Logged. Manual QA artifact: <path | not required + reason>; QA execution journal: <path | not interactive + reason>
 ```
 
 One line per marker. No prose fluff between them.

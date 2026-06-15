@@ -17,6 +17,8 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 
 ---
 
+2026-06-15 — closed stream qa-execution-journal → ./.platform/work/archive/qa-execution-journal.md (by danilulmashev)
+
 2026-06-14 — closed stream manual-qa-artifact-gate → ./.platform/work/archive/manual-qa-artifact-gate.md (by danilulmashev)
 
 2026-06-14 — closed stream silicon-valley-mindset → ./.platform/work/archive/silicon-valley-mindset.md (by danilulmashev)
@@ -75,3 +77,4 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 2026-06-14 — QA self-heal skill/role — added `ab-qa-self-heal` and `qa-automation-engineer`, wired provider skill lists and role routing, and locked safety/report/install contracts for Maestro/browser/app-driving loops
 2026-06-14 — Silicon Valley product mindset — added provider-neutral workflow, role, root-entry, and contract-test coverage so PM/engineering agents pursue best-in-class product ambition with explicit scope and approval guardrails
 2026-06-15 — manual QA artifact gate — upgraded manual QA from chat-only final plan to stream-scoped markdown artifact gate with archived QA history — future agents must ship with executable QA evidence or a documented not-required reason
+2026-06-15 — QA execution journal — added a chronological journal requirement for LLM-driven interactive QA so Maestro/browser agents document what they did, saw, fixed, retested, passed, skipped, and escalated

@@ -81,6 +81,26 @@ test_live_entry_files_require_manual_qa_artifacts() {
   done
 }
 
+test_all_entry_templates_require_qa_execution_journals() {
+  for t in "$CLAUDE_TMPL" "$AGENTS_TMPL" "$GEMINI_TMPL"; do
+    [[ -f "$t" ]] || fail "$t missing"
+    assert_file_contains "$t" "QA execution journal rule"
+    assert_file_contains "$t" ".platform/work/qa/<stream-slug>-execution-journal.md"
+    assert_file_contains "$t" "Document every meaningful step from the agent perspective"
+    assert_file_contains "$t" "the journal is the chronological trace"
+  done
+}
+
+test_live_entry_files_require_qa_execution_journals() {
+  for t in "$CLAUDE_LIVE" "$AGENTS_LIVE" "$GEMINI_LIVE"; do
+    [[ -f "$t" ]] || fail "$t missing"
+    assert_file_contains "$t" "QA execution journal rule"
+    assert_file_contains "$t" ".platform/work/qa/<stream-slug>-execution-journal.md"
+    assert_file_contains "$t" "Document every meaningful step from the agent perspective"
+    assert_file_contains "$t" "the journal is the chronological trace"
+  done
+}
+
 test_live_entry_files_require_worktree_branch_prep() {
   for t in "$CLAUDE_LIVE" "$AGENTS_LIVE" "$GEMINI_LIVE"; do
     [[ -f "$t" ]] || fail "$t missing"
@@ -100,4 +120,6 @@ test_all_entry_templates_require_research_first_new_streams
 test_all_entry_templates_require_manual_qa_artifacts
 test_all_entry_templates_require_worktree_branch_prep
 test_live_entry_files_require_manual_qa_artifacts
+test_all_entry_templates_require_qa_execution_journals
+test_live_entry_files_require_qa_execution_journals
 test_live_entry_files_require_worktree_branch_prep
