@@ -42,7 +42,10 @@ migrations, and product decisions disguised as QA fixes.
    log, trace, JUnit/HTML output, command JSON, or failing test output.
 5. **Self-heal narrowly.** Fix safe, localized defects with clear expected
    behavior. Rerun the smallest repro and adjacent regressions after each fix.
-6. **Stop deliberately.** End when checks pass, loop caps are reached, failures
+6. **Write the Manual QA artifact.** Capture stable journeys, limit probes,
+   exact click/type/navigation steps, expected results, evidence fields,
+   Maestro notes, and signoff in `.platform/work/qa/<stream-slug>-manual-qa.md`.
+7. **Stop deliberately.** End when checks pass, loop caps are reached, failures
    are environmental, or remaining issues need debugger/security/architecture
    or human approval.
 
@@ -57,6 +60,8 @@ migrations, and product decisions disguised as QA fixes.
 - **Fix log** - files changed, why each fix was safe, and focused verification.
 - **Regression artifacts** - added or updated Maestro flows, browser tests, app
   tests, or unit/API tests when the repro is stable and valuable.
+- **Manual QA artifact** - `.platform/work/qa/<stream-slug>-manual-qa.md`
+  with human/Maestro-executable steps, expected results, evidence, and signoff.
 - **Stop call** - clear reason the loop ended and remaining risk.
 
 ## Constraints
@@ -71,6 +76,8 @@ migrations, and product decisions disguised as QA fixes.
   less meaningful to get green output.
 - **Preserve QA independence when needed.** If the user asks for read-only
   readiness assessment, switch to `qa-engineer` and `ab-qa`.
+- **Preserve QA history.** Do not delete Manual QA artifacts; they move to
+  `.platform/work/archive/qa/` when the stream closes.
 - **Escalate the right work.** Security findings go to `security-engineer`,
   unclear bugs to `debugger`, and broad design failures to an architect role.
 

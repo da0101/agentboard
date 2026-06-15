@@ -158,17 +158,18 @@ Skip for: formatting, typo fixes, obvious renames. Required for: refactors, dele
 
 ### 6. Verify + Gate + Learn
 
-#### The commit gate — required before ANY `git commit`
+#### The commit gate — required before ANY `git commit`, `git push`, merge, release, or stream closure
 
-All three must be true before committing:
+All four must be true before committing, pushing, merging, releasing, or closing a stream:
 
 | Gate | Requirement |
 |---|---|
 | ✅ Tests pass | Unit tests for every new/modified function and component |
 | ✅ Security clear | Quick pass on anything touching auth, payments, or data access |
+| ✅ Manual QA artifact clear | If human/app-driving verification matters, `.platform/work/qa/<stream-slug>-manual-qa.md` exists and is executable by a human tester or Maestro-style agent; otherwise the stream file records `Manual QA: not required — <specific reason>` |
 | ✅ Human approves | User explicitly says "ship it" / "commit it" — the AI never self-approves |
 
-Present Stage 6 results to the user **before committing**. Wait for the green light.
+Present Stage 6 results and the Manual QA artifact path or not-required reason to the user **before committing, pushing, merging, releasing, or closing**. Wait for the green light.
 
 #### Testing philosophy — when and how to write tests
 
@@ -204,22 +205,30 @@ Then verify in parallel:
 - Specialist B: security / code review pass (for anything security-sensitive)
 - Specialist C: real-browser QA (for UI changes)
 
-#### Manual QA plan — required when human verification matters
+#### Manual QA artifact — required when human verification matters
 
-At the end of Stage 6, the agent must include a guided manual QA plan whenever the task requires human click-through, behavior verification, bug reproduction, acceptance testing, or visual review. If manual QA is not relevant, explicitly state `Manual QA: not required` and give the reason.
+At the end of Stage 6, the agent must create a durable markdown Manual QA artifact whenever the task requires human click-through, app-driving, behavior verification, bug reproduction, acceptance testing, release verification, API behavior validation, or visual review. This is a hard gate before commit, push, merge, release, or stream closure.
 
-The plan must be precise enough for someone who did not implement the work to execute it. Use this structure:
+Default path:
+```
+.platform/work/qa/<stream-slug>-manual-qa.md
+```
+
+The artifact is not a planning `.md`; it is a required QA deliverable. It must be precise enough for someone who did not implement the work to execute it manually, and precise enough for a Maestro/browser/app-driving agent to translate into actions. If manual QA is not relevant, the stream file must explicitly record `Manual QA: not required — <specific reason>`. Do not delete Manual QA artifacts; when a stream closes, archive them with the stream under `.platform/work/archive/qa/`.
+
+Use this structure:
 
 ```
-## 🧪 Manual QA Plan
+## 🧪 Manual QA Artifact
 
 🎯 Scope: <feature / bug / behavior being validated>
 🧰 Environment: <local/staging/prod, URL, branch/build, browser/device, flags>
 🔑 Test data: <accounts, roles, fixtures, records, permissions>
+🛡️ Safety limits: <forbidden actions, rate/API caps, destructive-data rules>
 
 ✅ Happy path
-1. <action> → Expected: <observable result>
-2. <action> → Expected: <observable result>
+1. <exact action: where to click/type/navigate> → Expected: <observable result>
+2. <exact action: where to click/type/navigate> → Expected: <observable result>
 
 🐛 Bug repro / regression
 1. <original failing behavior or regression path> → Expected: <fixed behavior>
@@ -231,6 +240,8 @@ The plan must be precise enough for someone who did not implement the work to ex
 📱 Browser/device checks: <only when relevant>
 ♿ Accessibility checks: <keyboard, focus, labels, contrast when relevant>
 🧾 Evidence to capture: <screenshots, logs, IDs, pass/fail notes>
+🤖 Maestro / automation notes: <stable selectors, flow boundaries, caps, artifacts>
+✅ Signoff: <tester, date, PASS/FAIL/BLOCKED, remaining risk>
 ```
 
 Rules:
@@ -279,15 +290,16 @@ Run this checklist **every time a stream reaches done** — before archiving the
 > **Why:** skipping this leaves stale docs for the next session/agent. Completed features must be fully reflected in all reference files before the stream is archived.
 
 1. **Verify done criteria** — open the stream file (`work/<slug>.md`), confirm every checkbox is ticked.
-2. **Update STATUS files** — for every repo the stream touched, mark features ✓ Done, update Last touched date, remove from Immediate priorities.
-3. **Update domain file** — open `.platform/domains/<name>.md` if one exists. Update file paths, API shapes, cross-repo touch-points that changed.
-4. **Deep-reference file check** — for every repo the stream touched, make an explicit YES/NO decision on whether the per-repo reference file (e.g. `backend.md`, `admin.md`) is now stale. Ask: *"Would a new developer or agent reading this file today take a wrong path?"* Update if YES. Skip if NO. This catches: new URL routes, removed fields, stack changes, patterns that no longer apply. State the decision in chat either way.
-5. **Update architecture.md** — if the stream changed system topology (new endpoints, new data flows, auth changes), update the relevant section.
-6. **Unblock downstream streams** — flip any `pending (blocked on this)` stream in `ACTIVE.md` to `ready-to-plan`.
-7. **Archive the stream file** — first check: does the stream file have `closure_approved: true`? If not, **STOP**. Do not archive. Ask the owner to set it. Only when `closure_approved: true` is present: move `work/<slug>.md` → `work/archive/<slug>.md`, remove from `ACTIVE.md`, reset `BRIEF.md`. **Remove the closed stream from `BRIEF.md` entirely — do NOT add a "Previously completed" section.** Completed work belongs in `log.md` only. `BRIEF.md` must only ever list active streams.
-8. **Log token usage** — run `ab usage log` to record the total token investment for this stream (aggregate from session reports).
-9. **Append to log.md** — one line: `YYYY-MM-DD — <stream> — <outcome> — <takeaway>`.
-10. **Learnings check** — any non-obvious bugs surfaced? Confirm they are in `learnings.md`. Add if missing.
+2. **Verify Manual QA artifact gate** — if human/app-driving verification matters, confirm `.platform/work/qa/<stream-slug>-manual-qa.md` exists, has exact steps plus expected results, and records pass/fail/evidence expectations. If not relevant, confirm the stream file records `Manual QA: not required — <specific reason>`.
+3. **Update STATUS files** — for every repo the stream touched, mark features ✓ Done, update Last touched date, remove from Immediate priorities.
+4. **Update domain file** — open `.platform/domains/<name>.md` if one exists. Update file paths, API shapes, cross-repo touch-points that changed.
+5. **Deep-reference file check** — for every repo the stream touched, make an explicit YES/NO decision on whether the per-repo reference file (e.g. `backend.md`, `admin.md`) is now stale. Ask: *"Would a new developer or agent reading this file today take a wrong path?"* Update if YES. Skip if NO. This catches: new URL routes, removed fields, stack changes, patterns that no longer apply. State the decision in chat either way.
+6. **Update architecture.md** — if the stream changed system topology (new endpoints, new data flows, auth changes), update the relevant section.
+7. **Unblock downstream streams** — flip any `pending (blocked on this)` stream in `ACTIVE.md` to `ready-to-plan`.
+8. **Archive the stream file and QA artifact** — first check: does the stream file have `closure_approved: true`? If not, **STOP**. Do not archive. Ask the owner to set it. Only when `closure_approved: true` is present: move `work/<slug>.md` → `work/archive/<slug>.md`; if `.platform/work/qa/<slug>-manual-qa.md` exists, move it to `.platform/work/archive/qa/<slug>-manual-qa.md` and keep the archived stream pointing to it. Remove the stream from `ACTIVE.md`, reset `BRIEF.md`. **Remove the closed stream from `BRIEF.md` entirely — do NOT add a "Previously completed" section.** Completed work belongs in `log.md` only. `BRIEF.md` must only ever list active streams.
+9. **Log token usage** — run `ab usage log` to record the total token investment for this stream (aggregate from session reports).
+10. **Append to log.md** — one line: `YYYY-MM-DD — <stream> — <outcome> — <takeaway>`.
+11. **Learnings check** — any non-obvious bugs surfaced? Confirm they are in `learnings.md`. Add if missing.
 
 **Hard rule:** steps 2–5 are not optional. If a stream touched 3 repos, all 3 STATUS files get updated and all 3 deep-reference files get an explicit YES/NO decision. The next agent should be able to open any reference file and see a correct picture of the world.
 
@@ -475,14 +487,14 @@ Repeat until the scorecard is all 🟢:
 
 ## Hard rules
 
-1. **No `.md` artifacts for plans.** Plans live in chat. Only write `.md` files when they're genuinely reusable (specs, docs, conventions). **`work/` stream files are the exception — they are mandatory operational state, not plan documents. Always create them (Stage 1b) before starting non-trivial work.**
+1. **No `.md` artifacts for plans.** Plans live in chat. Only write `.md` files when they're genuinely reusable (specs, docs, conventions). **`work/` stream files and `.platform/work/qa/<stream-slug>-manual-qa.md` QA artifacts are exceptions — they are mandatory operational state, not plan documents. Always create required stream files (Stage 1b) and QA artifacts (Stage 6) before shipping.**
 2. **Max ~300 lines per file.** Extract components before hitting the limit.
 3. **Trivial tasks skip to Stage 5.** Don't bureaucratize small work.
 4. **Parallelize subagents.** Never run independent subagents sequentially.
 5. **Every success logs one line.** `.platform/memory/log.md` is append-only, newest-on-top.
 6. **Read before you edit.** Always read the file before modifying it, even if you "know" the content.
 7. **Ask before destructive actions.** Deletes, force-pushes, rollbacks, schema drops — always confirm.
-8. **Never commit before Stage 6 + human approval.** Execute produces code. Stage 6 + the human produces the commit. No exceptions — not even for "trivial" changes.
+8. **Never commit, push, merge, release, or close before Stage 6 + Manual QA artifact gate + human approval.** Execute produces code. Stage 6 produces tests and QA evidence. The human produces the commit/release/closure approval. No exceptions — not even for "trivial" changes.
 9. **Never include `git commit` in sub-agent prompts.** Agents write code and stop. If an agent is told to commit, it bypasses tests and human approval — exactly the failure mode this rule prevents.
 
 ---

@@ -4,6 +4,8 @@ description: "Quality assurance pass — manual or real-browser testing of a fea
 argument-hint: "<feature or URL to test>"
 allowed-tools:
   - Read
+  - Write
+  - Edit
   - Bash
   - Grep
   - Glob
@@ -104,7 +106,7 @@ This is a spot check, not a full WCAG audit. Flag issues, don't block on them un
 - **Touch targets:** are buttons at least 44×44?
 - **Hover-only affordances:** are there any? (there shouldn't be)
 
-### Step 7 — Produce the report
+### Step 7 — Produce the report and Manual QA artifact
 
 ```
 ## QA report: <feature>
@@ -152,18 +154,25 @@ Time: <timestamp>
 [READY TO SHIP / NEEDS FIXES / BLOCKED]
 ```
 
-Also include a tester-facing manual plan that the main agent can paste into its Stage 6 final response:
+Also create or update a durable tester-facing Manual QA artifact. Default path:
 
 ```
-## 🧪 Manual QA Plan
+.platform/work/qa/<stream-slug>-manual-qa.md
+```
+
+This artifact is required when human/app-driving verification matters and is a gate before commit, push, merge, release, or stream closure. It must be executable by a human QA tester or Maestro-style app-driving agent:
+
+```
+## 🧪 Manual QA Artifact
 
 🎯 Scope: <feature / bug / behavior being validated>
 🧰 Environment: <local/staging/prod, URL, branch/build, browser/device, flags>
 🔑 Test data: <accounts, roles, fixtures, records, permissions>
+🛡️ Safety limits: <forbidden actions, rate/API caps, destructive-data rules>
 
 ✅ Happy path
-1. <action> → Expected: <observable result>
-2. <action> → Expected: <observable result>
+1. <exact action: where to click/type/navigate> → Expected: <observable result>
+2. <exact action: where to click/type/navigate> → Expected: <observable result>
 
 🐛 Bug repro / regression
 1. <original failing behavior or regression path> → Expected: <fixed behavior>
@@ -175,6 +184,8 @@ Also include a tester-facing manual plan that the main agent can paste into its 
 📱 Browser/device checks: <only when relevant>
 ♿ Accessibility checks: <keyboard, focus, labels, contrast when relevant>
 🧾 Evidence to capture: <screenshots, logs, IDs, pass/fail notes>
+🤖 Maestro / automation notes: <stable selectors, flow boundaries, caps, artifacts>
+✅ Signoff: <tester, date, PASS/FAIL/BLOCKED, remaining risk>
 ```
 
 ### Step 8 — Decide
@@ -207,6 +218,7 @@ Also include a tester-facing manual plan that the main agent can paste into its 
 4. **Cover all 6 edge-case buckets.** Empty / error / loading / boundary / interrupted / permissions.
 5. **Record the environment.** Non-reproducible bugs are noise.
 6. **The verdict is one of three.** READY / NEEDS FIXES / BLOCKED. No "mostly ready".
+7. **Manual QA artifact is required for human/app-driving verification.** If not relevant, the stream file must record `Manual QA: not required — <specific reason>`.
 
 ## Model profile
 

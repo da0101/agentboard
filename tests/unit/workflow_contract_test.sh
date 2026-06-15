@@ -27,15 +27,30 @@ test_skills_match_new_stream_research_and_approval_contract() {
   assert_file_contains "$AB_TRIAGE" "research, worktree/local-environment prep, and human approval are mandatory"
 }
 
-test_workflow_requires_manual_qa_plan_when_human_verification_matters() {
-  assert_file_contains "$WORKFLOW" "Manual QA plan — required when human verification matters"
-  assert_file_contains "$WORKFLOW" "## 🧪 Manual QA Plan"
+test_workflow_requires_manual_qa_artifact_when_human_verification_matters() {
+  assert_file_contains "$WORKFLOW" "Manual QA artifact — required when human verification matters"
+  assert_file_contains "$WORKFLOW" ".platform/work/qa/<stream-slug>-manual-qa.md"
+  assert_file_contains "$WORKFLOW" ".platform/work/archive/qa/"
+  assert_file_contains "$WORKFLOW" 'The artifact is not a planning `.md`'
+  assert_file_contains "$WORKFLOW" "## 🧪 Manual QA Artifact"
   assert_file_contains "$WORKFLOW" "Manual QA: not required"
   assert_file_contains "$WORKFLOW" "Bug repro / regression"
-  assert_file_contains "$AB_WORKFLOW" "Manual QA Plan"
+  assert_file_contains "$WORKFLOW" "Maestro / automation notes"
+  assert_file_contains "$WORKFLOW" "pass/fail/evidence expectations"
+  assert_file_contains "$AB_WORKFLOW" "Manual QA artifact"
+  assert_file_contains "$AB_WORKFLOW" ".platform/work/qa/<stream-slug>-manual-qa.md"
   assert_file_contains "$AB_WORKFLOW" "Manual QA: not required"
-  assert_file_contains "$AB_QA" "tester-facing manual plan"
+  assert_file_contains "$AB_QA" "durable tester-facing Manual QA artifact"
   assert_file_contains "$AB_QA" "Evidence to capture"
+  assert_file_contains "$AB_QA" "Signoff"
+}
+
+test_workflow_blocks_shipping_until_manual_qa_artifact_gate_clears() {
+  assert_file_contains "$WORKFLOW" 'required before ANY `git commit`, `git push`, merge, release, or stream closure'
+  assert_file_contains "$WORKFLOW" "Manual QA artifact clear"
+  assert_file_contains "$WORKFLOW" "before committing, pushing, merging, releasing, or closing"
+  assert_file_contains "$WORKFLOW" "Never commit, push, merge, release, or close before Stage 6 + Manual QA artifact gate + human approval"
+  assert_file_contains "$WORKFLOW" "Archive the stream file and QA artifact"
 }
 
 test_workflow_requires_worktree_branch_and_local_env_prep() {
@@ -57,5 +72,6 @@ test_workflow_requires_worktree_branch_and_local_env_prep() {
 
 test_workflow_requires_research_first_new_stream_intake
 test_skills_match_new_stream_research_and_approval_contract
-test_workflow_requires_manual_qa_plan_when_human_verification_matters
+test_workflow_requires_manual_qa_artifact_when_human_verification_matters
+test_workflow_blocks_shipping_until_manual_qa_artifact_gate_clears
 test_workflow_requires_worktree_branch_and_local_env_prep

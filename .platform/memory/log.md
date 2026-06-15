@@ -17,6 +17,10 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 
 ---
 
+2026-06-14 — closed stream manual-qa-artifact-gate → ./.platform/work/archive/manual-qa-artifact-gate.md (by danilulmashev)
+
+2026-06-14 — closed stream silicon-valley-mindset → ./.platform/work/archive/silicon-valley-mindset.md (by danilulmashev)
+
 2026-05-13 — closed stream sync-command-fallback → ./.platform/work/archive/sync-command-fallback.md (by danilulmashev)
 
 2026-05-13 — closed stream manual-qa-plan-workflow → ./.platform/work/archive/manual-qa-plan-workflow.md (by danilulmashev)
@@ -70,3 +74,4 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 2026-06-13 — code cleanup skill/role — added `ab-cleanup` and `code-cleanup-engineer`, wired role routing/provider skill lists, carried main-side Graphify source/runtime files forward, and ignored `.platform/graphify/cache/`
 2026-06-14 — QA self-heal skill/role — added `ab-qa-self-heal` and `qa-automation-engineer`, wired provider skill lists and role routing, and locked safety/report/install contracts for Maestro/browser/app-driving loops
 2026-06-14 — Silicon Valley product mindset — added provider-neutral workflow, role, root-entry, and contract-test coverage so PM/engineering agents pursue best-in-class product ambition with explicit scope and approval guardrails
+2026-06-15 — manual QA artifact gate — upgraded manual QA from chat-only final plan to stream-scoped markdown artifact gate with archived QA history — future agents must ship with executable QA evidence or a documented not-required reason

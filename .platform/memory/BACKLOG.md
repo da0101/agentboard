@@ -25,7 +25,7 @@ _Nothing yet._
 
 ## Medium
 
-_Nothing yet._
+| medium | knowledge-archive | Design and implement an Obsidian-inspired archive/learning layer for closed streams, QA artifacts, and long logs: keep active work hot, retain recent archive, harvest durable lessons into memory, compact old raw artifacts to cold storage, maintain searchable indexes, and evaluate SQLite FTS before any optional RAG/vector DB. | manual-qa-artifact-gate | 2026-06-15 |
 
 ---
 

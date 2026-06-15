@@ -185,8 +185,10 @@ Loop cap:
 ### Stop reason
 <why the loop stopped>
 
-## Manual QA Plan
-<tester-facing plan, or "Manual QA: not required" with reason>
+## Manual QA Artifact
+Path: `.platform/work/qa/<stream-slug>-manual-qa.md`
+
+<tester-facing artifact with exact click/type/navigation steps, expected results, safety limits, evidence requirements, Maestro/automation notes, and signoff fields; or record `Manual QA: not required — <specific reason>` in the stream file>
 ```
 
 ## Maestro-specific guidance
@@ -198,6 +200,7 @@ When Maestro is present:
 - Keep flows small, named, and tagged by risk or feature.
 - Capture screenshots before and after surprising UI states.
 - Save reports under a project-local ignored artifact directory when the repo has one.
+- Mirror stable exploratory journeys into the Manual QA artifact so a human tester or Maestro agent can rerun the same steps without relying on chat history.
 
 ## Hard rules
 
@@ -207,9 +210,10 @@ When Maestro is present:
 4. Do not keep fixing after the loop cap. Report the stop reason.
 5. Do not convert every exploratory click into a test. Only stable, valuable regressions become automation.
 6. Do not weaken tests or assertions to make the report green.
+7. Do not finish a human/app-driving QA stream without a durable `.platform/work/qa/<stream-slug>-manual-qa.md` artifact or a stream-file `Manual QA: not required — <specific reason>` entry.
 
 ## Integration
 
 - **Upstream:** `ab-workflow` Stage 6, user-requested Maestro/browser/manual QA, or a release-hardening pass.
 - **Pairs with:** `qa-automation-engineer` role, `ab-debug` for root-cause bugs, `ab-security` for exploit risk, `ab-review` before merge.
-- **Outputs:** evidence-backed QA self-heal report, scoped fixes, focused regression artifacts, manual QA plan.
+- **Outputs:** evidence-backed QA self-heal report, scoped fixes, focused regression artifacts, Manual QA artifact.

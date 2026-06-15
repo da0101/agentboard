@@ -21,7 +21,9 @@ test_qa_self_heal_skill_exists_in_all_installed_locations() {
     assert_file_contains "$file" "report"
     assert_file_contains "$file" "Do not stress production"
     assert_file_contains "$file" "explicit caps and approval"
-    assert_file_contains "$file" "## Manual QA Plan"
+    assert_file_contains "$file" "## Manual QA Artifact"
+    assert_file_contains "$file" ".platform/work/qa/<stream-slug>-manual-qa.md"
+    assert_file_contains "$file" "human tester or Maestro agent"
   done
 }
 
