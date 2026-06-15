@@ -132,19 +132,22 @@ Parallelize verification. Fire in one round:
 
 If any check fails, loop back to Stage 5.
 
-Before the final response, produce a **Manual QA Plan** whenever the task needs human click-through, behavior verification, bug reproduction, acceptance testing, or visual review. If manual QA is not relevant, state `Manual QA: not required` with the reason.
+Before the final response, create or update a durable **Manual QA artifact** whenever the task needs human click-through, app-driving, behavior verification, bug reproduction, acceptance testing, release verification, API behavior validation, or visual review. The default path is `.platform/work/qa/<stream-slug>-manual-qa.md`.
 
-Manual QA plan format:
+The Manual QA artifact is a hard gate before commit, push, merge, release, or stream closure. If manual QA is not relevant, record `Manual QA: not required — <specific reason>` in the stream file and mention that reason in the final response.
+
+Manual QA artifact format:
 ```
-## 🧪 Manual QA Plan
+## 🧪 Manual QA Artifact
 
 🎯 Scope: <feature / bug / behavior being validated>
 🧰 Environment: <local/staging/prod, URL, branch/build, browser/device, flags>
 🔑 Test data: <accounts, roles, fixtures, records, permissions>
+🛡️ Safety limits: <forbidden actions, rate/API caps, destructive-data rules>
 
 ✅ Happy path
-1. <action> → Expected: <observable result>
-2. <action> → Expected: <observable result>
+1. <exact action: where to click/type/navigate> → Expected: <observable result>
+2. <exact action: where to click/type/navigate> → Expected: <observable result>
 
 🐛 Bug repro / regression
 1. <original failing behavior or regression path> → Expected: <fixed behavior>
@@ -156,6 +159,8 @@ Manual QA plan format:
 📱 Browser/device checks: <only when relevant>
 ♿ Accessibility checks: <keyboard, focus, labels, contrast when relevant>
 🧾 Evidence to capture: <screenshots, logs, IDs, pass/fail notes>
+🤖 Maestro / automation notes: <stable selectors, flow boundaries, caps, artifacts>
+✅ Signoff: <tester, date, PASS/FAIL/BLOCKED, remaining risk>
 ```
 
 Once all checks pass, append **one line** to `.platform/memory/log.md`:
@@ -167,14 +172,14 @@ One sentence of takeaway. Not a paragraph. Not a retrospective.
 
 ## Hard rules (non-negotiable)
 
-1. **No `.md` artifacts for plans.** Ever. Plans live in chat.
+1. **No `.md` artifacts for plans.** Plans live in chat. Stream files and `.platform/work/qa/<stream-slug>-manual-qa.md` QA artifacts are required operational state, not plan documents.
 2. **Read before you edit.** No exceptions.
 3. **Parallelize subagents.** Never run independent subagents sequentially.
 4. **Trivial non-stream tasks skip Stages 2–4. New streams still get scaled research and human approval.**
 5. **Every success logs one line** to `.platform/memory/log.md`.
 6. **New streams and high-risk tasks require explicit user approval** between Stage 4 and Stage 5.
 7. **Max ~300 lines per file.**
-8. **Manual QA plan required when human verification matters.** Otherwise state why manual QA is not required.
+8. **Manual QA artifact required when human verification matters.** Otherwise record why manual QA is not required in the stream file.
 9. **Feature, bugfix, and hotfix implementation happens in isolated worktrees.** Dependencies and localhost ports are identified before coding.
 10. **Workflow script self-audit — mandatory before every `Workflow()` call.** Before submitting any workflow script, scan every `agent(` call in the script and verify it has an explicit `model:` parameter. Fix any that are missing before calling `Workflow()`. No exceptions — omitting `model` makes every agent inherit the caller's tier, turning a 10-agent fan-out into a 10× token burn for no quality gain. Rule of thumb: research/audit/review/test-writing → `"sonnet"` · implementation/architecture → `"opus"` · trivial mechanical transforms → `"haiku"`.
 
@@ -188,7 +193,7 @@ Progress markers in chat at each stage transition:
   1. …
   2. …
 [Stage 5] Executing…
-[Stage 6] Verified. Logged. Manual QA plan: <included | not required + reason>
+[Stage 6] Verified. Logged. Manual QA artifact: <path | not required + reason>
 ```
 
 One line per marker. No prose fluff between them.

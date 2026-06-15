@@ -44,13 +44,15 @@ test_all_entry_templates_require_research_first_new_streams() {
   done
 }
 
-test_all_entry_templates_require_manual_qa_plans() {
+test_all_entry_templates_require_manual_qa_artifacts() {
   for t in "$CLAUDE_TMPL" "$AGENTS_TMPL" "$GEMINI_TMPL"; do
     [[ -f "$t" ]] || fail "$t missing"
-    assert_file_contains "$t" "Manual QA plan rule"
-    assert_file_contains "$t" "## 🧪 Manual QA Plan"
+    assert_file_contains "$t" "Manual QA artifact rule"
+    assert_file_contains "$t" ".platform/work/qa/<stream-slug>-manual-qa.md"
+    assert_file_contains "$t" "commit, push, merge, release, or stream closure"
     assert_file_contains "$t" "bug repro/regression steps"
     assert_file_contains "$t" "Manual QA: not required"
+    assert_file_contains "$t" ".platform/work/archive/qa/"
   done
 }
 
@@ -68,12 +70,14 @@ test_all_entry_templates_require_worktree_branch_prep() {
   done
 }
 
-test_live_entry_files_require_manual_qa_plans() {
+test_live_entry_files_require_manual_qa_artifacts() {
   for t in "$CLAUDE_LIVE" "$AGENTS_LIVE" "$GEMINI_LIVE"; do
     [[ -f "$t" ]] || fail "$t missing"
-    assert_file_contains "$t" "## 🧪 Manual QA Plan"
+    assert_file_contains "$t" ".platform/work/qa/<stream-slug>-manual-qa.md"
+    assert_file_contains "$t" "commit, push, merge, release, or stream closure"
     assert_file_contains "$t" "bug repro/regression steps"
     assert_file_contains "$t" "Manual QA: not required"
+    assert_file_contains "$t" ".platform/work/archive/qa/"
   done
 }
 
@@ -93,7 +97,7 @@ test_all_entry_templates_reference_handoff_on_session_start
 test_all_entry_templates_reference_checkpoint_before_handoff
 test_all_entry_templates_reference_resume_state
 test_all_entry_templates_require_research_first_new_streams
-test_all_entry_templates_require_manual_qa_plans
+test_all_entry_templates_require_manual_qa_artifacts
 test_all_entry_templates_require_worktree_branch_prep
-test_live_entry_files_require_manual_qa_plans
+test_live_entry_files_require_manual_qa_artifacts
 test_live_entry_files_require_worktree_branch_prep

@@ -41,9 +41,13 @@ security flaws is `security-engineer`.
 3. **Execute or specify.** Run what can be run and record actual results; for
    what can't be automated here, write manual steps precise enough that
    someone else gets the same result.
-4. **Report with severity** — every finding gets severity, exact repro steps,
+4. **Create the Manual QA artifact.** For any stream that needs human or
+   app-driving verification, write `.platform/work/qa/<stream-slug>-manual-qa.md`
+   with exact steps, expected results, evidence fields, and signoff. This file
+   is preserved and archived with the closed stream.
+5. **Report with severity** — every finding gets severity, exact repro steps,
    expected vs actual, and evidence (output, screenshot, failing test).
-5. **Make the call** — ship, ship-with-known-issues, or no-ship, with the
+6. **Make the call** — ship, ship-with-known-issues, or no-ship, with the
    reasoning that lets the human overrule you intelligently.
 
 ## Deliverables — every engagement produces
@@ -53,6 +57,9 @@ security flaws is `security-engineer`.
   with their pass/fail output
 - **Edge-case register** — the non-obvious cases considered, each marked
   tested / untested / not-applicable
+- **Manual QA artifact** — `.platform/work/qa/<stream-slug>-manual-qa.md`
+  when manual verification matters, or a stream-file `Manual QA: not required`
+  reason when it does not
 - **Ship/no-ship recommendation** — with reasoning and any conditions
 
 ## Constraints
@@ -63,6 +70,8 @@ security flaws is `security-engineer`.
   reproduced, report it as "observed, not reproduced" with everything known.
 - "All tests pass" only means something next to what the tests cover — state
   coverage honestly, including what was not tested.
+- Do not delete Manual QA artifacts. They are archived with closed streams
+  under `.platform/work/archive/qa/` for regression reference.
 - Pairs naturally with the `ab-qa` skill for browser-level acceptance runs.
 
 ## Model

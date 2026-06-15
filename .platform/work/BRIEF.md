@@ -4,55 +4,48 @@
 > 30-second orientation: what we're building, why, and where we stand.
 > Replace entirely when the active feature changes. Keep ≤60 lines.
 
-**Feature:** silicon-valley-mindset
-**Status:** awaiting-verification
-**Stream file:** `.platform/work/silicon-valley-mindset.md`
+**Feature:** active stream review
+**Status:** two streams awaiting verification
+**Stream file:** see `.platform/work/ACTIVE.md`
 
 ---
 
 ## What we're building
 
-We are adding a durable Agentboard mindset rule so PM and engineering agents approach product work like leading Silicon Valley product teams: ambitious, future-facing, user-obsessed, craft-driven, and execution-minded.
+No single primary implementation stream is active. The Manual QA artifact gate
+and Silicon Valley product mindset streams are closed and archived.
 
 ## Why
 
-The owner wants every agent to raise the bar beyond basic task completion: think ahead, build for standout product quality, and push toward innovative, best-in-class outcomes without losing execution discipline.
+The remaining active rows are prior streams that are still awaiting owner
+verification:
 
-## What done looks like
-
-- The rule appears in shipped process/role templates read by future Claude, Codex, and Gemini sessions.
-- PM and engineering roles frame work through user value, product differentiation, craft, and future leverage.
-- The rule includes guardrails against vague hype or unapproved scope creep.
-- Tests or contract checks cover the shipped wording if appropriate.
-
-## Architecture decisions locked
-
-- Ambition must be paired with disciplined scope, tests, and approval gates.
-- "Silicon Valley mindset" means best-in-class product thinking and execution, not adding unapproved features.
+- `code-cleanup-skill-role`
+- `qa-self-heal-maestro`
 
 ## Current state
 
-Implementation is complete in `/private/tmp/agentboard-silicon-valley-mindset` on `feature/silicon-valley-mindset`. Focused contract tests pass; the full unit suite has unrelated daemon startup failures in `daemon_test.sh`, `lock_test.sh`, and `log_reason_test.sh`.
+Recent completed streams:
 
-See `work/ACTIVE.md` for stream status.
+- `manual-qa-artifact-gate` archived at
+  `.platform/work/archive/manual-qa-artifact-gate.md`
+- `silicon-valley-mindset` archived at
+  `.platform/work/archive/silicon-valley-mindset.md`
+
+Manual QA artifact evidence for the QA gate stream is archived at:
+
+- `.platform/work/archive/qa/manual-qa-artifact-gate-manual-qa.md`
 
 ## Relevant context
 
 > Only load files relevant to the next task. Do not auto-load archived streams.
 
-**Primary stream:** `.platform/work/silicon-valley-mindset.md`
-**Domain:** `.platform/domains/product-engineering-mindset.md`
-**Do not load:** unrelated archived stream files
-**Never load:** `work/archive/*`
+**Active streams:** `.platform/work/ACTIVE.md`
+**Do not load:** `work/archive/*` unless explicitly asked or closing/auditing
+**Never load:** unrelated `BACKLOG.md` or `learnings.md` at session start
 
 ## Key files
 
 - `.platform/work/ACTIVE.md`
-- `.platform/work/silicon-valley-mindset.md`
-- `.platform/domains/product-engineering-mindset.md`
-- `templates/platform/workflow.md`
-- `templates/platform/roles/`
-- `templates/root/AGENTS.md.template`
-- `templates/root/CLAUDE.md.template`
-- `templates/root/GEMINI.md.template`
-- `.platform/memory/log.md`
+- `.platform/work/code-cleanup-skill-role.md`
+- `.platform/work/qa-self-heal-maestro.md`
