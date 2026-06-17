@@ -1,0 +1,57 @@
+{
+  "name": "agentboard",
+  "displayName": "Agentboard",
+  "description": "Live agentboard session status — streams, agents, cost, risk",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:.platform/work/ACTIVE.md"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentboard",
+          "title": "Agentboard",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agentboard": [
+        {
+          "id": "agentboard.hud",
+          "name": "Session Status"
+        },
+        {
+          "id": "agentboard.streams",
+          "name": "Streams"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "agentboard.refresh",
+        "title": "Agentboard: Refresh Status"
+      },
+      {
+        "command": "agentboard.openBrief",
+        "title": "Agentboard: Open Brief"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

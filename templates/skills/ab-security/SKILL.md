@@ -21,12 +21,7 @@ ANSI terminal color: `\033[38;5;196m[ab-security]\033[0m`
 
 ## Purpose
 
-Before code ships, run a structured security pass that:
-- Catches the boring-but-fatal bugs (SQL injection, cross-tenant leaks, logged secrets, missing auth on an endpoint)
-- Produces actionable findings, not a checklist document
-- Fits in a pre-merge review window (15–30 minutes, not a week)
-
-This skill is **not** a full pentest. It's the 80/20 pass that catches 80% of what a pentest would catch.
+Structured pre-merge security pass: catch the boring-but-fatal bugs (SQLi, cross-tenant leaks, logged secrets, missing auth) and produce actionable findings within a 15–30 minute window. **Not** a full pentest — the 80/20 pass that catches 80% of what a pentest would.
 
 ## When to use
 
@@ -35,6 +30,7 @@ This skill is **not** a full pentest. It's the 80/20 pass that catches 80% of wh
 - Quarterly spot-check on any area that hasn't been audited in 90 days
 - When a dependency vulnerability is announced in a package the project uses
 - When the user asks for a security review
+- When invoked with `--bounty` flag or user says "find all security issues" / "hunt for vulnerabilities"
 
 ## When NOT to use
 
@@ -143,6 +139,22 @@ If there are no critical / high findings, say so explicitly. Do not pad the repo
 
 If critical findings exist, do NOT proceed to merge. Surface them and wait for fixes or an explicit user override.
 
+## Bounty Hunter Mode
+
+Activated by `--bounty` or "find all / hunt for vulnerabilities". Runs after standard protocol or standalone. Goes wider and shallower — maximize surface coverage.
+
+**(a) Secret / token scan** — grep code files for `sk-*`, `ghp_*`, `AKIA*`, `password\s*=`, `secret\s*=`, `api_key\s*=`, `token\s*=`. Verify each hit is not a test fixture before rating severity.
+
+**(b) Dependency audit** — read `package.json`, `requirements.txt`, `Gemfile`, `go.mod`. Flag dependencies pinned >12 months behind latest or with known-suspicious names. Do NOT auto-fetch CVE data — note for manual check.
+
+**(c) Trust boundary map** — trace external inputs (HTTP params, env vars, file uploads, CLI args) to sinks (DB queries, shell commands, file writes, eval). Flag any unvalidated path from input to sink.
+
+**(d) Privilege escalation check** — grep for `sudo`, `setuid`, `CAP_`, `chmod +s`, `RunAsAdmin`. Flag every hit and note whether the usage is intentional.
+
+**(e) Timing attack surface** — flag secret comparisons using `==`, `===`, `.equals()`, or `strcmp`. Constant-time compare (`hmac.compare_digest`, `crypto.timingSafeEqual`) is required for secrets.
+
+**Output:** severity-ranked table with columns `Severity | CWE | Location | Description`. Mark uncertain rows `(unconfirmed)`.
+
 ## Severity rubric
 
 | Severity | Definition | Examples |
@@ -154,11 +166,11 @@ If critical findings exist, do NOT proceed to merge. Surface them and wait for f
 
 ## Red flags — stop immediately
 
-- **Secret committed to git.** Treat as critical regardless of whether it's current. Rotate + force remove from history.
-- **Auth check after side effect** (e.g., database write before auth check). Critical.
-- **Tenant ID from query param** (not from trusted context). Critical.
+- **Secret in git** — critical regardless of age; rotate + force-remove from history.
+- **Auth check after side effect** (write before auth). Critical.
+- **Tenant ID from query param** (not from trusted JWT/session). Critical.
 - **`eval` / `exec` on user input.** Critical.
-- **Shelled-out command with user input in the string.** Critical.
+- **Shell command with user input in the string.** Critical.
 
 ## Hard rules
 
@@ -167,23 +179,22 @@ If critical findings exist, do NOT proceed to merge. Surface them and wait for f
 3. **Critical findings block merge.** No exceptions without explicit user override.
 4. **Never log the fix of a secret** (e.g., don't commit a "fix: removed API key" commit — the key is still in history).
 5. **Do not run exploit payloads** against live systems without explicit authorization.
+6. **In bounty mode, report everything suspicious even if uncertain.** Flag uncertainty explicitly with `(unconfirmed)`. False positives are cheaper than missed vulnerabilities.
 
 ## Model profile
 
-**Sonnet** (`claude-sonnet-4-6`) — security audit is analysis, planning, or
-structured writing. This skill is read-heavy; Opus adds no quality benefit
-and costs 5× more per agent call.
+**Sonnet** — read-heavy analysis; Opus adds no quality benefit and costs 5× more.
 
 ## Integration
 
-- **Upstream:** called by `ab-workflow` Stage 6 for security-sensitive tasks, or directly
+- **Upstream:** `ab-workflow` Stage 6 for security-sensitive tasks, or called directly
 - **Reads:** `.platform/conventions/security.md` (if present) for project-specific rules
 - **Downstream:** findings feed back into Stage 5 for fixes, or block merge if critical
 
 ## Anti-patterns
 
 1. **Checklist-as-document.** Produce findings, not a filled-in checklist file.
-2. **False positives via pattern matching.** If you grep for `password` and flag every hit, you'll get ignored. Verify each finding.
+2. **False positives via pattern matching.** Verify each hit; if you flag every `password` grep you'll get ignored.
 3. **"Defense in depth" as an excuse** for a missing primary control.
 4. **Punting auth checks to the middleware** without verifying the middleware actually runs.
 5. **Marking everything "medium" to avoid hard conversations.** Be honest about severity.

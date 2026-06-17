@@ -1,0 +1,70 @@
+import * as vscode from "vscode";
+import * as path from "path";
+import { HudProvider } from "./hudProvider";
+import { StreamsProvider } from "./streamsProvider";
+
+export function activate(context: vscode.ExtensionContext): void {
+  const workspaceRoot =
+    vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+
+  const hudEmitter = new vscode.EventEmitter<
+    vscode.TreeItem | undefined | null | void
+  >();
+  const streamsEmitter = new vscode.EventEmitter<
+    vscode.TreeItem | undefined | null | void
+  >();
+
+  const hudProvider = new HudProvider(workspaceRoot, hudEmitter);
+  const streamsProvider = new StreamsProvider(workspaceRoot, streamsEmitter);
+
+  context.subscriptions.push(
+    vscode.window.registerTreeDataProvider("agentboard.hud", hudProvider),
+    vscode.window.registerTreeDataProvider(
+      "agentboard.streams",
+      streamsProvider
+    )
+  );
+
+  const hudFile = path.join(workspaceRoot, "agentboard.hud-status.json");
+  const watcher = vscode.workspace.createFileSystemWatcher(hudFile);
+
+  watcher.onDidChange(() => {
+    hudEmitter.fire();
+  });
+  watcher.onDidCreate(() => {
+    hudEmitter.fire();
+  });
+  watcher.onDidDelete(() => {
+    hudEmitter.fire();
+  });
+
+  context.subscriptions.push(watcher);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("agentboard.refresh", () => {
+      hudEmitter.fire();
+      streamsEmitter.fire();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("agentboard.openBrief", async () => {
+      const briefPath = path.join(
+        workspaceRoot,
+        ".platform",
+        "work",
+        "BRIEF.md"
+      );
+      const uri = vscode.Uri.file(briefPath);
+      try {
+        await vscode.window.showTextDocument(uri);
+      } catch {
+        void vscode.window.showErrorMessage(
+          "Could not open BRIEF.md — file may not exist."
+        );
+      }
+    })
+  );
+}
+
+export function deactivate(): void {}
