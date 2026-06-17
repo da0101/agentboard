@@ -70,6 +70,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage_dashboard.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/help.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/validate.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/sync_skills.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/skill_add.sh"
 
 # -----------------------------------------------------------------------------
 # Banner
@@ -136,6 +137,7 @@ main() {
     update)      cmd_update "$@" ;;
     sync)        cmd_sync "$@" ;;
     sync-skills) cmd_sync_skills "$@" ;;
+    skill)       cmd_skill "$@" ;;
     bootstrap)   cmd_bootstrap "$@" ;;
     migrate)     cmd_migrate "$@" ;;
     migrate-layout) cmd_migrate_layout "$@" ;;
