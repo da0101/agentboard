@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { HudProvider } from "./hudProvider";
 import { StreamsProvider } from "./streamsProvider";
+import { CatalogProvider } from "./catalogProvider";
 
 export function activate(context: vscode.ExtensionContext): void {
   const workspaceRoot =
@@ -16,13 +17,15 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const hudProvider = new HudProvider(workspaceRoot, hudEmitter);
   const streamsProvider = new StreamsProvider(workspaceRoot, streamsEmitter);
+  const catalogProvider = new CatalogProvider(workspaceRoot);
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("agentboard.hud", hudProvider),
     vscode.window.registerTreeDataProvider(
       "agentboard.streams",
       streamsProvider
-    )
+    ),
+    vscode.window.registerTreeDataProvider("agentboard.catalog", catalogProvider)
   );
 
   const hudFile = path.join(workspaceRoot, "agentboard.hud-status.json");
@@ -44,6 +47,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("agentboard.refresh", () => {
       hudEmitter.fire();
       streamsEmitter.fire();
+      catalogProvider.refresh();
     })
   );
 

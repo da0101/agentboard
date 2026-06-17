@@ -32,6 +32,10 @@
         {
           "id": "agentboard.streams",
           "name": "Streams"
+        },
+        {
+          "id": "agentboard.catalog",
+          "name": "Catalog"
         }
       ]
     },
