@@ -1,0 +1,10 @@
+{
+  "name": "agentboard",
+  "version": "1.19.0",
+  "description": "Agent context scaffolding kit — scaffold a .platform/ AI-agent context pack into any project",
+  "bin": { "agentboard": "./bin/agentboard-npm" },
+  "scripts": { "test": "bash tests/unit.sh" },
+  "keywords": ["ai", "agent", "claude", "codex", "cursor", "scaffolding", "context"],
+  "license": "MIT",
+  "engines": { "node": ">=16" }
+}

@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "agentboard.hud-status.v1",
+  "description": "Portable live session state contract for agentboard — any HUD tool reads this to render status without coupling to agentboard internals.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "context": {
+      "type": "object",
+      "description": "Current session context: model, repo, branch, and pressure indicators.",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Active model identifier, e.g. claude-sonnet-4-6."
+        },
+        "repo": {
+          "type": "string",
+          "description": "Repository name or path."
+        },
+        "branch": {
+          "type": "string",
+          "description": "Current git branch."
+        },
+        "token_pressure": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"],
+          "description": "Estimated proximity to context window limit."
+        },
+        "active_session_id": {
+          "type": "string",
+          "description": "Opaque session identifier for correlating log entries."
+        }
+      }
+    },
+    "tool_calls": {
+      "type": "object",
+      "description": "Recent and pending tool-call activity in the current session.",
+      "additionalProperties": false,
+      "properties": {
+        "recent": {
+          "type": "array",
+          "description": "Most recent tool calls, newest first.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Tool name, e.g. Bash, Edit, Read."
+              },
+              "status": {
+                "type": "string",
+                "enum": ["success", "error", "running"],
+                "description": "Outcome of the call."
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp of the call."
+              }
+            }
+          }
+        },
+        "pending_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of tool calls currently in flight."
+        }
+      }
+    },
+    "active_agents": {
+      "type": "array",
+      "description": "Agents (subagents, parallel tasks) currently running.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Short human-readable agent label."
+          },
+          "objective": {
+            "type": "string",
+            "description": "One-line description of what this agent is doing."
+          },
+          "phase": {
+            "type": "string",
+            "description": "Current workflow phase, e.g. research, execute, verify."
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when this agent started."
+          }
+        }
+      }
+    },
+    "todos": {
+      "type": "object",
+      "description": "Task completion state for the current session.",
+      "additionalProperties": false,
+      "properties": {
+        "in_progress": {
+          "type": "array",
+          "description": "Tasks currently being worked on.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string",
+                "description": "Task description."
+              },
+              "stream_slug": {
+                "type": "string",
+                "description": "Associated stream slug, if any."
+              }
+            }
+          }
+        },
+        "total_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of todos in the session."
+        },
+        "completed_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of todos marked complete."
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "description": "CI and local test health signals.",
+      "additionalProperties": false,
+      "properties": {
+        "ci_status": {
+          "type": "string",
+          "enum": ["passing", "failing", "pending", "unknown"],
+          "description": "Latest CI pipeline status for the current branch."
+        },
+        "local_tests": {
+          "type": "string",
+          "enum": ["passing", "failing", "pending", "unknown"],
+          "description": "Status of the most recent local test run."
+        },
+        "last_run": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of the most recent test execution."
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "description": "Token and cost accounting for the current session.",
+      "additionalProperties": false,
+      "properties": {
+        "session_usd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total USD cost accumulated this session."
+        },
+        "session_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total tokens consumed this session (input + output)."
+        },
+        "model_breakdown": {
+          "type": "array",
+          "description": "Per-model cost and token breakdown.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "model": {
+                "type": "string",
+                "description": "Model identifier."
+              },
+              "tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tokens consumed by this model."
+              },
+              "usd": {
+                "type": "number",
+                "minimum": 0,
+                "description": "USD cost for this model."
+              }
+            }
+          }
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "description": "Safety signals — dirty state, conflicts, and flags requiring human review.",
+      "additionalProperties": false,
+      "properties": {
+        "dirty_worktree": {
+          "type": "boolean",
+          "description": "True if the working tree has uncommitted modifications tracked by git."
+        },
+        "uncommitted_changes": {
+          "type": "boolean",
+          "description": "True if there are staged but not yet committed changes."
+        },
+        "open_conflicts": {
+          "type": "boolean",
+          "description": "True if any files have unresolved merge conflicts."
+        },
+        "manual_review_flags": {
+          "type": "array",
+          "description": "Free-text flags that require a human decision before proceeding.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "queue": {
+      "type": "object",
+      "description": "Outstanding work items — open PRs, merge queue depth, and issue backlog.",
+      "additionalProperties": false,
+      "properties": {
+        "open_prs": {
+          "type": "array",
+          "description": "Open pull requests relevant to the current session.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "number": {
+                "type": "integer",
+                "description": "PR number."
+              },
+              "title": {
+                "type": "string",
+                "description": "PR title."
+              },
+              "status": {
+                "type": "string",
+                "enum": ["open", "draft", "ready", "blocked", "merged", "closed"],
+                "description": "Current PR status."
+              }
+            }
+          }
+        },
+        "merge_queue_depth": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of PRs waiting in the merge queue."
+        },
+        "open_issues_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of open issues for the repo."
+        }
+      }
+    }
+  }
+}

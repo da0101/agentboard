@@ -1,0 +1,5 @@
+.platform/
+logs/
+tests/helpers/fixtures/
+*.log
+.git

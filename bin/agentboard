@@ -67,6 +67,8 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage_report.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage_learn.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/usage_dashboard.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/help.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/validate.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/sync_skills.sh"
 
 # -----------------------------------------------------------------------------
 # Banner
@@ -132,6 +134,7 @@ main() {
     init)        cmd_init "$@" ;;
     update)      cmd_update "$@" ;;
     sync)        cmd_sync "$@" ;;
+    sync-skills) cmd_sync_skills "$@" ;;
     bootstrap)   cmd_bootstrap "$@" ;;
     migrate)     cmd_migrate "$@" ;;
     migrate-layout) cmd_migrate_layout "$@" ;;
@@ -160,6 +163,7 @@ main() {
     status)      cmd_status "$@" ;;
     add-repo)    cmd_add_repo "$@" ;;
     usage)       cmd_usage "$@" ;;
+    validate)    cmd_validate "$@" ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help) cmd_help ;;
     *) die "Unknown command: $cmd. Run 'agentboard help'." ;;

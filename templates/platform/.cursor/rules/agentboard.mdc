@@ -1,0 +1,31 @@
+---
+description: Agentboard context pack — read at session start
+globs:
+alwaysApply: true
+---
+
+# Agentboard Session Rules
+
+At the start of every session:
+
+1. Read `.platform/work/BRIEF.md` to load the current sprint brief and active context.
+2. Read `.platform/work/ACTIVE.md` to see what stream is in flight and its current stage.
+3. If `.platform/` does not exist, this project is not yet activated — suggest running `agentboard init` then activating.
+
+## Workflow
+
+Follow the 6-stage protocol defined in `.platform/workflow.md`:
+triage → research → propose → execute → verify → log
+
+Never self-declare a stream complete. Present evidence and let the developer close it.
+
+## Context files
+
+| File | Purpose |
+|---|---|
+| `.platform/work/BRIEF.md` | Current sprint scope and priorities |
+| `.platform/work/ACTIVE.md` | Active stream, stage, and next action |
+| `.platform/STATUS.md` | Feature status and roadmap |
+| `.platform/architecture.md` | System design and invariants |
+| `.platform/memory/decisions.md` | Locked decisions — read before proposing changes |
+| `.platform/memory/log.md` | Session history |

@@ -194,6 +194,20 @@ ab doctor
 
 `doctor` re-checks the frontmatter on every stream and domain file you wrote, validates the cross-references in `work/ACTIVE.md` and `work/BRIEF.md`, and (in hub mode) verifies every row of `repos.md` resolves to a real path. **If `doctor` reports `errors > 0`, fix them before showing the summary** — silent missing keys are exactly what this gate exists to prevent.
 
+**Memory persistence hook (opt-in, Claude Code only).** The `Stop` hook in `.claude/settings.json` wires `memory-persist.sh` to fire after every agent turn. It appends a one-line breadcrumb to `.platform/memory/log.md` and creates `.platform/memory/session-YYYYMMDD.md` with files changed and a placeholder for learnings. The entry is already present in the template `settings.json` — it takes effect as soon as `ab install-hooks` copies that file into `.claude/settings.json`. If the user already has a custom `settings.json`, show them the manual snippet:
+
+```json
+"Stop": [{
+  "hooks": [{
+    "type": "command",
+    "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); [ -n \"$ROOT\" ] && [ -f \"$ROOT/.platform/scripts/hooks/memory-persist.sh\" ] && { cd \"$ROOT\" && bash \".platform/scripts/hooks/memory-persist.sh\"; } || exit 0'",
+    "timeout": 10
+  }]
+}]
+```
+
+To disable: remove the `Stop` block from `.claude/settings.json` or delete `.platform/scripts/hooks/memory-persist.sh`.
+
 If the user works with **Codex CLI or Gemini CLI** (in addition to or instead of Claude Code), also run:
 
 ```bash

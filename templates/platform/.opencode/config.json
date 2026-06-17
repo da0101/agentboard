@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.schema.json",
+  "instructions": [
+    "At the start of every session read .platform/work/BRIEF.md and .platform/work/ACTIVE.md.",
+    "Follow the 6-stage workflow defined in .platform/workflow.md: triage, research, propose, execute, verify, log.",
+    "Before proposing any architectural change, read .platform/memory/decisions.md.",
+    "Never self-declare a stream complete — present evidence and let the developer close it.",
+    "Append one line to .platform/memory/log.md after every successful task."
+  ],
+  "context": [
+    ".platform/work/BRIEF.md",
+    ".platform/work/ACTIVE.md",
+    ".platform/STATUS.md",
+    ".platform/architecture.md",
+    ".platform/memory/decisions.md"
+  ]
+}
