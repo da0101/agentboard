@@ -42,7 +42,10 @@ jobs:
           tmp_hits="$(mktemp)"
 
           # Build the file list once — only .md and .sh under templates/.
-          mapfile -t files < <(find templates -type f \( -name '*.md' -o -name '*.sh' \) | sort)
+          # agentshield.sh is excluded: it is a security-detection script whose
+          # job is to pattern-match dangerous content — its detection strings
+          # legitimately contain the patterns this scanner watches for.
+          mapfile -t files < <(find templates -type f \( -name '*.md' -o -name '*.sh' \) | grep -v 'agentshield\.sh' | sort)
 
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No .md or .sh files under templates/."
@@ -183,7 +186,8 @@ jobs:
           if [ -d templates/platform/scripts ]; then
             while IFS= read -r f; do
               files+=("$f")
-            done < <(find templates/platform/scripts -type f -name '*.sh' | sort)
+            # agentshield.sh excluded: it's a detection script, not an injection vector
+            done < <(find templates/platform/scripts -type f -name '*.sh' | grep -v 'agentshield\.sh' | sort)
           fi
 
           if [ "${#files[@]}" -eq 0 ]; then

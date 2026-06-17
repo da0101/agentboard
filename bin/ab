@@ -54,6 +54,10 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/role.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/rescan.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief_patterns.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/validate.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/sync_skills.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/skill_add.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_poll.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_install.sh"
@@ -164,6 +168,9 @@ main() {
     rescan)      cmd_rescan "$@" ;;
     close)       cmd_close "$@" ;;
     brief)       cmd_brief "$@" ;;
+    sync-skills) cmd_sync_skills "$@" ;;
+    skill)       cmd_skill "$@" ;;
+    validate)    cmd_validate "$@" ;;
     watch)       cmd_watch "$@" ;;
     install-hooks) cmd_install_hooks "$@" ;;
     status)      cmd_status "$@" ;;

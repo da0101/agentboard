@@ -80,7 +80,7 @@ If `RE-ATTEMPT`: state what the agent must fix and what it must not touch. If `E
 ```
 [ab-agent-eval]
 Criteria scored:
-[PASS]  API endpoint returns 200 for valid input — curl output shows 200 in logs/verify.txt
+[PASS]  API endpoint returns 200 for valid input — HTTP response shows 200 in logs/verify.txt
 [FAIL]  Error response includes machine-readable code — body is plain string, no "code" field
 [SKIP]  Rate-limit header present — cannot hit live infra from this context
 Verdict: RE-ATTEMPT
