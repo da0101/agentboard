@@ -36,6 +36,14 @@
         {
           "id": "agentboard.catalog",
           "name": "Catalog"
+        },
+        {
+          "id": "agentboard.sessions",
+          "name": "Sessions"
+        },
+        {
+          "id": "agentboard.worktrees",
+          "name": "Worktrees"
         }
       ]
     },

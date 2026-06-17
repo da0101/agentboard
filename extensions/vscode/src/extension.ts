@@ -3,6 +3,8 @@ import * as path from "path";
 import { HudProvider } from "./hudProvider";
 import { StreamsProvider } from "./streamsProvider";
 import { CatalogProvider } from "./catalogProvider";
+import { SessionsProvider } from "./sessionsProvider";
+import { WorktreesProvider } from "./worktreesProvider";
 
 export function activate(context: vscode.ExtensionContext): void {
   const workspaceRoot =
@@ -18,6 +20,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const hudProvider = new HudProvider(workspaceRoot, hudEmitter);
   const streamsProvider = new StreamsProvider(workspaceRoot, streamsEmitter);
   const catalogProvider = new CatalogProvider(workspaceRoot);
+  const sessionsProvider = new SessionsProvider(workspaceRoot);
+  const worktreesProvider = new WorktreesProvider(workspaceRoot);
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("agentboard.hud", hudProvider),
@@ -25,7 +29,9 @@ export function activate(context: vscode.ExtensionContext): void {
       "agentboard.streams",
       streamsProvider
     ),
-    vscode.window.registerTreeDataProvider("agentboard.catalog", catalogProvider)
+    vscode.window.registerTreeDataProvider("agentboard.catalog", catalogProvider),
+    vscode.window.registerTreeDataProvider("agentboard.sessions", sessionsProvider),
+    vscode.window.registerTreeDataProvider("agentboard.worktrees", worktreesProvider)
   );
 
   const hudFile = path.join(workspaceRoot, "agentboard.hud-status.json");
@@ -33,12 +39,15 @@ export function activate(context: vscode.ExtensionContext): void {
 
   watcher.onDidChange(() => {
     hudEmitter.fire();
+    sessionsProvider.refresh();
   });
   watcher.onDidCreate(() => {
     hudEmitter.fire();
+    sessionsProvider.refresh();
   });
   watcher.onDidDelete(() => {
     hudEmitter.fire();
+    sessionsProvider.refresh();
   });
 
   context.subscriptions.push(watcher);
@@ -48,6 +57,8 @@ export function activate(context: vscode.ExtensionContext): void {
       hudEmitter.fire();
       streamsEmitter.fire();
       catalogProvider.refresh();
+      sessionsProvider.refresh();
+      worktreesProvider.refresh();
     })
   );
 

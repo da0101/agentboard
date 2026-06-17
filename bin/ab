@@ -58,6 +58,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief_patterns.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/validate.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/sync_skills.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/skill_add.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/control_plane.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_poll.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_install.sh"
@@ -176,6 +177,11 @@ main() {
     status)      cmd_status "$@" ;;
     add-repo)    cmd_add_repo "$@" ;;
     usage)       cmd_usage "$@" ;;
+    start)      cmd_cp_start "$@" ;;
+    stop)       cmd_cp_stop "$@" ;;
+    sessions)   cmd_sessions "$@" ;;
+    delegate)   cmd_delegate "$@" ;;
+    worktree)   cmd_worktree "$@" ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help) cmd_help ;;
     *) die "Unknown command: $cmd. Run 'agentboard help'." ;;
