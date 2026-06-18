@@ -294,20 +294,33 @@ class DashboardPanel {
             }
         })();
         const lastEvent = allEvents[0] ?? null;
-        const lastEventLabel = lastEvent?.file
-            ? path.basename(lastEvent.file)
-            : lastEvent?.cmd
-                ? lastEvent.cmd.slice(0, 50)
-                : "";
-        const lastEventTs = lastEvent?.ts ?? "";
+        // Determine last event label for NOW block
+        const lastNonAgentEvent = allEvents.find(e => e.tool !== "Agent") ?? null;
+        const lastEventLabel = lastNonAgentEvent?.file
+            ? path.basename(lastNonAgentEvent.file)
+            : lastNonAgentEvent?.cmd
+                ? lastNonAgentEvent.cmd.slice(0, 50)
+                : lastNonAgentEvent?.skill
+                    ? `/${lastNonAgentEvent.skill}`
+                    : lastNonAgentEvent?.tool ?? "";
+        const lastEventTs = lastNonAgentEvent?.ts ?? "";
         const secsSinceLastEvent = lastEventTs ? Math.floor((Date.now() - new Date(lastEventTs).getTime()) / 1000) : null;
         const isInLongOp = hasLive && secsSinceLastEvent !== null && secsSinceLastEvent > 90;
+        // Build agents list from recent Agent tool dispatches in this session
+        const recentAgents = [];
+        for (const ev of allEvents) {
+            if (ev.tool === "Agent" && ev.agent) {
+                const secAgo = Math.floor((Date.now() - new Date(ev.ts).getTime()) / 1000);
+                if (secAgo < 300)
+                    recentAgents.push({ label: ev.agent, ts: ev.ts });
+            }
+        }
         void this._panel.webview.postMessage({
             type: "update",
             hasLive, model, cost, sessionTime, activeStream, streamDesc, activeRole, lastSkill,
             ctxPct, branch, cpRunning, sessions: sessions.length,
             streams: readStreams(this.workspaceRoot),
-            fileActivity,
+            fileActivity, recentAgents,
             lastEventLabel, lastEventTs, isInLongOp,
             worktrees,
             skillCount: skills.length, roleCount: roles.length,
@@ -371,6 +384,12 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 .stat-grid{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12px;line-height:1.8}
 .sk{opacity:.35;font-size:11px;white-space:nowrap}.sv{font-weight:500}
 .sv-stream{color:#4a9eff}.sv-role{color:#9c6af7}.sv-skill{color:#4caf84}
+/* agent rows */
+.ag-row{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid rgba(128,128,128,.07);font-size:12px}
+.ag-row:last-child{border-bottom:none}
+.ag-pulse{width:6px;height:6px;border-radius:50%;background:#4caf50;animation:pulse .8s ease-in-out infinite;flex-shrink:0}
+.ag-label{flex:1;font-family:var(--vscode-editor-font-family,'monospace');overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ag-t{font-size:10px;opacity:.35;white-space:nowrap}
 .ctx{font-family:monospace;letter-spacing:-1px;font-size:11px}
 /* footer */
 #footer{display:flex;gap:6px;padding:6px 14px;border-top:1px solid var(--vscode-panel-border);flex-shrink:0;font-size:11px;align-items:center;flex-wrap:wrap}
@@ -433,11 +452,15 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
         <div id="sr-list"></div>
       </div>
     </div>
-    <!-- Right: session stats -->
+    <!-- Right: agents + session stats -->
     <div class="col-r">
+      <div class="sec" id="sec-agents">
+        <div class="sec-ttl" id="agents-ttl">Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· last 5 min</span></div>
+        <div id="agents-list"><div class="em">No sub-agents dispatched — Claude is working solo</div></div>
+      </div>
       <div class="sec">
         <div class="sec-ttl">Session</div>
-        <div class="stat-grid" id="stat-grid">
+        <div class="stat-grid">
           <span class="sk">Model</span><span class="sv" id="sv-model">—</span>
           <span class="sk">Stream</span><span class="sv sv-stream" id="sv-stream">—</span>
           <span class="sk">Cost</span><span class="sv" id="sv-cost">—</span>
@@ -581,6 +604,19 @@ window.addEventListener('message',function(e){
       +'<span class="fa-t">'+relTime(f.lastTs)+'</span>'
       +'</div>';
   }).join('') : '<div class="em">No activity yet — starts logging on next tool call</div>');
+
+  // agents
+  const agentsEl=document.getElementById('agents-list');
+  const agentsTtl=document.getElementById('agents-ttl');
+  if(agentsEl&&d.recentAgents&&d.recentAgents.length){
+    if(agentsTtl)agentsTtl.innerHTML='Agents <span style="color:#4caf50;font-weight:700">'+d.recentAgents.length+' active</span><span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none"> · last 5 min</span>';
+    agentsEl.innerHTML=d.recentAgents.map(function(a){
+      return '<div class="ag-row"><span class="ag-pulse"></span><span class="ag-label">'+esc(a.label)+'</span><span class="ag-t">'+relTime(a.ts)+'</span></div>';
+    }).join('');
+  } else if(agentsEl){
+    if(agentsTtl)agentsTtl.innerHTML='Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· last 5 min</span>';
+    agentsEl.innerHTML='<div class="em">No sub-agents dispatched — Claude is working solo</div>';
+  }
 
   // streams
   txt('sr-ttl','Active streams ('+d.streams.length+')');

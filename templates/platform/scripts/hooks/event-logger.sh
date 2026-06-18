@@ -206,6 +206,13 @@ case "$hook_event" in
           detail_val="${_cmd:0:120}"
         fi
         ;;
+      Agent)
+        _label="$(_json_string_field "label")"
+        _subtype="$(_json_string_field "subagent_type")"
+        _agent_id="${_label:-${_subtype:-sub-agent}}"
+        detail_key="agent"
+        detail_val="$_agent_id"
+        ;;
       WebSearch|WebFetch)
         exit 0  # internal research — not "what I changed"
         ;;
