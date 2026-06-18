@@ -103,7 +103,7 @@ process.stdin.on('end', () => {
         session_tokens: ctxTokens,
       },
       active_agents: [{
-        role: existing.active_agents?.[0]?.role || 'claude',
+        role: existing.active_agents?.[0]?.role || '',
         model: apiName || model,
         started_at: sessionStartedAt,
         session_id: sessionId,

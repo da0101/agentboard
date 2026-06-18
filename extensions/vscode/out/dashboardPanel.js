@@ -186,7 +186,16 @@ class DashboardPanel {
         try {
             if (wRaw) {
                 const p = JSON.parse(wRaw);
-                worktrees = Array.isArray(p) ? p : (p.worktrees ?? []);
+                const raw = Array.isArray(p) ? p : (p.worktrees ?? []);
+                worktrees = raw.map(w => {
+                    if (typeof w === "string")
+                        return w;
+                    if (w && typeof w === "object") {
+                        const obj = w;
+                        return String(obj.branch ?? obj.path ?? "?").replace("refs/heads/", "");
+                    }
+                    return String(w);
+                });
             }
         }
         catch { /* ok */ }
@@ -201,7 +210,9 @@ class DashboardPanel {
         const activeStream = readActiveStream(this.workspaceRoot);
         const recentEvents = readRecentEvents(this.workspaceRoot);
         const streamRole = readStreamRole(this.workspaceRoot, activeStream);
-        const activeRole = hud?.active_agents?.[0]?.role ?? streamRole ?? "";
+        const modelNames = new Set(["claude", "sonnet", "opus", "haiku", "fable", "gpt", "gemini", "codex"]);
+        const hudRole = hud?.active_agents?.[0]?.role ?? "";
+        const activeRole = (!hudRole || modelNames.has(hudRole.toLowerCase().split("-")[0])) ? streamRole : hudRole;
         const ctxPct = hud?.context?.context_remaining_pct ?? null;
         this._panel.webview.html = this._getHtml({
             hud, streams: readStreams(this.workspaceRoot),

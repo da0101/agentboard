@@ -145,13 +145,28 @@ export class DashboardPanel {
     let sessions: unknown[] = []; let cpRunning = false;
     try { if (sRaw) { const p = JSON.parse(sRaw); cpRunning = true; sessions = Array.isArray(p) ? p : (p.sessions ?? []); } } catch { /* ok */ }
     let worktrees: string[] = [];
-    try { if (wRaw) { const p = JSON.parse(wRaw); worktrees = Array.isArray(p) ? p : (p.worktrees ?? []); } } catch { /* ok */ }
+    try {
+      if (wRaw) {
+        const p = JSON.parse(wRaw);
+        const raw: unknown[] = Array.isArray(p) ? p : (p.worktrees ?? []);
+        worktrees = raw.map(w => {
+          if (typeof w === "string") return w;
+          if (w && typeof w === "object") {
+            const obj = w as Record<string, unknown>;
+            return String(obj.branch ?? obj.path ?? "?").replace("refs/heads/", "");
+          }
+          return String(w);
+        });
+      }
+    } catch { /* ok */ }
     if (!worktrees.length) worktrees = gitWorktrees(this.workspaceRoot);
     const branch = hud?.context?.branch ?? (() => { try { return execSync("git rev-parse --abbrev-ref HEAD", { cwd: this.workspaceRoot, timeout: 1000 }).toString().trim(); } catch { return ""; } })();
     const activeStream = readActiveStream(this.workspaceRoot);
     const recentEvents = readRecentEvents(this.workspaceRoot);
     const streamRole = readStreamRole(this.workspaceRoot, activeStream);
-    const activeRole = hud?.active_agents?.[0]?.role ?? streamRole ?? "";
+    const modelNames = new Set(["claude", "sonnet", "opus", "haiku", "fable", "gpt", "gemini", "codex"]);
+    const hudRole = hud?.active_agents?.[0]?.role ?? "";
+    const activeRole = (!hudRole || modelNames.has(hudRole.toLowerCase().split("-")[0])) ? streamRole : hudRole;
     const ctxPct: number | null = hud?.context?.context_remaining_pct ?? null;
     this._panel.webview.html = this._getHtml({
       hud, streams: readStreams(this.workspaceRoot),
