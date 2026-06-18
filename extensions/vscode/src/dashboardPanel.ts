@@ -9,7 +9,7 @@ interface StreamEntry { slug: string; status: string; type: string; next_action:
 interface DashData {
   hud: HudStatus | null; streams: StreamEntry[]; skillCount: number;
   roleCount: number; sessions: unknown[]; worktrees: string[];
-  projectName: string; branch: string;
+  projectName: string; branch: string; cpRunning: boolean;
 }
 
 function httpGet(url: string, ms: number): Promise<string> {
@@ -107,20 +107,22 @@ export class DashboardPanel {
       httpGet("http://127.0.0.1:7842/sessions", 300).catch(() => null),
       httpGet("http://127.0.0.1:7842/worktrees", 300).catch(() => null),
     ]);
-    let sessions: unknown[] = []; try { if (sRaw) sessions = JSON.parse(sRaw) as unknown[]; } catch { /* ok */ }
-    let worktrees: string[] = []; try { if (wRaw) worktrees = JSON.parse(wRaw) as string[]; } catch { /* ok */ }
+    let sessions: unknown[] = []; let cpRunning = false;
+    try { if (sRaw) { const p = JSON.parse(sRaw); cpRunning = true; sessions = Array.isArray(p) ? p : (p.sessions ?? []); } } catch { /* ok */ }
+    let worktrees: string[] = [];
+    try { if (wRaw) { const p = JSON.parse(wRaw); worktrees = Array.isArray(p) ? p : (p.worktrees ?? []); } } catch { /* ok */ }
     if (!worktrees.length) worktrees = gitWorktrees(this.workspaceRoot);
     const branch = hud?.context?.branch ?? (() => { try { return execSync("git rev-parse --abbrev-ref HEAD", { cwd: this.workspaceRoot, timeout: 1000 }).toString().trim(); } catch { return ""; } })();
     this._panel.webview.html = this._getHtml({
       hud, streams: readStreams(this.workspaceRoot),
       skillCount: countDirs(path.join(this.workspaceRoot, ".claude", "skills")),
       roleCount: countMd(path.join(this.workspaceRoot, ".platform", "roles"), ["INDEX.md"]),
-      sessions, worktrees, projectName: path.basename(this.workspaceRoot), branch,
+      sessions, worktrees, projectName: path.basename(this.workspaceRoot), branch, cpRunning,
     });
   }
 
   private _getHtml(d: DashData): string {
-    const { hud, streams, skillCount, roleCount, sessions, worktrees, projectName, branch } = d;
+    const { hud, streams, skillCount, roleCount, sessions, worktrees, projectName, branch, cpRunning } = d;
     const agents = hud?.active_agents ?? [];
     const hasLive = agents.length > 0 || sessions.length > 0;
     const model = hud?.context?.model ?? "claude";
@@ -132,7 +134,11 @@ export class DashboardPanel {
     const badge = (t: string) => { const c = typeColor[t.toLowerCase()] ?? "#888"; return `<span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55">${t}</span>`; };
     const streamCards = streams.length ? streams.map((s) => `<div class="card"><div class="st"><span class="si">↻</span><span class="ss">${s.slug}</span>${badge(s.type)}</div>${s.next_action ? `<div class="sa">→ ${s.next_action}</div>` : ""}</div>`).join("") : `<div class="em">No active streams</div>`;
     const wtLines = worktrees.length ? worktrees.map((w) => `<div class="wr">⎇ ${w}</div>`).join("") : `<div class="em">No worktrees</div>`;
-    const sessionBlock = sessions.length ? `<div style="color:#4caf50">${sessions.length} active session${sessions.length > 1 ? "s" : ""}</div>` : `<div class="em">Control plane not running<br><code>$ ab start</code></div>`;
+    const sessionBlock = !cpRunning
+      ? `<div class="em">Control plane not running<br><code>$ ab start</code></div>`
+      : sessions.length
+        ? `<div style="color:#4caf50">● ${sessions.length} active session${sessions.length > 1 ? "s" : ""}</div>`
+        : `<div class="em" style="color:#4caf84">● Control plane running</div><div class="em">No sessions yet</div>`;
     const hudFooter = hud ? `<div class="footer">${[model && `<span class="fi">⬡ ${model}</span>`, branch && `<span class="fi">⎇ ${branch}</span>`, hud.checks?.ci_status && `<span class="fi ci-${hud.checks.ci_status.toLowerCase()}">CI ${hud.checks.ci_status}</span>`, cost && `<span class="fi">${cost}</span>`, hud.risk?.dirty_worktree && `<span class="fi risk">⚠ dirty</span>`, hud.risk?.open_conflicts && `<span class="fi risk">⚠ conflicts</span>`].filter(Boolean).join("")}</div>` : "";
 
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
