@@ -37,9 +37,21 @@ _json_string_field() {
   '
 }
 
-# Skip UserPromptSubmit — full user prompts are noise for the next agent
+# For UserPromptSubmit: only capture /skill invocations, drop everything else
 hook_event="$(_json_string_field "hook_event_name")"
-[[ "$hook_event" == "UserPromptSubmit" ]] && exit 0
+if [[ "$hook_event" == "UserPromptSubmit" ]]; then
+  _prompt="$(_json_string_field "prompt")"
+  if [[ "$_prompt" == /* ]]; then
+    _skill="${_prompt%%[[:space:]]*}"
+    _skill="${_skill#/}"
+    ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" || exit 0
+    _session_id="$(_json_string_field "session_id")"
+    _jsesc() { printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'; }
+    printf '{"ts":"%s","provider":"claude","stream":"","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
+      "$ts" "$(_jsesc "$_skill")" "$(_jsesc "$_session_id")" >> "$log_file" 2>/dev/null
+  fi
+  exit 0
+fi
 
 _brief_primary_stream() {
   local brief=".platform/work/BRIEF.md" slug

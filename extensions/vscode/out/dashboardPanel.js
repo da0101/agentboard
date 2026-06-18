@@ -129,10 +129,8 @@ function readLastSkill(root) {
         for (const line of lines) {
             try {
                 const e = JSON.parse(line);
-                if (e.skill)
+                if (e.tool === "Skill" && e.skill)
                     return e.skill;
-                if (e.tool === "Bash" && e.cmd?.startsWith("ab "))
-                    return e.cmd.split(" ")[1] ?? "";
             }
             catch { /* ok */ }
         }
@@ -247,10 +245,11 @@ class DashboardPanel {
         const lastSkill = readLastSkill(this.workspaceRoot);
         const skills = readSkills(this.workspaceRoot);
         const roles = readRoles(this.workspaceRoot);
+        const agentCount = hasLive ? 1 : 0;
         void this._panel.webview.postMessage({
             type: "update",
             hasLive, model, cost, sessionTime, activeStream, activeRole, lastSkill,
-            ctxPct, branch, cpRunning, sessions: sessions.length,
+            ctxPct, branch, cpRunning, sessions: sessions.length, agentCount,
             streams: readStreams(this.workspaceRoot),
             events: readRecentEvents(this.workspaceRoot),
             worktrees,
@@ -367,7 +366,7 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
     </div>
     <div class="lright">
       <div>
-        <div class="ttl">Agent</div>
+        <div class="ttl" id="agent-ttl">Agent</div>
         <div class="card"><div class="agent-grid" id="agent-grid">
           <span class="ag-k">Model</span><span class="ag-v" id="ag-model">—</span>
           <span class="ag-k">Role</span><span class="ag-v ag-role" id="ag-role">—</span>
@@ -405,7 +404,7 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 <script>
 const vscode = acquireVsCodeApi();
 const TYPE_COLOR = {bugfix:'#e8823a',feature:'#4caf84',task:'#4a9eff',maintenance:'#888'};
-const TOOL_ICON = {Edit:'✏',Write:'✏',Bash:'$',Read:'👁',WebSearch:'⌕',WebFetch:'⌕',Agent:'◈'};
+const TOOL_ICON = {Edit:'✏',Write:'✏',Bash:'$',Read:'👁',WebSearch:'⌕',WebFetch:'⌕',Agent:'◈',Skill:'⚡'};
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function show(id,v){ const el=document.getElementById(id); if(el){ el.style.display=v?'':'none'; if(v) el.textContent=v; } }
@@ -486,16 +485,19 @@ window.addEventListener('message', function(e){
   // activity
   html('events-list', d.events.length ? d.events.map(function(ev){
     const icon=TOOL_ICON[ev.tool]||'·';
-    const detail=ev.file?ev.file.split('/').pop():(ev.cmd?ev.cmd.slice(0,55):ev.tool);
+    const isSkill=ev.tool==='Skill';
+    const detail=isSkill?('/'+ev.skill):(ev.file?ev.file.split('/').pop():(ev.cmd?ev.cmd.slice(0,55):ev.tool));
+    const color=isSkill?'color:#4caf84;font-weight:600':'';
     return '<div class="ev">'
-      +'<span class="ev-i">'+icon+'</span>'
-      +'<span class="ev-d">'+esc(detail)+'</span>'
-      +(ev.stream?'<span class="ev-s">'+esc(ev.stream)+'</span>':'')
+      +'<span class="ev-i" style="'+(isSkill?'color:#4caf84':'')+'">'+icon+'</span>'
+      +'<span class="ev-d" style="'+color+'">'+esc(detail)+'</span>'
+      +(ev.stream&&!isSkill?'<span class="ev-s">'+esc(ev.stream)+'</span>':'')
       +'<span class="ev-t">'+relTime(ev.ts)+'</span>'
       +'</div>';
   }).join('') : '<div class="em">No activity yet — hooks write here on each tool call</div>');
 
   // agent panel
+  txt('agent-ttl', d.agentCount ? 'Agent ('+d.agentCount+' active)' : 'Agent');
   txt('ag-model', d.model||'—');
   txt('ag-role', d.activeRole||'—');
   txt('ag-skill', d.lastSkill?'/'+d.lastSkill:'—');
