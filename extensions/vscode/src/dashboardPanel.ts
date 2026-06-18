@@ -264,14 +264,31 @@ export class DashboardPanel {
     const secsSinceLastEvent = lastEventTs ? Math.floor((Date.now() - new Date(lastEventTs).getTime()) / 1000) : null;
     const isInLongOp = hasLive && secsSinceLastEvent !== null && secsSinceLastEvent > 90;
 
-    // Build agents list from recent Agent tool dispatches in this session
-    const recentAgents: Array<{label: string; ts: string}> = [];
+    // Build agents list from AgentStart events (PreToolUse) — role + skill per agent
+    interface AgentEntry { label: string; role: string; skill: string; ts: string; done: boolean }
+    const agentMap = new Map<string, AgentEntry>();
     for (const ev of allEvents) {
-      if (ev.tool === "Agent" && (ev as {agent?: string}).agent) {
-        const secAgo = Math.floor((Date.now() - new Date(ev.ts).getTime()) / 1000);
-        if (secAgo < 300) recentAgents.push({ label: (ev as unknown as {agent: string}).agent, ts: ev.ts });
+      const secAgo = Math.floor((Date.now() - new Date(ev.ts).getTime()) / 1000);
+      if (ev.tool === "AgentStart") {
+        const key = (ev as {label?: string}).label ?? ev.ts;
+        if (secAgo < 600) agentMap.set(key, {
+          label: (ev as {label?: string}).label ?? "agent",
+          role: (ev as {role?: string}).role ?? "",
+          skill: (ev as {skill?: string}).skill ?? "",
+          ts: ev.ts,
+          done: false,
+        });
+      } else if (ev.tool === "Agent" && (ev as {agent?: string}).agent) {
+        // PostToolUse Agent = agent finished — mark done if within window
+        const key = (ev as {agent?: string}).agent ?? "";
+        const existing = agentMap.get(key);
+        if (existing) agentMap.set(key, { ...existing, done: true });
       }
     }
+    const recentAgents = Array.from(agentMap.values()).filter(a => {
+      const secAgo = Math.floor((Date.now() - new Date(a.ts).getTime()) / 1000);
+      return secAgo < 600; // show for 10 min (running + recently done)
+    });
 
     void this._panel.webview.postMessage({
       type: "update",
@@ -568,13 +585,28 @@ window.addEventListener('message',function(e){
   const agentsEl=document.getElementById('agents-list');
   const agentsTtl=document.getElementById('agents-ttl');
   if(agentsEl&&d.recentAgents&&d.recentAgents.length){
-    if(agentsTtl)agentsTtl.innerHTML='Agents <span style="color:#4caf50;font-weight:700">'+d.recentAgents.length+' active</span><span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none"> · last 5 min</span>';
+    const running=d.recentAgents.filter(function(a){return !a.done;});
+    const done=d.recentAgents.filter(function(a){return a.done;});
+    if(agentsTtl)agentsTtl.innerHTML='Agents'
+      +(running.length?' <span style="color:#4caf50;font-weight:700">'+running.length+' running</span>':'')
+      +(done.length?' <span style="color:#888;font-weight:400;font-size:11px">'+done.length+' done</span>':'')
+      +'<span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none"> · last 10 min</span>';
     agentsEl.innerHTML=d.recentAgents.map(function(a){
-      return '<div class="ag-row"><span class="ag-pulse"></span><span class="ag-label">'+esc(a.label)+'</span><span class="ag-t">'+relTime(a.ts)+'</span></div>';
+      const pulse=a.done
+        ?'<span style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;flex-shrink:0"></span>'
+        :'<span class="ag-pulse"></span>';
+      const roleTag=a.role?'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#9c6af722;color:#9c6af7;margin-left:4px">'+esc(a.role)+'</span>':'';
+      const skillTag=a.skill?'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#4caf8422;color:#4caf84;margin-left:4px">'+esc(a.skill)+'</span>':'';
+      const status=a.done?'<span style="font-size:10px;opacity:.4;margin-left:4px">✓</span>':'';
+      return '<div class="ag-row">'+pulse
+        +'<span class="ag-label" style="'+(a.done?'opacity:.5':'')+'">'+esc(a.label)+'</span>'
+        +roleTag+skillTag+status
+        +'<span class="ag-t">'+relTime(a.ts)+'</span>'
+        +'</div>';
     }).join('');
   } else if(agentsEl){
-    if(agentsTtl)agentsTtl.innerHTML='Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· last 5 min</span>';
-    agentsEl.innerHTML='<div class="em">No sub-agents dispatched — Claude is working solo</div>';
+    if(agentsTtl)agentsTtl.innerHTML='Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· last 10 min</span>';
+    agentsEl.innerHTML='<div class="em">No sub-agents yet — use /workflows or ask Claude to dispatch agents in parallel</div>';
   }
 
   // streams
