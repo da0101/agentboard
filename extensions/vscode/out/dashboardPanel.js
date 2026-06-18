@@ -228,10 +228,17 @@ class DashboardPanel {
     static createOrShow(workspaceRoot) {
         const col = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
         if (DashboardPanel.currentPanel) {
+            // Update workspace root and refresh data even if panel already exists
+            DashboardPanel.currentPanel.workspaceRoot = workspaceRoot;
+            void DashboardPanel.currentPanel._update();
             DashboardPanel.currentPanel._panel.reveal(col);
             return;
         }
         DashboardPanel.currentPanel = new DashboardPanel(vscode.window.createWebviewPanel("agentboardDashboard", "Agentboard", col, { enableScripts: true, retainContextWhenHidden: true }), workspaceRoot);
+    }
+    static refresh() {
+        if (DashboardPanel.currentPanel)
+            void DashboardPanel.currentPanel._update();
     }
     constructor(panel, workspaceRoot) {
         this.workspaceRoot = workspaceRoot;
