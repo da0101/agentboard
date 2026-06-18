@@ -1,7 +1,14 @@
 cmd_doctor() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
-  local errors=0 warnings=0
+  local errors=0 warnings=0 ci_mode=0 _dr_pass=0 _dr_fail=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --ci) ci_mode=1; shift ;;
+      *) shift ;;
+    esac
+  done
+
   local brief="./.platform/work/BRIEF.md"
   local active="./.platform/work/ACTIVE.md"
   local domains_dir="./.platform/domains"
@@ -19,44 +26,46 @@ cmd_doctor() {
     repo_rows="$(repo_rows_from_registry "$repos_file")"
   fi
 
-  printf '\n%s%sab doctor%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  (( ci_mode == 0 )) && printf '\n%s%sab doctor%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET" || true
 
   if [[ -f "$brief" ]]; then
-    ok "work/BRIEF.md present"
+    _dr_ok "work/BRIEF.md present"
   else
-    warn "Missing .platform/work/BRIEF.md"
+    _dr_warn "Missing .platform/work/BRIEF.md"
     errors=$((errors + 1))
   fi
 
   if [[ -f "$active" ]]; then
-    ok "work/ACTIVE.md present"
+    _dr_ok "work/ACTIVE.md present"
   else
-    warn "Missing .platform/work/ACTIVE.md"
+    _dr_warn "Missing .platform/work/ACTIVE.md"
     errors=$((errors + 1))
   fi
 
   if [[ -d "$domains_dir" ]]; then
-    ok "domains/ directory present"
+    _dr_ok "domains/ directory present"
   else
-    warn "Missing .platform/domains/"
+    _dr_warn "Missing .platform/domains/"
     errors=$((errors + 1))
   fi
 
   local _not_yet_activated=0
   if [[ -f "$root_claude" ]] && grep -q "NOT YET ACTIVATED" "$root_claude"; then
-    ok "Activation stub detected — sync check skipped until activation"
+    _dr_ok "Activation stub detected — sync check skipped until activation"
     _not_yet_activated=1
+  elif (( ci_mode )); then
+    _dr_ci_check_sync "$sync_script"
   elif [[ -x "$sync_script" ]]; then
     local sync_output=""
     if sync_output="$("$sync_script" 2>&1)"; then
-      ok "Root entry files in sync"
+      _dr_ok "Root entry files in sync"
     else
-      warn "Entry file drift detected by sync-context.sh"
+      _dr_warn "Entry file drift detected by sync-context.sh"
       printf '%s\n' "$sync_output" >&2
       warnings=$((warnings + 1))
     fi
   else
-    warn "sync-context.sh missing or not executable"
+    _dr_warn "sync-context.sh missing or not executable"
     warnings=$((warnings + 1))
   fi
 
@@ -65,11 +74,11 @@ cmd_doctor() {
     local arch_file="./.platform/architecture.md"
     local conv_dir="./.platform/conventions"
     if [[ -f "$arch_file" ]] && grep -q '{{' "$arch_file" 2>/dev/null; then
-      warn "architecture.md still has unfilled {{PLACEHOLDER}} content — run activation ('activate this project')"
+      _dr_warn "architecture.md still has unfilled {{PLACEHOLDER}} content — run activation ('activate this project')"
       warnings=$((warnings + 1))
     fi
     if [[ -d "$conv_dir" ]] && [[ -z "$(ls -A "$conv_dir" 2>/dev/null)" ]]; then
-      warn "conventions/ is empty — activation should write at least one stack conventions file"
+      _dr_warn "conventions/ is empty — activation should write at least one stack conventions file"
       warnings=$((warnings + 1))
     fi
   fi
@@ -81,7 +90,7 @@ cmd_doctor() {
     stream_slug="$(basename "$stream_file" .md)"
 
     if is_legacy_stream_file "$stream_file"; then
-      warn "Stream '$stream_slug' uses the legacy pre-frontmatter format. Add metadata when you touch it next."
+      _dr_warn "Stream '$stream_slug' uses the legacy pre-frontmatter format. Add metadata when you touch it next."
       warnings=$((warnings + 1))
       continue
     fi
@@ -89,18 +98,18 @@ cmd_doctor() {
     stream_id="$(frontmatter_value "$stream_file" "stream_id")"
 
     if is_placeholder_value "$stream_id"; then
-      warn "Stream '$stream_slug' is missing frontmatter key 'stream_id'"
+      _dr_warn "Stream '$stream_slug' is missing frontmatter key 'stream_id'"
       errors=$((errors + 1))
       continue
     fi
 
     if [[ "$stream_id" != "$(canonical_stream_id "$stream_slug")" ]]; then
-      warn "Stream '$stream_slug' has non-canonical stream_id '$stream_id' (expected '$(canonical_stream_id "$stream_slug")')"
+      _dr_warn "Stream '$stream_slug' has non-canonical stream_id '$stream_id' (expected '$(canonical_stream_id "$stream_slug")')"
       errors=$((errors + 1))
     fi
 
     if printf '%s\n' "$seen_stream_ids" | grep -Fxq "$stream_id"; then
-      warn "Duplicate stream_id '$stream_id' detected"
+      _dr_warn "Duplicate stream_id '$stream_id' detected"
       errors=$((errors + 1))
     else
       seen_stream_ids="${seen_stream_ids}"$'\n'"$stream_id"
@@ -113,7 +122,7 @@ cmd_doctor() {
     domain_slug="$(basename "$domain_file" .md)"
 
     if is_legacy_domain_file "$domain_file"; then
-      warn "Domain '$domain_slug' uses the legacy pre-frontmatter format. Add metadata when you touch it next."
+      _dr_warn "Domain '$domain_slug' uses the legacy pre-frontmatter format. Add metadata when you touch it next."
       warnings=$((warnings + 1))
       continue
     fi
@@ -121,18 +130,18 @@ cmd_doctor() {
     domain_id="$(frontmatter_value "$domain_file" "domain_id")"
 
     if is_placeholder_value "$domain_id"; then
-      warn "Domain '$domain_slug' is missing frontmatter key 'domain_id'"
+      _dr_warn "Domain '$domain_slug' is missing frontmatter key 'domain_id'"
       errors=$((errors + 1))
       continue
     fi
 
     if [[ "$domain_id" != "$(canonical_domain_id "$domain_slug")" ]]; then
-      warn "Domain '$domain_slug' has non-canonical domain_id '$domain_id' (expected '$(canonical_domain_id "$domain_slug")')"
+      _dr_warn "Domain '$domain_slug' has non-canonical domain_id '$domain_id' (expected '$(canonical_domain_id "$domain_slug")')"
       errors=$((errors + 1))
     fi
 
     if printf '%s\n' "$seen_domain_ids" | grep -Fxq "$domain_id"; then
-      warn "Duplicate domain_id '$domain_id' detected"
+      _dr_warn "Duplicate domain_id '$domain_id' detected"
       errors=$((errors + 1))
     else
       seen_domain_ids="${seen_domain_ids}"$'\n'"$domain_id"
@@ -144,7 +153,7 @@ cmd_doctor() {
     stream_rows="$(stream_rows_from_active "$active" | awk -F'|' '{ printf "%s|%s|%s|%s\n", $1, $2, $3, $4 }')"
 
     if [[ -z "$stream_rows" ]]; then
-      ok "No active streams registered"
+      _dr_ok "No active streams registered"
     else
       local slug row_type row_status row_agent stream_file value
       while IFS='|' read -r slug row_type row_status row_agent; do
@@ -152,12 +161,12 @@ cmd_doctor() {
         stream_file="./.platform/work/${slug}.md"
 
         if [[ ! -f "$stream_file" ]]; then
-          warn "Active stream '$slug' is missing file .platform/work/${slug}.md"
+          _dr_warn "Active stream '$slug' is missing file .platform/work/${slug}.md"
           errors=$((errors + 1))
           continue
         fi
 
-        ok "Found stream file for '$slug'"
+        _dr_ok "Found stream file for '$slug'"
 
         if is_legacy_stream_file "$stream_file"; then
           local legacy_type legacy_status legacy_agent
@@ -166,15 +175,15 @@ cmd_doctor() {
           legacy_agent="$(legacy_stream_value "$stream_file" "Agent")"
 
           [[ -n "$legacy_type" && "$legacy_type" != "$row_type" ]] && {
-            warn "Legacy stream '$slug' type mismatch: ACTIVE.md='$row_type' stream='$legacy_type'"
+            _dr_warn "Legacy stream '$slug' type mismatch: ACTIVE.md='$row_type' stream='$legacy_type'"
             warnings=$((warnings + 1))
           }
           [[ -n "$legacy_status" && "$legacy_status" != "$row_status" ]] && {
-            warn "Legacy stream '$slug' status mismatch: ACTIVE.md='$row_status' stream='$legacy_status'"
+            _dr_warn "Legacy stream '$slug' status mismatch: ACTIVE.md='$row_status' stream='$legacy_status'"
             warnings=$((warnings + 1))
           }
           [[ -n "$legacy_agent" && "$legacy_agent" != "$row_agent" ]] && {
-            warn "Legacy stream '$slug' agent mismatch: ACTIVE.md='$row_agent' stream='$legacy_agent'"
+            _dr_warn "Legacy stream '$slug' agent mismatch: ACTIVE.md='$row_agent' stream='$legacy_agent'"
             warnings=$((warnings + 1))
           }
           continue
@@ -187,19 +196,19 @@ cmd_doctor() {
           case "$key" in
             domain_slugs|repo_ids)
               if [[ -z "$(inline_array_items "$value")" ]]; then
-                warn "Stream '$slug' is missing non-empty frontmatter key '$key'"
+                _dr_warn "Stream '$slug' is missing non-empty frontmatter key '$key'"
                 errors=$((errors + 1))
               fi
               ;;
             closure_approved)
               if [[ "$value" != "true" && "$value" != "false" ]]; then
-                warn "Stream '$slug' has invalid closure_approved value '$value'"
+                _dr_warn "Stream '$slug' has invalid closure_approved value '$value'"
                 errors=$((errors + 1))
               fi
               ;;
             *)
               if is_placeholder_value "$value"; then
-                warn "Stream '$slug' is missing frontmatter key '$key'"
+                _dr_warn "Stream '$slug' is missing frontmatter key '$key'"
                 errors=$((errors + 1))
               fi
               ;;
@@ -208,19 +217,19 @@ cmd_doctor() {
 
         value="$(frontmatter_value "$stream_file" "slug")"
         if [[ -n "$value" && "$value" != "$slug" ]]; then
-          warn "Stream '$slug' has slug '$value' in frontmatter"
+          _dr_warn "Stream '$slug' has slug '$value' in frontmatter"
           errors=$((errors + 1))
         fi
 
         value="$(frontmatter_value "$stream_file" "status")"
         if [[ -n "$value" && "$value" != "$row_status" ]]; then
-          warn "Stream '$slug' status mismatch: ACTIVE.md='$row_status' stream='$value'"
+          _dr_warn "Stream '$slug' status mismatch: ACTIVE.md='$row_status' stream='$value'"
           errors=$((errors + 1))
         fi
 
         value="$(frontmatter_value "$stream_file" "agent_owner")"
         if [[ -n "$row_agent" && "$row_agent" != "—" && -n "$value" && "$value" != "$row_agent" ]]; then
-          warn "Stream '$slug' agent mismatch: ACTIVE.md='$row_agent' stream='$value'"
+          _dr_warn "Stream '$slug' agent mismatch: ACTIVE.md='$row_agent' stream='$value'"
           warnings=$((warnings + 1))
         fi
 
@@ -232,7 +241,7 @@ cmd_doctor() {
             continue
           fi
           if (( is_hub )) || [[ "$repo_id" != "repo-primary" ]]; then
-            warn "Stream '$slug' references repo_id '$repo_id' that is not defined in .platform/repos.md"
+            _dr_warn "Stream '$slug' references repo_id '$repo_id' that is not defined in .platform/repos.md"
             errors=$((errors + 1))
           fi
         done < <(inline_array_items "$(frontmatter_value "$stream_file" "repo_ids")")
@@ -242,7 +251,7 @@ cmd_doctor() {
           [[ -z "$domain_slug" ]] && continue
           domain_file="./.platform/domains/${domain_slug}.md"
           if [[ ! -f "$domain_file" ]]; then
-            warn "Stream '$slug' references missing domain file .platform/domains/${domain_slug}.md"
+            _dr_warn "Stream '$slug' references missing domain file .platform/domains/${domain_slug}.md"
             errors=$((errors + 1))
             continue
           fi
@@ -253,13 +262,13 @@ cmd_doctor() {
             case "$key" in
               repo_ids)
                 if [[ -z "$(inline_array_items "$domain_value")" ]]; then
-                  warn "Domain '$domain_slug' is missing non-empty frontmatter key '$key'"
+                  _dr_warn "Domain '$domain_slug' is missing non-empty frontmatter key '$key'"
                   errors=$((errors + 1))
                 fi
                 ;;
               *)
                 if is_placeholder_value "$domain_value"; then
-                  warn "Domain '$domain_slug' is missing frontmatter key '$key'"
+                  _dr_warn "Domain '$domain_slug' is missing frontmatter key '$key'"
                   errors=$((errors + 1))
                 fi
                 ;;
@@ -268,7 +277,7 @@ cmd_doctor() {
 
           domain_value="$(frontmatter_value "$domain_file" "slug")"
           if [[ -n "$domain_value" && "$domain_value" != "$domain_slug" ]]; then
-            warn "Domain '$domain_slug' has slug '$domain_value' in frontmatter"
+            _dr_warn "Domain '$domain_slug' has slug '$domain_value' in frontmatter"
             errors=$((errors + 1))
           fi
 
@@ -279,7 +288,7 @@ cmd_doctor() {
               continue
             fi
             if (( is_hub )) || [[ "$repo_id" != "repo-primary" ]]; then
-              warn "Domain '$domain_slug' references repo_id '$repo_id' that is not defined in .platform/repos.md"
+              _dr_warn "Domain '$domain_slug' references repo_id '$repo_id' that is not defined in .platform/repos.md"
               errors=$((errors + 1))
             fi
           done < <(inline_array_items "$(frontmatter_value "$domain_file" "repo_ids")")
@@ -290,17 +299,17 @@ cmd_doctor() {
 
   if [[ -f "$brief" ]] && ! brief_is_placeholder "$brief"; then
     if is_legacy_brief_file "$brief"; then
-      warn "work/BRIEF.md uses the legacy multi-stream format. Keep using it for now, or run 'ab brief-upgrade <stream-slug> --apply' when you settle on one active feature brief."
+      _dr_warn "work/BRIEF.md uses the legacy multi-stream format. Keep using it for now, or run 'ab brief-upgrade <stream-slug> --apply' when you settle on one active feature brief."
       warnings=$((warnings + 1))
     else
     local brief_stream=""
     brief_stream="$(sed -n 's/^\*\*Stream file:\*\* `work\/\([^`]*\)\.md`$/\1/p' "$brief")"
     brief_stream="${brief_stream%%$'\n'*}"
     if [[ -z "$brief_stream" ]]; then
-      warn "work/BRIEF.md is missing a valid Stream file reference"
+      _dr_warn "work/BRIEF.md is missing a valid Stream file reference"
       warnings=$((warnings + 1))
     elif [[ ! -f "./.platform/work/${brief_stream}.md" ]]; then
-      warn "work/BRIEF.md references missing stream file .platform/work/${brief_stream}.md"
+      _dr_warn "work/BRIEF.md references missing stream file .platform/work/${brief_stream}.md"
       errors=$((errors + 1))
     fi
 
@@ -310,13 +319,13 @@ cmd_doctor() {
       [[ -z "$brief_domain" ]] && continue
       brief_domain_count=$((brief_domain_count + 1))
       if [[ ! -f "./.platform/domains/${brief_domain}.md" ]]; then
-        warn "work/BRIEF.md references missing domain file .platform/domains/${brief_domain}.md"
+        _dr_warn "work/BRIEF.md references missing domain file .platform/domains/${brief_domain}.md"
         errors=$((errors + 1))
       fi
     done < <(sed -n 's/^- `\.platform\/domains\/\([^` ]*\)\.md`.*$/\1/p' "$brief")
 
     if (( brief_domain_count == 0 )); then
-      warn "work/BRIEF.md has no concrete domain references"
+      _dr_warn "work/BRIEF.md has no concrete domain references"
       warnings=$((warnings + 1))
     fi
     fi
@@ -324,7 +333,7 @@ cmd_doctor() {
 
   if (( is_hub )) && [[ -f "$repos_file" ]]; then
     if [[ -z "$repo_rows" ]]; then
-      warn "Hub mode detected but .platform/repos.md has no repo rows"
+      _dr_warn "Hub mode detected but .platform/repos.md has no repo rows"
       errors=$((errors + 1))
     else
       local seen_repo_ids=""
@@ -333,18 +342,18 @@ cmd_doctor() {
         [[ -z "$repo_name" ]] && continue
 
         if [[ "$repo_name" =~ ^_repo- || "$repo_path" =~ \.\./repo- ]]; then
-          warn "Hub repos.md still contains placeholder row '$repo_name'"
+          _dr_warn "Hub repos.md still contains placeholder row '$repo_name'"
           errors=$((errors + 1))
           continue
         fi
 
         if [[ ! "$repo_name" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
-          warn "Hub repo id '$repo_name' must be kebab-case"
+          _dr_warn "Hub repo id '$repo_name' must be kebab-case"
           errors=$((errors + 1))
         fi
 
         if printf '%s\n' "$seen_repo_ids" | grep -Fxq "$repo_name"; then
-          warn "Duplicate repo id '$repo_name' in .platform/repos.md"
+          _dr_warn "Duplicate repo id '$repo_name' in .platform/repos.md"
           errors=$((errors + 1))
         else
           seen_repo_ids="${seen_repo_ids}"$'\n'"$repo_name"
@@ -352,87 +361,38 @@ cmd_doctor() {
 
         resolved_path="$(resolve_repo_path "$repos_file" "$repo_path" 2>/dev/null)" || resolved_path=""
         if [[ -z "$resolved_path" || ! -d "$resolved_path" ]]; then
-          warn "Hub repo path '$repo_path' for '$repo_name' does not exist"
+          _dr_warn "Hub repo path '$repo_path' for '$repo_name' does not exist"
           errors=$((errors + 1))
           continue
         fi
 
         if is_placeholder_value "$repo_ref"; then
-          warn "Hub repo '$repo_name' is missing a concrete deep reference file"
+          _dr_warn "Hub repo '$repo_name' is missing a concrete deep reference file"
           warnings=$((warnings + 1))
         elif [[ ! -f "./.platform/$repo_ref" ]]; then
-          warn "Hub repo '$repo_name' deep reference file .platform/$repo_ref does not exist"
+          _dr_warn "Hub repo '$repo_name' deep reference file .platform/$repo_ref does not exist"
           warnings=$((warnings + 1))
         fi
 
         if [[ -x "$sync_script" ]] && ! grep -Fq "\"$repo_path\"" "$sync_script" && ! grep -Fq "\"$resolved_path\"" "$sync_script"; then
-          warn "Hub repo '$repo_name' is not listed in scripts/sync-context.sh REPOS array"
+          _dr_warn "Hub repo '$repo_name' is not listed in scripts/sync-context.sh REPOS array"
           warnings=$((warnings + 1))
         fi
       done <<< "$repo_rows"
     fi
   fi
 
-  # Git hooks + provider wrappers
-  if [[ -d "./.git" ]]; then
-    local hook
-    for hook in pre-commit post-commit; do
-      local hook_file="./.git/hooks/$hook"
-      if [[ -f "$hook_file" ]] && grep -q "ab" "$hook_file" 2>/dev/null; then
-        ok "Git $hook hook installed"
-      else
-        warn "Git $hook hook not installed — run 'ab install-hooks'"
-        warnings=$((warnings + 1))
-      fi
-    done
-
-    # Auto-checkpoint: post-commit hook must call `ab checkpoint --auto`
-    # for the cross-provider self-healing story to work. Git hooks run for every
-    # provider, so this is the one enforcement point that covers Codex/Gemini.
-    local post_commit="./.git/hooks/post-commit"
-    if [[ -f "$post_commit" ]] && grep -q "ab checkpoint --auto" "$post_commit" 2>/dev/null; then
-      ok "Auto-checkpoint wired into post-commit hook"
-    else
-      warn "Post-commit hook does not call 'ab checkpoint --auto' — auto-checkpoint disabled. Run 'ab update' to refresh hooks."
-      warnings=$((warnings + 1))
-    fi
-  fi
-
-  for _w in codex-ab gemini-ab; do
-    local wp="./.platform/scripts/$_w"
-    if [[ -x "$wp" ]]; then
-      ok "Provider wrapper $_w present and executable"
-    elif [[ -f "$wp" ]]; then
-      warn "Provider wrapper $wp exists but is not executable — run chmod +x"
-      warnings=$((warnings + 1))
-    else
-      warn "Provider wrapper $wp missing — run 'ab install-hooks'"
-      warnings=$((warnings + 1))
-    fi
-  done
-
-  # Alias presence check — only warn when codex/gemini are installed but wrappers not hooked
-  for _cli in codex gemini; do
-    if command -v "$_cli" >/dev/null 2>&1; then
-      local _alias_found=0
-      for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
-        [[ -f "$rc" ]] && grep -q "agentboard:aliases" "$rc" 2>/dev/null && _alias_found=1
-      done
-      if (( _alias_found == 0 )); then
-        warn "$_cli is in PATH but ab shell functions not installed — run 'ab install-hooks --aliases'"
-        warnings=$((warnings + 1))
-      else
-        ok "Shell function for $_cli installed"
-      fi
-    fi
-  done
+  (( ci_mode == 0 )) && _dr_check_git_hooks
+  (( ci_mode == 0 )) && _dr_check_provider_wrappers
 
   if agentboard_runtime_gitignore_is_current "./.gitignore"; then
-    ok "Runtime artifacts ignored in .gitignore"
+    _dr_ok "Runtime artifacts ignored in .gitignore"
   else
-    warn ".gitignore is missing the ab runtime block (.platform/events.jsonl, .daemon-port, .file-locks.json, watcher/session state). Run 'ab update' to install it."
+    _dr_warn ".gitignore is missing the ab runtime block (.platform/events.jsonl, .daemon-port, .file-locks.json, watcher/session state). Run 'ab update' to install it."
     warnings=$((warnings + 1))
   fi
+
+  (( ci_mode )) && { _dr_ci_summary; return; } || true
 
   say
   if (( errors > 0 )); then
