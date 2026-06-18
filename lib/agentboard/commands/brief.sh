@@ -39,6 +39,7 @@ EOF
   _brief_gotchas "$show_all"
   _brief_open_questions "$show_all"
   _brief_usage_insight
+  type _brief_patterns &>/dev/null && _brief_patterns || true
 }
 
 _brief_active_streams() {

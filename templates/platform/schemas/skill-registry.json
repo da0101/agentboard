@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "agentboard skill registry",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "ab-adr",
+      "description": "Architecture Decision Record — capture a technical decision after it is made: context, decision, consequences, alternatives considered, and status.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-agent-eval",
+      "description": "Self-evaluate agent output quality — score a completed task against its acceptance criteria, surface gaps, and decide whether to re-attempt or escalate.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-agent-harness",
+      "description": "Build the scaffolding around an agent — input/output wiring, retry envelope, logging, cost tracking, and graceful failure. The structural layer that makes an agent production-ready rather than demo-ready.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-agent-introspection",
+      "description": "Debug a misbehaving agent — inspect its reasoning trace, tool calls, context window pressure, and output to pinpoint where it went wrong. The agent equivalent of a debugger.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-agentic-engineering",
+      "description": "Agentic system design patterns — guide the design and review of multi-agent pipelines: tool selection, context management, retry/fallback contracts, human-in-the-loop gates, and output validation. Prevents the most common agentic failure modes.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-api-design",
+      "description": "API design review and pattern enforcement — evaluate a proposed or existing API surface for REST/RPC conventions, naming consistency, backward compatibility, error contract, auth model, and documentation completeness.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-architect",
+      "description": "System / component design mode. Produces a design with explicit invariants, component boundaries, data flow, and failure modes. Use before writing code for any medium+ feature or any change that touches cross-cutting concerns.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-architecture-audit",
+      "description": "Architecture audit — review a codebase or PR for structural concerns: file size violations, coupling, missing abstractions, duplicated logic, misrouted responsibility.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-article-writing",
+      "description": "Technical writing for docs, changelogs, postmortems, and blog posts — structured, evidence-based, audience-aware.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-autonomous-loop",
+      "description": "Design and safety-gate autonomous agent loops — structure a recurring or self-driving agent task with explicit stop conditions, budget limits, drift detection, and human escalation triggers. Prevents runaway automation.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-benchmark",
+      "description": "Benchmark methodology — measure baseline performance, run under load, compare before/after, surface regressions with reproducible evidence. Never benchmark without a baseline.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-blueprint",
+      "description": "Architecture blueprint for new features or systems — produce a one-page design doc covering: problem statement, proposed solution, component breakdown, data model sketch, API surface, risks, and open questions. Decision record, not an essay.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-browser-qa",
+      "description": "Browser-driven QA — drive a real browser (Playwright/Puppeteer) to click through the golden path, fill forms, assert UI state, and capture screenshots as evidence.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-canary",
+      "description": "Post-deploy canary watch — monitor key metrics, error rates, and latency for a defined window after deployment. Escalate if thresholds exceeded.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-code-tour",
+      "description": "Guided codebase walkthrough — produce a structured tour of an unfamiliar repo: entry points, data flow, key abstractions, gotchas, and a recommended reading order.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-codebase-onboarding",
+      "description": "Rapid codebase orientation — scan structure, understand entry points, map data flows, identify conventions, and produce a terse orientation summary in chat.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-debug",
+      "description": "Root-cause bug investigation using the scientific method. Forms a hypothesis, tests it, narrows the search, and fixes the underlying cause — not the symptom. Logs each hypothesis + result so you can't loop on the same wrong theory.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-gan",
+      "description": "GAN loop orchestrator — Generate-Assess-Normalize triad that stress-tests output through adversarial evaluation before approving it.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-graphify",
+      "description": "Map the entire codebase into a queryable knowledge graph stored at .platform/graphify/ — interactive visualization, a graph report, and a JSON graph file for fast cross-file research.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-pm",
+      "description": "Product-management thinking mode. Forces user-value framing before writing code: who is the user, what problem does this solve, what's the simplest validation, what are the failure modes. Use before starting any feature or when the user asks 'should we build X?'.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-qa",
+      "description": "Quality assurance pass — manual or real-browser testing of a feature against acceptance criteria. Produces a pass/fail report with reproducible repro steps for any failures. Use before shipping any UI-visible change.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-research",
+      "description": "Bounded research protocol. 1 web search + 2-3 fetches + 3-5 code reads max. Produces a <=300-word synthesis in chat (never a .md file). Use before proposing a plan for any new stream or medium+ scope task.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-review",
+      "description": "Pre-PR code review. Reviews a diff against spec compliance, code quality, security, and test coverage. Produces a structured findings list with severity. Use before every merge.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-scientific-thinking",
+      "description": "Hypothesis-driven investigation for technical problems — form a falsifiable hypothesis, design a minimal experiment, observe results, update beliefs, repeat.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-search-first",
+      "description": "Search-first protocol — before writing any code or answer, prove you searched existing code, docs, and memory. Surfaces reuse opportunities and prevents duplication.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-security",
+      "description": "Security audit pass. Runs an OWASP-aligned checklist against a diff or a file set, covering auth, authorization, secrets, input validation, injection, tenant isolation, logging hygiene, and dependency risk. Produces a findings list with severity, not a 100-page report.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-skill-comply",
+      "description": "Verify that an agent is following its assigned skill protocol — check identity header, protocol step execution, output format, and hard rule compliance.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-skill-scout",
+      "description": "Discover, audit, and stocktake the installed skill pack — list available skills, check for stale/missing runtime copies, and suggest gaps to fill.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-strategic-compact",
+      "description": "Strategic compact — distill a complex situation into a one-page decision brief: context, options, recommendation, risks. For competing priorities and stakeholder tradeoffs.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-taste",
+      "description": "Code and design taste review — clarity, naming, abstraction, and craft. The review that catches what linters miss.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-tdd",
+      "description": "Test-driven development workflow — write failing test first, implement to green, refactor, verify no regressions. Enforces red-green-refactor discipline.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-team-orchestration",
+      "description": "Coordinate multiple specialised agents toward a shared goal — assign roles, manage inter-agent dependencies, handle partial failures, and synthesise results. The conductor skill for complex multi-agent workflows.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-test-writer",
+      "description": "Unit test writer. Enumerates edge cases by feature type (API endpoint / business logic / auth / data mutation / UI component) and writes tests that cover happy path + boundaries + failures. Uses the project's actual test framework found in the codebase.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-token-budget",
+      "description": "Token budget advisor — estimate task token cost, warn when approaching context limits, recommend chunking or model downgrade for cost-sensitive work.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-triage",
+      "description": "Classify a task by type/scope/risk before starting work. Decides which workflow depth and which specialist skills are appropriate. Run this at the start of every non-trivial task.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-verification-loop",
+      "description": "Agent verification loop — re-run verification steps until all pass or escalation threshold is reached. Prevents claiming success without evidence.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    },
+    {
+      "name": "ab-workflow",
+      "description": "The 6-stage inline workflow orchestrator (triage -> interview -> research -> propose -> execute -> verify). Runs a medium/large task through all stages with the right specialists at each step. Plans live in chat, never as .md files.",
+      "origin": "agentboard",
+      "version": "1.0.0",
+      "install": "built-in"
+    }
+  ]
+}

@@ -10,10 +10,13 @@ name: ci
 # require these status checks on develop and main:
 #   - unit-tests
 #   - integration-tests
+#   - agentboard-validate
 #   - ci-gate
 #
 # macOS jobs (unit-tests-macos, integration-tests-macos) run the suites under
 # the system /bin/bash (3.2) and gate the merge via ci-gate's needs list.
+#
+# HUD health: ![ci](https://github.com/danilulmashev/agentboard/actions/workflows/ci.yml/badge.svg)
 
 on:
   pull_request:
@@ -107,6 +110,16 @@ jobs:
           /bin/bash --version
           /bin/bash tests/integration.sh
 
+  agentboard-validate:
+    name: agentboard skill validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate skill pack
+        run: bash bin/agentboard validate --ci
+      - name: Run unit tests
+        run: bash tests/unit.sh
+
   ci-gate:
     name: ci-gate
     runs-on: ubuntu-latest
@@ -115,6 +128,7 @@ jobs:
       - integration-tests
       - unit-tests-macos
       - integration-tests-macos
+      - agentboard-validate
     steps:
       - name: Confirm merge gate is green
         shell: bash

@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentboard.dev/schemas/role.v1.json",
+  "title": "Agentboard Role Frontmatter",
+  "description": "JSON Schema for the YAML frontmatter block in a role definition file.",
+  "type": "object",
+  "required": ["name", "description", "routes_to"],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable role name, e.g. Backend Systems Architect."
+    },
+    "description": {
+      "type": "string",
+      "description": "One-sentence summary of the role's purpose and scope."
+    },
+    "routes_to": {
+      "type": "array",
+      "description": "Skill names this role delegates to. Each entry must be a valid skill identifier.",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "model_preference": {
+      "type": "string",
+      "description": "Optional. Preferred model tier for this role: sonnet, opus, or haiku.",
+      "enum": ["sonnet", "opus", "haiku"]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Optional. Free-form labels for filtering and discoverability.",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "slug": {
+      "type": "string",
+      "description": "Optional. Machine-safe kebab-case identifier, e.g. backend-architect.",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "label": {
+      "type": "string",
+      "description": "Optional. Display label string used in agent identity headers."
+    },
+    "ansi_color": {
+      "type": "string",
+      "description": "Optional. 256-color ANSI code for terminal identity color, e.g. '75'."
+    },
+    "mission": {
+      "type": "string",
+      "description": "Optional. One-line mission statement shown at role activation."
+    }
+  }
+}

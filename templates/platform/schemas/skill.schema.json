@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentboard.dev/schemas/skill.v1.json",
+  "title": "Agentboard Skill Frontmatter",
+  "description": "JSON Schema for the YAML frontmatter block in a SKILL.md file.",
+  "type": "object",
+  "required": ["name", "description", "version", "origin"],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Canonical skill identifier, e.g. ab-research. Must be kebab-case.",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "description": "One-sentence summary of what the skill does, shown in discoverability indexes."
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of the skill definition, e.g. 1.0.0.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "origin": {
+      "type": "string",
+      "description": "Whether this skill ships with agentboard or comes from the community.",
+      "enum": ["agentboard", "community"]
+    },
+    "author": {
+      "type": "string",
+      "description": "Optional. Human-readable author name or GitHub handle."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Optional. Free-form labels for filtering and discoverability.",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "harnesses": {
+      "type": "array",
+      "description": "Optional. Agent harnesses this skill is compatible with, e.g. claude-code, codex, gemini.",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "min_agentboard_version": {
+      "type": "string",
+      "description": "Optional. Minimum agentboard CLI version required to run this skill.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "argument-hint": {
+      "type": "string",
+      "description": "Optional. Short description of the CLI argument the skill accepts."
+    },
+    "allowed-tools": {
+      "type": "array",
+      "description": "Optional. Explicit list of tool names the skill is permitted to invoke.",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    }
+  }
+}

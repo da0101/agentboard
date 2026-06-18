@@ -145,27 +145,30 @@ cmd_install_hooks() {
     return 0
   fi
 
-  local guard_src="$TEMPLATES_PLATFORM/scripts/hooks/bash-guard.sh"
-  local guard_dst="./.platform/scripts/hooks/bash-guard.sh"
+  local hooks_src="$TEMPLATES_PLATFORM/scripts/hooks"
+  local hooks_dst="./.platform/scripts/hooks"
   local settings_src="$TEMPLATES_ROOT/.claude/settings.json"
   local settings_dst="./.claude/settings.json"
   local marker="bash-guard.sh"
 
-  [[ -f "$guard_src" ]] || die "bash-guard.sh template missing at $guard_src"
+  [[ -f "$hooks_src/bash-guard.sh" ]] || die "bash-guard.sh template missing at $hooks_src"
   [[ -f "$settings_src" ]] || die "settings.json template missing at $settings_src"
 
   head "Agentboard hooks"
 
-  # 1) Install the guard script (idempotent — template is source of truth)
-  if (( dry_run )); then
-    printf '  %s+%s would write %s\n' "$C_CYAN" "$C_RESET" "$guard_dst"
-  else
-    mkdir -p "$(dirname "$guard_dst")"
-    cp "$guard_src" "$guard_dst"
-    chmod +x "$guard_dst"
-    printf '  %s✓%s %s  %s(executable)%s\n' \
-      "$C_GREEN" "$C_RESET" "$guard_dst" "$C_DIM" "$C_RESET"
-  fi
+  # 1) Install hook scripts (idempotent — templates are source of truth)
+  for _hook_name in bash-guard.sh memory-persist.sh; do
+    local _src="$hooks_src/$_hook_name" _dst="$hooks_dst/$_hook_name"
+    [[ -f "$_src" ]] || continue
+    if (( dry_run )); then
+      printf '  %s+%s would write %s\n' "$C_CYAN" "$C_RESET" "$_dst"
+    else
+      mkdir -p "$hooks_dst"
+      cp "$_src" "$_dst" && chmod +x "$_dst"
+      printf '  %s✓%s %s  %s(executable)%s\n' \
+        "$C_GREEN" "$C_RESET" "$_dst" "$C_DIM" "$C_RESET"
+    fi
+  done
 
   # 2) Wire it into Claude Code settings.json
   if [[ ! -f "$settings_dst" ]]; then
@@ -266,25 +269,14 @@ Usage: ab install-hooks [--force] [--dry-run]
 Installs the full ab hook stack for all providers.
 
 What gets installed:
-  .platform/scripts/hooks/bash-guard.sh         [Claude Code only]
-      PreToolUse hook — intercepts destructive Bash commands (git commit,
-      git push, git reset --hard, rm -rf) and asks for approval.
-
-  .claude/settings.json                          [Claude Code only]
-      Wires bash-guard + closure gate + session bootstrap into Claude Code.
-
-  .git/hooks/pre-commit                          [all providers]
-      Blocks committing an ACTIVE.md change that removes a stream row
-      unless closure_approved: true. Fail-open. Bypass: --no-verify.
-
-  .git/hooks/post-commit                         [all providers]
-      Appends one line to .platform/memory/log.md after every commit.
-      Auto-breadcrumbs for Codex/Gemini sessions that miss checkpoints.
-
-  .platform/scripts/codex-ab                     [Codex CLI]
-  .platform/scripts/gemini-ab                    [Gemini CLI]
-      Provider wrappers — run `ab brief` before launch so agents
-      start every session with full project context.
+  bash-guard.sh     [Claude Code PreToolUse]  intercepts destructive Bash
+                    commands (git commit/push/reset --hard, rm -rf).
+  memory-persist.sh [Claude Code Stop]        breadcrumb to memory/log.md +
+                    session-YYYYMMDD.md after each turn.
+  settings.json     [Claude Code]             wires all Claude Code hooks.
+  pre-commit        [all providers]           blocks unapproved stream closure.
+  post-commit       [all providers]           appends commit breadcrumb to log.md.
+  codex-ab / gemini-ab  [Codex/Gemini CLI]    run `ab brief` before each session.
 
 Flags:
   --aliases   Write shell functions for 'codex' and 'gemini' into
