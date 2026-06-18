@@ -92,7 +92,7 @@ function readRoles(root) {
         return fs.readdirSync(dir).filter(f => f.endsWith(".md") && f !== "INDEX.md").flatMap(f => {
             try {
                 const fm = parseFrontmatter(fs.readFileSync(path.join(dir, f), "utf8"));
-                return [{ name: fm.name ?? fm.slug ?? path.basename(f, ".md"), description: fm.description ?? fm.objective ?? "" }];
+                return [{ name: fm.name ?? fm.slug ?? path.basename(f, ".md"), description: fm.mission ?? fm.description ?? fm.objective ?? "" }];
             }
             catch {
                 return [];
