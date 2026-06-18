@@ -5,6 +5,7 @@ import { StreamsProvider } from "./streamsProvider";
 import { CatalogProvider } from "./catalogProvider";
 import { SessionsProvider } from "./sessionsProvider";
 import { WorktreesProvider } from "./worktreesProvider";
+import { DashboardPanel } from "./dashboardPanel";
 
 export function activate(context: vscode.ExtensionContext): void {
   const workspaceRoot =
@@ -61,6 +62,14 @@ export function activate(context: vscode.ExtensionContext): void {
       worktreesProvider.refresh();
     })
   );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("agentboard.openDashboard", () => {
+      DashboardPanel.createOrShow(workspaceRoot);
+    })
+  );
+  // Auto-open dashboard on activation
+  DashboardPanel.createOrShow(workspaceRoot);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("agentboard.openBrief", async () => {

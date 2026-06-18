@@ -55,6 +55,10 @@
       {
         "command": "agentboard.openBrief",
         "title": "Agentboard: Open Brief"
+      },
+      {
+        "command": "agentboard.openDashboard",
+        "title": "Agentboard: Open Dashboard"
       }
     ]
   },
