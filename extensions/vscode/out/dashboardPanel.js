@@ -138,6 +138,22 @@ function readRecentEvents(root, n = 20) {
         return [];
     }
 }
+function readWorkflowPlan(root) {
+    try {
+        const raw = fs.readFileSync(path.join(root, "agentboard.workflow-agents.json"), "utf8");
+        const d = JSON.parse(raw);
+        if (!d || !Array.isArray(d.agents))
+            return null;
+        // Discard if older than 30 minutes and done
+        const ageMs = Date.now() - new Date(d.started_at).getTime();
+        if (d.status === "done" && ageMs > 30 * 60 * 1000)
+            return null;
+        return d;
+    }
+    catch {
+        return null;
+    }
+}
 function readLastSkill(root) {
     try {
         const lines = fs.readFileSync(path.join(root, ".platform", "events.jsonl"), "utf8")
@@ -200,7 +216,7 @@ class DashboardPanel {
         this._panel.webview.html = this._getShell();
         this._initialized = true;
         void this._update();
-        const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(workspaceRoot, "{agentboard.hud-status.json,.platform/events.jsonl,.platform/work/*.md}"));
+        const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(workspaceRoot, "{agentboard.hud-status.json,agentboard.workflow-agents.json,.platform/events.jsonl,.platform/work/*.md}"));
         watcher.onDidChange(() => void this._update(), null, this._disposables);
         watcher.onDidCreate(() => void this._update(), null, this._disposables);
         this._disposables.push(watcher);
@@ -306,6 +322,21 @@ class DashboardPanel {
         const lastEventTs = lastNonAgentEvent?.ts ?? "";
         const secsSinceLastEvent = lastEventTs ? Math.floor((Date.now() - new Date(lastEventTs).getTime()) / 1000) : null;
         const isInLongOp = hasLive && secsSinceLastEvent !== null && secsSinceLastEvent > 90;
+        // Detect active Workflow (WorkflowStart without matching WorkflowEnd within 30 min)
+        let activeWorkflow = null;
+        for (const ev of allEvents) {
+            const secAgo = Math.floor((Date.now() - new Date(ev.ts).getTime()) / 1000);
+            if (ev.tool === "WorkflowStart" && secAgo < 1800) {
+                activeWorkflow = {
+                    label: ev.label ?? "workflow",
+                    agentCount: ev.agent_count ?? 0,
+                    ts: ev.ts,
+                };
+            }
+            else if (ev.tool === "WorkflowEnd") {
+                activeWorkflow = null; // workflow finished
+            }
+        }
         const agentMap = new Map();
         for (const ev of allEvents) {
             const secAgo = Math.floor((Date.now() - new Date(ev.ts).getTime()) / 1000);
@@ -321,7 +352,6 @@ class DashboardPanel {
                     });
             }
             else if (ev.tool === "Agent" && ev.agent) {
-                // PostToolUse Agent = agent finished — mark done if within window
                 const key = ev.agent ?? "";
                 const existing = agentMap.get(key);
                 if (existing)
@@ -330,12 +360,15 @@ class DashboardPanel {
         }
         const recentAgents = Array.from(agentMap.values()).filter(a => {
             const secAgo = Math.floor((Date.now() - new Date(a.ts).getTime()) / 1000);
-            return secAgo < 600; // show for 10 min (running + recently done)
+            return secAgo < 600;
         });
+        const workflowPlan = readWorkflowPlan(this.workspaceRoot);
         void this._panel.webview.postMessage({
             type: "update",
             hasLive, model, cost, sessionTime, activeStream, streamDesc, activeRole, lastSkill,
             ctxPct, branch, cpRunning, sessions: sessions.length,
+            activeWorkflow,
+            workflowPlan,
             streams: readStreams(this.workspaceRoot),
             fileActivity, recentAgents,
             lastEventLabel, lastEventTs, isInLongOp,
@@ -562,13 +595,20 @@ window.addEventListener('message',function(e){
   const dot=document.getElementById('now-dot');
   const stateEl=document.getElementById('now-state');
   const ctxNow=d.ctxPct!==null&&d.ctxPct!==undefined?Math.round(100-d.ctxPct):0;
+  const isWorkflow=!!(d.activeWorkflow);
   if(d.hasLive){
     nowEl.classList.remove('idle');dot.classList.remove('idle');
     const isCompact=d.isInLongOp&&ctxNow>=75;
-    stateEl.textContent=isCompact?'COMPACTING':'LIVE';
-    stateEl.style.color=isCompact?'#9c6af7':'#4caf50';
-    dot.style.background=isCompact?'#9c6af7':'#4caf50';
-    dot.style.animation=isCompact?'pulse 0.6s ease-in-out infinite':'pulse 1.5s ease-in-out infinite';
+    if(isWorkflow){
+      stateEl.textContent='WORKFLOW';stateEl.style.color='#4a9eff';
+      dot.style.background='#4a9eff';dot.style.animation='pulse 0.6s ease-in-out infinite';
+    } else if(isCompact){
+      stateEl.textContent='COMPACTING';stateEl.style.color='#9c6af7';
+      dot.style.background='#9c6af7';dot.style.animation='pulse 0.6s ease-in-out infinite';
+    } else {
+      stateEl.textContent='LIVE';stateEl.style.color='#4caf50';
+      dot.style.background='#4caf50';dot.style.animation='pulse 1.5s ease-in-out infinite';
+    }
   } else {
     nowEl.classList.add('idle');dot.classList.add('idle');
     stateEl.textContent='IDLE';stateEl.style.color='#666';dot.style.background='#666';
@@ -622,32 +662,62 @@ window.addEventListener('message',function(e){
       +'</div>';
   }).join('') : '<div class="em">No activity yet — starts logging on next tool call</div>');
 
-  // agents
+  // agents / workflow panel
   const agentsEl=document.getElementById('agents-list');
   const agentsTtl=document.getElementById('agents-ttl');
-  if(agentsEl&&d.recentAgents&&d.recentAgents.length){
+  const wp=d.workflowPlan;
+  if(agentsEl&&wp&&wp.agents&&wp.agents.length){
+    const isDone=wp.status==='done';
+    const dotColor=isDone?'#555':'#4a9eff';
+    const stateLabel=isDone?'✓ WORKFLOW DONE':'⟳ WORKFLOW RUNNING';
+    if(agentsTtl)agentsTtl.innerHTML='<span style="color:'+dotColor+';font-weight:700">'+stateLabel+'</span>'
+      +' <span style="font-weight:400;opacity:.4;font-size:10px;text-transform:none;letter-spacing:0">'+esc(wp.name)+'</span>';
+    // phase pills
+    let phasePills='';
+    if(wp.phases&&wp.phases.length){
+      phasePills='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'
+        +wp.phases.map(function(p){
+          return '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:#4a9eff22;color:#4a9eff">'+esc(p)+'</span>';
+        }).join('')+'</div>';
+    }
+    // agent cards
+    const cards=wp.agents.map(function(a,i){
+      const done=a.status==='done';
+      const pulse=done
+        ?'<span style="width:6px;height:6px;border-radius:50%;background:#4caf50;display:inline-block;flex-shrink:0"></span>'
+        :'<span class="ag-pulse"></span>';
+      const roleTag=a.role?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#9c6af722;color:#9c6af7">'+esc(a.role)+'</span>':'';
+      const skillTag=a.skill?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#4caf8422;color:#4caf84">'+esc(a.skill)+'</span>':'';
+      const modelLabel=a.model?a.model.replace('claude-','').replace('-latest',''):'';
+      const modelTag=modelLabel?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#ff980022;color:#ff9800">'+esc(modelLabel)+'</span>':'';
+      const phaseTag=a.phase?'<span style="font-size:10px;opacity:.4">'+esc(a.phase)+'</span>':'';
+      const num='<span style="font-size:10px;opacity:.3;flex-shrink:0;min-width:16px">'+(i+1)+'.</span>';
+      return '<div class="ag-row" style="align-items:flex-start;gap:6px;padding:5px 0">'
+        +num+pulse
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'+(done?'text-decoration:line-through;opacity:.4':'')+'">'+esc(a.label)+'</div>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px">'+roleTag+skillTag+modelTag+phaseTag+'</div>'
+        +'</div>'
+        +'</div>';
+    }).join('');
+    agentsEl.innerHTML=phasePills+cards;
+  } else if(agentsEl&&d.recentAgents&&d.recentAgents.length){
+    // Fallback: AgentStart events (direct Agent tool, no Workflow)
     const running=d.recentAgents.filter(function(a){return !a.done;});
     const done=d.recentAgents.filter(function(a){return a.done;});
     if(agentsTtl)agentsTtl.innerHTML='Agents'
       +(running.length?' <span style="color:#4caf50;font-weight:700">'+running.length+' running</span>':'')
-      +(done.length?' <span style="color:#888;font-weight:400;font-size:11px">'+done.length+' done</span>':'')
+      +(done.length?' <span style="opacity:.4;font-size:11px"> '+done.length+' done</span>':'')
       +'<span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none"> · last 10 min</span>';
     agentsEl.innerHTML=d.recentAgents.map(function(a){
-      const pulse=a.done
-        ?'<span style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;flex-shrink:0"></span>'
-        :'<span class="ag-pulse"></span>';
-      const roleTag=a.role?'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#9c6af722;color:#9c6af7;margin-left:4px">'+esc(a.role)+'</span>':'';
-      const skillTag=a.skill?'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#4caf8422;color:#4caf84;margin-left:4px">'+esc(a.skill)+'</span>':'';
-      const status=a.done?'<span style="font-size:10px;opacity:.4;margin-left:4px">✓</span>':'';
-      return '<div class="ag-row">'+pulse
-        +'<span class="ag-label" style="'+(a.done?'opacity:.5':'')+'">'+esc(a.label)+'</span>'
-        +roleTag+skillTag+status
-        +'<span class="ag-t">'+relTime(a.ts)+'</span>'
-        +'</div>';
+      const pulse=a.done?'<span style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;flex-shrink:0"></span>':'<span class="ag-pulse"></span>';
+      const roleTag=a.role?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#9c6af722;color:#9c6af7">'+esc(a.role)+'</span>':'';
+      const skillTag=a.skill?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#4caf8422;color:#4caf84">'+esc(a.skill)+'</span>':'';
+      return '<div class="ag-row">'+pulse+'<span class="ag-label" style="'+(a.done?'opacity:.4':'')+'">'+esc(a.label)+'</span>'+roleTag+skillTag+'<span class="ag-t">'+relTime(a.ts)+'</span></div>';
     }).join('');
   } else if(agentsEl){
     if(agentsTtl)agentsTtl.innerHTML='Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· last 10 min</span>';
-    agentsEl.innerHTML='<div class="em">No sub-agents yet — use /workflows or ask Claude to dispatch agents in parallel</div>';
+    agentsEl.innerHTML='<div class="em">No sub-agents — Claude is working solo</div>';
   }
 
   // streams
