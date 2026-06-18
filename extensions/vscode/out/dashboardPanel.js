@@ -52,13 +52,38 @@ function readStreams(root) {
     try {
         return fs.readdirSync(dir).filter(f => f.endsWith(".md") && !skip.has(f)).flatMap(f => {
             try {
-                const c = fs.readFileSync(path.join(dir, f), "utf8");
+                const filePath = path.join(dir, f);
+                const c = fs.readFileSync(filePath, "utf8");
                 const fm = parseFrontmatter(c);
                 const st = (fm.status ?? "").toLowerCase();
                 if (["done", "archived", "closed"].includes(st))
                     return [];
-                const na = fm.next_action ?? (c.match(/##\s*Next\s+action\s*\n([^\n]+)/i)?.[1]?.trim() ?? "");
-                return [{ slug: fm.slug ?? path.basename(f, ".md"), status: fm.status ?? "active", type: fm.type ?? "task", next_action: na, role: fm.role ?? "" }];
+                const body = c.replace(/^---[\s\S]*?---\n?/, "");
+                const section = (headers) => {
+                    const pat = new RegExp(`##+ (?:${headers.join("|")})\\s*\\n([\\s\\S]*?)(?=\\n##|$)`, "i");
+                    return body.match(pat)?.[1]?.trim() ?? "";
+                };
+                const objective = fm.objective ?? section(["objective", "goal", "description", "what", "summary"]);
+                const nextAction = fm.next_action ?? section(["next.?action", "next.?step", "now", "current"]);
+                const progressRaw = section(["progress", "log", "notes", "session.?log"]);
+                // parse done criteria checklist
+                const criteriaBlock = section(["done.?criteria", "done", "acceptance", "checklist", "exit.?criteria"]);
+                const doneCriteria = criteriaBlock.split("\n").filter(l => /^\s*-\s*\[/.test(l)).map(l => ({
+                    done: /^\s*-\s*\[x\]/i.test(l),
+                    text: l.replace(/^\s*-\s*\[.\]\s*/, "").trim(),
+                }));
+                return [{
+                        slug: fm.slug ?? path.basename(f, ".md"),
+                        status: fm.status ?? "active",
+                        type: fm.type ?? "task",
+                        role: fm.role ?? "",
+                        branch: fm.branch ?? "",
+                        objective: objective.slice(0, 300),
+                        nextAction: nextAction.split("\n")[0]?.trim().slice(0, 200) ?? "",
+                        doneCriteria: doneCriteria.slice(0, 12),
+                        progress: progressRaw.split("\n").filter(Boolean).slice(-3).join(" · ").slice(0, 200),
+                        filePath,
+                    }];
             }
             catch {
                 return [];
@@ -221,8 +246,13 @@ class DashboardPanel {
         watcher.onDidCreate(() => void this._update(), null, this._disposables);
         this._disposables.push(watcher);
         this._interval = setInterval(() => void this._update(), 4000);
-        this._panel.webview.onDidReceiveMessage((msg) => { if (msg.command === "refresh")
-            void this._update(); }, null, this._disposables);
+        this._panel.webview.onDidReceiveMessage((msg) => {
+            if (msg.command === "refresh")
+                void this._update();
+            if (msg.command === "openStream" && msg.filePath) {
+                void vscode.workspace.openTextDocument(msg.filePath).then(doc => vscode.window.showTextDocument(doc, { preview: true, preserveFocus: false }));
+            }
+        }, null, this._disposables);
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
     }
     async _update() {
@@ -563,6 +593,15 @@ function relTime(iso){
   const s=Math.floor((Date.now()-new Date(iso).getTime())/1000);
   if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';return Math.floor(s/3600)+'h ago';
 }
+function toggleStream(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const open=el.style.display==='block';
+  // close all first
+  document.querySelectorAll('[id^="sr-detail-"]').forEach(function(e){e.style.display='none';});
+  if(!open)el.style.display='block';
+}
+function openStream(fp){vscode.postMessage({command:'openStream',filePath:fp});}
 function ctxBar(pct){
   if(pct===null||pct===undefined)return'—';
   const used=Math.round(100-pct);const fill=Math.floor(used/10);
@@ -734,17 +773,67 @@ window.addEventListener('message',function(e){
     agentsEl.innerHTML='<div class="em">No sub-agents — Claude is working solo</div>';
   }
 
-  // streams
+  // streams — interactive accordion
   txt('sr-ttl','Active streams ('+d.streams.length+')');
-  html('sr-list',d.streams.length?d.streams.map(function(s){
-    const isA=s.slug===d.activeStream;
-    const c=TYPE_COLOR[s.type]||'#888';
-    return '<div class="sr">'
-      +'<span class="sr-dot" style="background:'+(isA?'#4caf50':c)+'"></span>'
-      +'<span class="sr-name'+(isA?' active':'')+'">'+esc(s.slug)+'</span>'
-      +'<span class="sr-type" style="background:'+c+'22;color:'+c+'">'+esc(s.type)+'</span>'
-      +'</div>';
-  }).join(''):'<div class="em">No active streams</div>');
+  if(!d.streams.length){html('sr-list','<div class="em">No active streams</div>');}
+  else {
+    const srList=document.getElementById('sr-list');
+    if(srList){
+      srList.innerHTML=d.streams.map(function(s,i){
+        const isA=s.slug===d.activeStream;
+        const c=TYPE_COLOR[s.type]||'#888';
+        const statColor={active:'#4caf50','in-progress':'#4caf50','awaiting-verification':'#ff9800',blocked:'#f44336',paused:'#888'}[s.status]||'#888';
+        const doneCount=s.doneCriteria?s.doneCriteria.filter(function(x){return x.done;}).length:0;
+        const totalCount=s.doneCriteria?s.doneCriteria.length:0;
+        const pct=totalCount>0?Math.round(doneCount/totalCount*100):null;
+        const pctBar=pct!==null?'<span style="font-size:10px;opacity:.5;margin-left:6px">'+pct+'%</span>':'';
+
+        // header row (always visible, clickable)
+        let header='<div class="sr-hdr" onclick="toggleStream(\'sr-detail-'+i+'\')" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 4px;border-radius:4px;transition:background .15s" onmouseover="this.style.background=\'rgba(255,255,255,.04)\'" onmouseout="this.style.background=\'\'">'
+          +'<span style="width:7px;height:7px;border-radius:50%;background:'+(isA?'#4caf50':c)+';flex-shrink:0"></span>'
+          +'<span style="font-size:12px;font-weight:'+(isA?'600':'400')+';color:'+(isA?'#4caf84':'#ccc')+';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(s.slug)+'</span>'
+          +(pct!==null?'<span style="font-size:10px;opacity:.45">'+doneCount+'/'+totalCount+'</span>':'')
+          +'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:'+c+'22;color:'+c+'">'+esc(s.type)+'</span>'
+          +'<span style="font-size:10px;opacity:.4">▾</span>'
+          +'</div>';
+
+        // detail panel (collapsed by default, active stream expanded)
+        let detail='<div id="sr-detail-'+i+'" style="display:'+(isA?'block':'none')+';padding:0 4px 8px 18px;border-left:2px solid '+c+'44;margin-left:3px">';
+        // status + role
+        detail+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
+          +'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:'+statColor+'22;color:'+statColor+'">'+esc(s.status)+'</span>'
+          +(s.role?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#9c6af722;color:#9c6af7">'+esc(s.role)+'</span>':'')
+          +(s.branch?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#4a9eff22;color:#4a9eff;font-family:monospace">'+esc(s.branch)+'</span>':'')
+          +'</div>';
+        // objective
+        if(s.objective){
+          detail+='<div style="font-size:11px;opacity:.65;margin-bottom:6px;line-height:1.5">'+esc(s.objective.slice(0,200))+'</div>';
+        }
+        // done criteria
+        if(s.doneCriteria&&s.doneCriteria.length){
+          detail+='<div style="font-size:10px;opacity:.35;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Done criteria</div>';
+          detail+=s.doneCriteria.map(function(cr){
+            return '<div style="display:flex;gap:5px;font-size:11px;margin-bottom:3px;'+(cr.done?'opacity:.4':'opacity:.8')+'">'
+              +'<span style="flex-shrink:0;color:'+(cr.done?'#4caf50':'#666')+'">'+(cr.done?'✓':'○')+'</span>'
+              +'<span style="'+(cr.done?'text-decoration:line-through':'')+'">'+esc(cr.text)+'</span>'
+              +'</div>';
+          }).join('');
+        }
+        // next action
+        if(s.nextAction){
+          detail+='<div style="margin-top:6px;font-size:10px;opacity:.35;text-transform:uppercase;letter-spacing:.06em">Next action</div>'
+            +'<div style="font-size:11px;color:#ff9800;margin-top:2px">→ '+esc(s.nextAction)+'</div>';
+        }
+        // open button
+        detail+='<div style="margin-top:8px">'
+          +'<button onclick="openStream(\''+esc(s.filePath)+'\')" style="font-size:10px;padding:3px 10px;border-radius:4px;background:#4a9eff22;color:#4a9eff;border:1px solid #4a9eff44;cursor:pointer">Open stream file ↗</button>'
+          +'</div>';
+        detail+='</div>';
+
+        return '<div class="sr-item">'+header+detail+'</div>';
+      }).join('');
+    }
+  }
 
   // session stats
   txt('sv-model',d.model||'—');
