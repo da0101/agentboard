@@ -521,9 +521,14 @@ window.addEventListener('message',function(e){
   const nowEl=document.getElementById('now');
   const dot=document.getElementById('now-dot');
   const stateEl=document.getElementById('now-state');
+  const ctxNow=d.ctxPct!==null&&d.ctxPct!==undefined?Math.round(100-d.ctxPct):0;
   if(d.hasLive){
     nowEl.classList.remove('idle');dot.classList.remove('idle');
-    stateEl.textContent='LIVE';stateEl.style.color='#4caf50';dot.style.background='#4caf50';
+    const isCompact=d.isInLongOp&&ctxNow>=75;
+    stateEl.textContent=isCompact?'COMPACTING':'LIVE';
+    stateEl.style.color=isCompact?'#9c6af7':'#4caf50';
+    dot.style.background=isCompact?'#9c6af7':'#4caf50';
+    dot.style.animation=isCompact?'pulse 0.6s ease-in-out infinite':'pulse 1.5s ease-in-out infinite';
   } else {
     nowEl.classList.add('idle');dot.classList.add('idle');
     stateEl.textContent='IDLE';stateEl.style.color='#666';dot.style.background='#666';
@@ -536,8 +541,17 @@ window.addEventListener('message',function(e){
     txt('now-tool',toolLabel);
   }
   txt('now-desc',d.streamDesc||'');
+  // determine long-op message: compacting vs generic
+  const ctxUsed=d.ctxPct!==null&&d.ctxPct!==undefined?Math.round(100-d.ctxPct):0;
+  const isCompacting=d.isInLongOp&&ctxUsed>=75;
   const lopEl=document.getElementById('now-longop');
-  if(lopEl)lopEl.className='now-longop'+(d.isInLongOp?' on':'');
+  if(lopEl){
+    lopEl.className='now-longop'+(d.isInLongOp?' on':'');
+    lopEl.textContent=isCompacting
+      ?'⟳ Context at '+ctxUsed+'% — compaction in progress (will update when complete)'
+      :'⟳ Running long operation — last tool call completed >90s ago';
+    lopEl.style.color=isCompacting?'#9c6af7':'#ff9800';
+  }
 
   // file activity
   txt('fa-ttl','Files touched this session'+(d.fileActivity&&d.fileActivity.length?' ('+d.fileActivity.length+' unique)':''));
