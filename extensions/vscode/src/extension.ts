@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as fs from "fs";
 import * as path from "path";
 import { HudProvider } from "./hudProvider";
 import { StreamsProvider } from "./streamsProvider";
@@ -7,9 +8,24 @@ import { SessionsProvider } from "./sessionsProvider";
 import { WorktreesProvider } from "./worktreesProvider";
 import { DashboardPanel } from "./dashboardPanel";
 
+function detectWorkspaceRoot(): string {
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (!folders.length) return "";
+  // Prefer the folder that has an active agentboard session (hud file or .platform/)
+  const scored = folders.map(f => {
+    const p = f.uri.fsPath;
+    let score = 0;
+    if (fs.existsSync(path.join(p, "agentboard.hud-status.json"))) score += 10;
+    if (fs.existsSync(path.join(p, ".platform", "work"))) score += 5;
+    if (fs.existsSync(path.join(p, ".platform"))) score += 2;
+    if (fs.existsSync(path.join(p, ".claude", "settings.json"))) score += 1;
+    return { p, score };
+  }).sort((a, b) => b.score - a.score);
+  return scored[0].p;
+}
+
 export function activate(context: vscode.ExtensionContext): void {
-  const workspaceRoot =
-    vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+  let workspaceRoot = detectWorkspaceRoot();
 
   const hudEmitter = new vscode.EventEmitter<
     vscode.TreeItem | undefined | null | void
@@ -53,13 +69,26 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(watcher);
 
+  // Re-detect workspace when a HUD file appears in any folder (new Claude session)
+  const anyHudWatcher = vscode.workspace.createFileSystemWatcher("**/agentboard.hud-status.json");
+  anyHudWatcher.onDidCreate(() => {
+    const best = detectWorkspaceRoot();
+    if (best && best !== workspaceRoot) {
+      workspaceRoot = best;
+      DashboardPanel.createOrShow(workspaceRoot);
+    }
+  });
+  context.subscriptions.push(anyHudWatcher);
+
   context.subscriptions.push(
     vscode.commands.registerCommand("agentboard.refresh", () => {
+      workspaceRoot = detectWorkspaceRoot();
       hudEmitter.fire();
       streamsEmitter.fire();
       catalogProvider.refresh();
       sessionsProvider.refresh();
       worktreesProvider.refresh();
+      DashboardPanel.createOrShow(workspaceRoot);
     })
   );
 
