@@ -666,40 +666,54 @@ window.addEventListener('message',function(e){
   const agentsEl=document.getElementById('agents-list');
   const agentsTtl=document.getElementById('agents-ttl');
   const wp=d.workflowPlan;
-  if(agentsEl&&wp&&wp.agents&&wp.agents.length){
-    const isDone=wp.status==='done';
-    const dotColor=isDone?'#555':'#4a9eff';
-    const stateLabel=isDone?'✓ WORKFLOW DONE':'⟳ WORKFLOW RUNNING';
+  const hasWf=wp||(d.activeWorkflow&&d.activeWorkflow.label);
+
+  function renderAgentCard(a,i){
+    const done=a.status==='done';
+    const pulse=done
+      ?'<span style="width:6px;height:6px;border-radius:50%;background:#4caf50;display:inline-block;flex-shrink:0;margin-top:3px"></span>'
+      :'<span class="ag-pulse" style="margin-top:3px"></span>';
+    const roleTag=a.role?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#9c6af722;color:#9c6af7">'+esc(a.role)+'</span>':'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#88888820;color:#888">no role</span>';
+    const skillTag=a.skill?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#4caf8422;color:#4caf84">'+esc(a.skill)+'</span>':'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#88888820;color:#888">no skill</span>';
+    const modelRaw=a.model||'';
+    const modelLabel=modelRaw.replace('claude-','').replace(/-\d{8}$/,'').replace('-latest','');
+    const modelColor=modelRaw.includes('opus')?'#9c6af7':modelRaw.includes('haiku')?'#4a9eff':'#ff9800';
+    const modelTag=modelLabel?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:'+modelColor+'22;color:'+modelColor+'">'+esc(modelLabel)+'</span>':'';
+    const phaseTag=a.phase?'<span style="font-size:10px;opacity:.35;padding:1px 4px">'+esc(a.phase)+'</span>':'';
+    const num='<span style="font-size:10px;opacity:.25;flex-shrink:0;min-width:18px;margin-top:1px">'+(i+1)+'</span>';
+    return '<div class="ag-row" style="align-items:flex-start;gap:5px;padding:6px 0;border-bottom:1px solid rgba(128,128,128,.07)">'
+      +num+pulse
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px;'+(done?'text-decoration:line-through;opacity:.4':'')+'">'+esc(a.label)+'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:3px">'+roleTag+skillTag+modelTag+phaseTag+'</div>'
+      +'</div>'
+      +'</div>';
+  }
+
+  if(agentsEl&&hasWf){
+    const isDone=wp&&wp.status==='done';
+    const wfName=wp?wp.name:(d.activeWorkflow?d.activeWorkflow.label:'workflow');
+    const agentCount=wp?wp.total:(d.activeWorkflow?d.activeWorkflow.agentCount:0);
+    const dotColor=isDone?'#4caf50':'#4a9eff';
+    const stateLabel=isDone?'✓ WORKFLOW DONE':'⟳ WORKFLOW';
     if(agentsTtl)agentsTtl.innerHTML='<span style="color:'+dotColor+';font-weight:700">'+stateLabel+'</span>'
-      +' <span style="font-weight:400;opacity:.4;font-size:10px;text-transform:none;letter-spacing:0">'+esc(wp.name)+'</span>';
+      +(agentCount?' <span style="color:'+dotColor+';font-weight:700"> · '+agentCount+' agents</span>':'')
+      +' <span style="font-weight:400;opacity:.35;font-size:10px;text-transform:none;letter-spacing:0;margin-left:4px">'+esc(wfName)+'</span>';
     // phase pills
     let phasePills='';
-    if(wp.phases&&wp.phases.length){
+    if(wp&&wp.phases&&wp.phases.length){
       phasePills='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'
         +wp.phases.map(function(p){
-          return '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:#4a9eff22;color:#4a9eff">'+esc(p)+'</span>';
+          return '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:#4a9eff22;color:#4a9eff;border:1px solid #4a9eff44">'+esc(p)+'</span>';
         }).join('')+'</div>';
     }
     // agent cards
-    const cards=wp.agents.map(function(a,i){
-      const done=a.status==='done';
-      const pulse=done
-        ?'<span style="width:6px;height:6px;border-radius:50%;background:#4caf50;display:inline-block;flex-shrink:0"></span>'
-        :'<span class="ag-pulse"></span>';
-      const roleTag=a.role?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#9c6af722;color:#9c6af7">'+esc(a.role)+'</span>':'';
-      const skillTag=a.skill?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#4caf8422;color:#4caf84">'+esc(a.skill)+'</span>':'';
-      const modelLabel=a.model?a.model.replace('claude-','').replace('-latest',''):'';
-      const modelTag=modelLabel?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#ff980022;color:#ff9800">'+esc(modelLabel)+'</span>':'';
-      const phaseTag=a.phase?'<span style="font-size:10px;opacity:.4">'+esc(a.phase)+'</span>':'';
-      const num='<span style="font-size:10px;opacity:.3;flex-shrink:0;min-width:16px">'+(i+1)+'.</span>';
-      return '<div class="ag-row" style="align-items:flex-start;gap:6px;padding:5px 0">'
-        +num+pulse
-        +'<div style="flex:1;min-width:0">'
-        +'<div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'+(done?'text-decoration:line-through;opacity:.4':'')+'">'+esc(a.label)+'</div>'
-        +'<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px">'+roleTag+skillTag+modelTag+phaseTag+'</div>'
-        +'</div>'
-        +'</div>';
-    }).join('');
+    let cards='';
+    if(wp&&wp.agents&&wp.agents.length){
+      cards=wp.agents.map(renderAgentCard).join('');
+    } else {
+      cards='<div style="font-size:11px;opacity:.4;padding:6px 0">Agent details not available — add <code style="font-size:10px">label: "role:X · skill:Y · task"</code> to each agent() call in the workflow script</div>';
+    }
     agentsEl.innerHTML=phasePills+cards;
   } else if(agentsEl&&d.recentAgents&&d.recentAgents.length){
     // Fallback: AgentStart events (direct Agent tool, no Workflow)
