@@ -1,4 +1,9 @@
 {
+  "statusLine": {
+    "type": "command",
+    "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); [ -n \"$ROOT\" ] && [ -f \"$ROOT/.platform/scripts/hooks/status-bridge.js\" ] && { cd \"$ROOT\" && node \".platform/scripts/hooks/status-bridge.js\"; } || exit 0'",
+    "timeout": 5
+  },
   "hooks": {
     "PreToolUse": [
       {
