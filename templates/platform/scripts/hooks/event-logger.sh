@@ -165,7 +165,21 @@ case "$hook_event" in
     detail_val=""
     case "$tool" in
       Read)
-        exit 0  # internal lookups — not "what I changed"
+        _fp="$(_json_string_field "file_path")"
+        # Detect skill file reads — log as Skill invocation
+        case "$_fp" in
+          */.claude/skills/*/SKILL.md|*/.claude/skills/*/*)
+            _skill_name="$(printf '%s' "$_fp" | sed 's|.*\.claude/skills/\([^/]*\)/.*|\1|')"
+            if [[ -n "$_skill_name" ]]; then
+              printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
+                "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_skill_name")" "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+            fi
+            exit 0
+            ;;
+          *)
+            exit 0  # other reads — not useful activity
+            ;;
+        esac
         ;;
       Edit|Write|MultiEdit|NotebookEdit)
         _fp="$(_json_string_field "file_path")"
@@ -179,10 +193,13 @@ case "$hook_event" in
         ;;
       Bash)
         _cmd="$(_json_string_field "command")"
-        # Keep only git commits/pushes — all other Bash is handoff noise
+        # Skip trivial internal commands — keep everything else
         case "$_cmd" in
-          git\ commit\ *|git\ push\ *) ;;
-          *) exit 0 ;;
+          echo\ *|printf\ *|cat\ *|ls\ *|cd\ *|pwd|true|false|:|\
+          mkdir\ *|rm\ *|mv\ *|cp\ *|touch\ *|chmod\ *|wc\ *|head\ *|tail\ *|\
+          sed\ *|awk\ *|grep\ *|find\ *|sort\ *|uniq\ *|test\ *|\[\ *|\
+          export\ *|source\ *|\.\ *|read\ *) exit 0 ;;
+          *) ;;
         esac
         if [[ -n "$_cmd" ]]; then
           detail_key="cmd"

@@ -494,10 +494,20 @@ window.addEventListener('message',function(e){
   }
   txt('now-stats',[d.model,d.cost,d.sessionTime].filter(Boolean).join(' · '));
   if(d.lastEventLabel){
-    txt('now-file',d.lastEventLabel);
+    const fa0=d.fileActivity&&d.fileActivity[0];
+    const isSkill=fa0&&fa0.tool==='Skill';
+    const nowFile=document.getElementById('now-file');
+    const nowTool=document.getElementById('now-tool');
+    if(nowFile){
+      nowFile.textContent=d.lastEventLabel;
+      nowFile.style.color=isSkill?'#4caf84':'#e8e8e8';
+    }
     txt('now-ago',relTime(d.lastEventTs));
-    const toolLabel=d.lastEventLabel.startsWith('$')?' bash ':d.fileActivity&&d.fileActivity[0]?d.fileActivity[0].tool:'';
-    txt('now-tool',toolLabel);
+    if(nowTool){
+      nowTool.textContent=isSkill?'⚡ skill':fa0?fa0.tool:'';
+      nowTool.style.background=isSkill?'rgba(76,175,132,.15)':'rgba(255,255,255,.08)';
+      nowTool.style.color=isSkill?'#4caf84':'inherit';
+    }
   }
   txt('now-desc',d.streamDesc||'');
   // determine long-op message: compacting vs generic
@@ -513,17 +523,23 @@ window.addEventListener('message',function(e){
   }
 
   // file activity
-  txt('fa-ttl','Files touched this session'+(d.fileActivity&&d.fileActivity.length?' ('+d.fileActivity.length+' unique)':''));
+  txt('fa-ttl','Activity this session'+(d.fileActivity&&d.fileActivity.length?' ('+d.fileActivity.length+' unique)':''));
   html('fa-list', d.fileActivity&&d.fileActivity.length ? d.fileActivity.map(function(f){
+    const isSkillEntry=f.tool==='Skill';
+    const isBash=f.tool==='Bash';
     const icon=TOOL_ICON[f.tool]||'·';
-    const fname=f.file.startsWith('$')?f.file:f.file.split('/').slice(-2).join('/');
+    let fname;
+    if(isSkillEntry) fname='/'+f.file;
+    else if(isBash) fname=f.file.length>60?f.file.slice(0,60)+'…':f.file;
+    else fname=f.file.split('/').slice(-2).join('/');
+    const color=isSkillEntry?'color:#4caf84;font-weight:600':isBash?'color:#ff9800':'';
     return '<div class="fa">'
-      +'<span class="fa-icon">'+icon+'</span>'
-      +'<span class="fa-file">'+esc(fname)+'</span>'
+      +'<span class="fa-icon" style="'+(isSkillEntry?'color:#4caf84':'')+'">'+icon+'</span>'
+      +'<span class="fa-file" style="'+color+'">'+esc(fname)+'</span>'
       +(f.count>1?'<span class="fa-cnt">×'+f.count+'</span>':'<span></span>')
       +'<span class="fa-t">'+relTime(f.lastTs)+'</span>'
       +'</div>';
-  }).join('') : '<div class="em">No tool calls logged yet</div>');
+  }).join('') : '<div class="em">No activity yet — starts logging on next tool call</div>');
 
   // streams
   txt('sr-ttl','Active streams ('+d.streams.length+')');
