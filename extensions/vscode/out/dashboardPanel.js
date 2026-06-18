@@ -26,7 +26,7 @@ function parseFrontmatter(content) {
         const i = line.indexOf(":");
         if (i === -1)
             continue;
-        r[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+        r[line.slice(0, i).trim()] = line.slice(i + 1).trim().replace(/^["']|["']$/g, "");
     }
     return r;
 }
@@ -55,6 +55,41 @@ function readStreams(root) {
         }
     });
 }
+function readSkills(root) {
+    const dir = path.join(root, ".claude", "skills");
+    try {
+        return fs.readdirSync(dir).flatMap(name => {
+            const skillFile = path.join(dir, name, "SKILL.md");
+            try {
+                const fm = parseFrontmatter(fs.readFileSync(skillFile, "utf8"));
+                return [{ name: fm.name ?? name, description: fm.description ?? "" }];
+            }
+            catch {
+                return [{ name, description: "" }];
+            }
+        });
+    }
+    catch {
+        return [];
+    }
+}
+function readRoles(root) {
+    const dir = path.join(root, ".platform", "roles");
+    try {
+        return fs.readdirSync(dir).filter(f => f.endsWith(".md") && f !== "INDEX.md").flatMap(f => {
+            try {
+                const fm = parseFrontmatter(fs.readFileSync(path.join(dir, f), "utf8"));
+                return [{ name: fm.name ?? fm.slug ?? path.basename(f, ".md"), description: fm.description ?? fm.objective ?? "" }];
+            }
+            catch {
+                return [];
+            }
+        });
+    }
+    catch {
+        return [];
+    }
+}
 function readActiveStream(root) {
     try {
         const brief = fs.readFileSync(path.join(root, ".platform", "work", "BRIEF.md"), "utf8");
@@ -69,17 +104,16 @@ function readStreamRole(root, slug) {
     if (!slug)
         return "";
     try {
-        const c = fs.readFileSync(path.join(root, ".platform", "work", `${slug}.md`), "utf8");
-        return parseFrontmatter(c).role ?? "";
+        return parseFrontmatter(fs.readFileSync(path.join(root, ".platform", "work", `${slug}.md`), "utf8")).role ?? "";
     }
     catch {
         return "";
     }
 }
-function readRecentEvents(root, n = 12) {
+function readRecentEvents(root, n = 15) {
     try {
-        const content = fs.readFileSync(path.join(root, ".platform", "events.jsonl"), "utf8");
-        return content.trim().split("\n").filter(Boolean).slice(-n).reverse()
+        return fs.readFileSync(path.join(root, ".platform", "events.jsonl"), "utf8")
+            .trim().split("\n").filter(Boolean).slice(-n).reverse()
             .map(line => { try {
             return JSON.parse(line);
         }
@@ -92,32 +126,11 @@ function readRecentEvents(root, n = 12) {
         return [];
     }
 }
-function countDirs(p) {
-    try {
-        return fs.readdirSync(p).filter((f) => { try {
-            return fs.statSync(path.join(p, f)).isDirectory();
-        }
-        catch {
-            return false;
-        } }).length;
-    }
-    catch {
-        return 0;
-    }
-}
-function countMd(p, excl) {
-    try {
-        return fs.readdirSync(p).filter((f) => f.endsWith(".md") && !excl.includes(f)).length;
-    }
-    catch {
-        return 0;
-    }
-}
 function gitWorktrees(root) {
     try {
         return (0, child_process_1.execSync)("git worktree list --porcelain", { cwd: root, timeout: 2000 }).toString()
             .split("\n\n").filter(Boolean)
-            .map((b) => b.split("\n").find((l) => l.startsWith("branch "))?.replace("branch refs/heads/", "") ?? "main");
+            .map(b => b.split("\n").find(l => l.startsWith("branch "))?.replace("branch refs/heads/", "") ?? "main");
     }
     catch {
         return [];
@@ -151,9 +164,7 @@ class DashboardPanel {
         this._disposables = [];
         this._panel = panel;
         void this._update();
-        const hudFile = path.join(workspaceRoot, "agentboard.hud-status.json");
-        const eventsFile = path.join(workspaceRoot, ".platform", "events.jsonl");
-        const watcher = vscode.workspace.createFileSystemWatcher(`{${hudFile},${eventsFile}}`);
+        const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(workspaceRoot, "{agentboard.hud-status.json,.platform/events.jsonl}"));
         watcher.onDidChange(() => void this._update(), null, this._disposables);
         watcher.onDidCreate(() => void this._update(), null, this._disposables);
         this._disposables.push(watcher);
@@ -187,15 +198,7 @@ class DashboardPanel {
             if (wRaw) {
                 const p = JSON.parse(wRaw);
                 const raw = Array.isArray(p) ? p : (p.worktrees ?? []);
-                worktrees = raw.map(w => {
-                    if (typeof w === "string")
-                        return w;
-                    if (w && typeof w === "object") {
-                        const obj = w;
-                        return String(obj.branch ?? obj.path ?? "?").replace("refs/heads/", "");
-                    }
-                    return String(w);
-                });
+                worktrees = raw.map(w => typeof w === "string" ? w : String(w.branch ?? w.path ?? "?").replace("refs/heads/", ""));
             }
         }
         catch { /* ok */ }
@@ -208,7 +211,6 @@ class DashboardPanel {
             return "";
         } })();
         const activeStream = readActiveStream(this.workspaceRoot);
-        const recentEvents = readRecentEvents(this.workspaceRoot);
         const streamRole = readStreamRole(this.workspaceRoot, activeStream);
         const modelNames = new Set(["claude", "sonnet", "opus", "haiku", "fable", "gpt", "gemini", "codex"]);
         const hudRole = hud?.active_agents?.[0]?.role ?? "";
@@ -216,121 +218,201 @@ class DashboardPanel {
         const ctxPct = hud?.context?.context_remaining_pct ?? null;
         this._panel.webview.html = this._getHtml({
             hud, streams: readStreams(this.workspaceRoot),
-            skillCount: countDirs(path.join(this.workspaceRoot, ".claude", "skills")),
-            roleCount: countMd(path.join(this.workspaceRoot, ".platform", "roles"), ["INDEX.md"]),
-            sessions, worktrees, projectName: path.basename(this.workspaceRoot), branch, cpRunning,
-            activeStream, activeRole, recentEvents, ctxPct,
+            worktrees, projectName: path.basename(this.workspaceRoot), branch, cpRunning,
+            activeStream, activeRole, recentEvents: readRecentEvents(this.workspaceRoot),
+            ctxPct, sessions,
+            skills: readSkills(this.workspaceRoot),
+            roles: readRoles(this.workspaceRoot),
+            commands: readSkills(this.workspaceRoot).map(s => ({ name: `/${s.name}`, description: s.description })),
         });
     }
     _getHtml(d) {
-        const { hud, streams, skillCount, roleCount, sessions, worktrees, projectName, branch, cpRunning, activeStream, activeRole, recentEvents, ctxPct } = d;
+        const { hud, streams, worktrees, projectName, branch, cpRunning, activeStream, activeRole, recentEvents, ctxPct, sessions, skills, roles, commands } = d;
         const agents = hud?.active_agents ?? [];
-        const hasLive = agents.length > 0 || sessions.length > 0;
-        const model = hud?.context?.model ?? "claude";
-        const tokens = hud?.cost?.session_tokens ? `${(hud.cost.session_tokens / 1000).toFixed(1)}k ctx` : "";
+        const hasLive = agents.length > 0;
+        const model = hud?.context?.model?.replace("claude-", "").replace(/-\d{8}$/, "") ?? "";
+        const modelDisplay = model ? model.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ") : "Claude";
         const cost = hud?.cost?.session_usd ? `$${hud.cost.session_usd.toFixed(3)}` : "";
         const time = agents[0] ? elapsed(agents[0].started_at) : "";
-        // context bar
         const ctxBar = ctxPct !== null ? (() => {
             const used = Math.round(100 - ctxPct);
             const fill = Math.floor(used / 10);
             const color = used < 50 ? "#4caf50" : used < 75 ? "#ff9800" : "#f44336";
-            return `<span class="ctx-bar" style="color:${color}">${"█".repeat(fill)}${"░".repeat(10 - fill)}</span><span style="color:${color};font-size:11px"> ${used}%</span>`;
+            return `<span style="font-family:monospace;letter-spacing:-1px;color:${color}">${"█".repeat(fill)}${"░".repeat(10 - fill)}</span><span style="color:${color};font-size:11px"> ${used}%</span>`;
         })() : "";
-        const liveMeta = [model, cost, time, tokens].filter(Boolean).join(" · ");
         const typeColor = { bugfix: "#e8823a", feature: "#4caf84", task: "#4a9eff", maintenance: "#888" };
         const badge = (t) => { const c = typeColor[t.toLowerCase()] ?? "#888"; return `<span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55">${t}</span>`; };
-        const streamCards = streams.length ? streams.map((s) => {
+        const toolIcon = { Edit: "✏", Write: "✏", Bash: "$", Read: "👁", WebSearch: "⌕", WebFetch: "⌕", Agent: "◈" };
+        const streamCards = streams.map(s => {
             const isActive = s.slug === activeStream;
-            return `<div class="card${isActive ? " active-card" : ""}"><div class="st"><span class="si${isActive ? " spin" : ""}">↻</span><span class="ss">${s.slug}</span>${isActive ? `<span class="active-dot"></span>` : ""}${badge(s.type)}</div>${s.role ? `<div class="sa" style="opacity:.5">◈ ${s.role}</div>` : ""}${s.next_action ? `<div class="sa">→ ${s.next_action}</div>` : ""}</div>`;
-        }).join("") : `<div class="em">No active streams</div>`;
-        const toolIcon = { Edit: "✏", Write: "✏", Bash: "$", Read: "📖", WebSearch: "🔍", WebFetch: "🌐", Agent: "🤖" };
-        const activityLines = recentEvents.length
-            ? recentEvents.map(e => {
-                const icon = toolIcon[e.tool] ?? "·";
-                const detail = e.file ? path.basename(e.file) : e.cmd ? e.cmd.slice(0, 40) : e.tool;
-                const stream = e.stream ? `<span class="ev-stream">${e.stream}</span>` : "";
-                return `<div class="ev"><span class="ev-icon">${icon}</span><span class="ev-detail">${detail}</span>${stream}<span class="ev-time">${relTime(e.ts)}</span></div>`;
-            }).join("")
-            : `<div class="em">No activity yet — hooks fire on next tool call</div>`;
-        const wtLines = worktrees.length ? worktrees.map((w) => `<div class="wr">⎇ ${w}</div>`).join("") : `<div class="em">No worktrees</div>`;
-        const sessionBlock = !cpRunning
-            ? `<div class="em">Control plane not running<br><code>$ ab start</code></div>`
-            : sessions.length
-                ? `<div style="color:#4caf50">● ${sessions.length} active session${sessions.length > 1 ? "s" : ""}</div>`
-                : `<div class="em" style="color:#4caf84">● Control plane running</div><div class="em">No sessions yet</div>`;
-        const hudFooter = `<div class="footer">${[
-            model && `<span class="fi">⬡ ${model}</span>`,
-            activeRole && `<span class="fi role-fi">◈ ${activeRole}</span>`,
-            branch && `<span class="fi">⎇ ${branch}</span>`,
-            cost && `<span class="fi">${cost}</span>`,
-            ctxBar && `<span class="fi ctx-fi">${ctxBar}</span>`,
-            hud?.risk?.dirty_worktree && `<span class="fi risk">⚠ dirty</span>`,
-        ].filter(Boolean).join("")}</div>`;
+            return `<div class="card${isActive ? " active-card" : ""}">
+        <div class="st"><span class="si${isActive ? " spin" : ""}">↻</span><span class="ss">${s.slug}</span>${isActive ? `<span class="adot"></span>` : ""}${badge(s.type)}</div>
+        ${s.role ? `<div class="sa dim">◈ ${s.role}</div>` : ""}
+        ${s.next_action ? `<div class="sa">→ ${s.next_action}</div>` : ""}
+      </div>`;
+        }).join("") || `<div class="em">No active streams</div>`;
+        const actRows = recentEvents.map(e => {
+            const icon = toolIcon[e.tool] ?? "·";
+            const detail = e.file ? path.basename(e.file) : e.cmd ? e.cmd.slice(0, 50) : e.tool;
+            return `<div class="ev"><span class="ev-i">${icon}</span><span class="ev-d">${detail}</span>${e.stream ? `<span class="ev-s">${e.stream}</span>` : ""}<span class="ev-t">${relTime(e.ts)}</span></div>`;
+        }).join("") || `<div class="em">No activity yet</div>`;
+        const catCol = (title, count, items, accent) => `
+      <div class="cat-col">
+        <div class="cat-hdr"><span class="cat-dot" style="background:${accent}"></span><span class="cat-title">${title}</span><span class="cat-count" style="color:${accent}">${count}</span></div>
+        <div class="cat-list">
+          ${items.slice(0, 50).map((item, i) => `
+            <div class="cat-item${i === 0 ? " cat-first" : ""}">
+              <span class="cat-name">${item.name}</span>
+              ${item.description ? `<span class="cat-desc">${item.description.slice(0, 60)}${item.description.length > 60 ? "…" : ""}</span>` : ""}
+            </div>`).join("")}
+          ${items.length > 50 ? `<div class="cat-more">+ ${items.length - 50} more</div>` : ""}
+        </div>
+      </div>`;
         return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
 .hdr{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
-.logo{color:#4a9eff;font-weight:700;letter-spacing:.08em}.sep{opacity:.4}.proj{opacity:.7}.br{opacity:.5;font-size:12px}
+.logo{color:#4a9eff;font-weight:700;letter-spacing:.08em}.sep{opacity:.3}.proj{opacity:.7}.br{opacity:.45;font-size:12px}
 .rbtn{margin-left:auto;background:transparent;border:1px solid var(--vscode-panel-border);color:var(--vscode-editor-foreground);border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px}
 .rbtn:hover{background:var(--vscode-list-hoverBackground)}
-.live{display:flex;align-items:center;gap:8px;padding:8px 16px;background:rgba(76,175,80,.07);border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0;flex-wrap:wrap}
-.dot{width:8px;height:8px;border-radius:50%;background:#4caf50;animation:pulse 1.5s ease-in-out infinite;flex-shrink:0}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
-@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-.ll{font-weight:700;font-size:11px;letter-spacing:.1em;color:#4caf50;flex-shrink:0}.lm{opacity:.75;font-size:12px}
-.live-task{margin-left:auto;font-size:11px;display:flex;gap:8px;align-items:center}
-.live-stream{background:#4a9eff22;color:#4a9eff;border:1px solid #4a9eff44;padding:1px 7px;border-radius:10px;font-weight:600;font-family:var(--vscode-editor-font-family,'monospace');font-size:10px}
-.live-role{background:#9c6af722;color:#9c6af7;border:1px solid #9c6af744;padding:1px 7px;border-radius:10px;font-size:10px}
-.stats{display:flex;gap:10px;padding:12px 16px;flex-shrink:0}
-.sc{flex:1;background:var(--vscode-sideBar-background);border:1px solid var(--vscode-panel-border);border-radius:6px;padding:10px 14px;text-align:center}
-.sn{font-size:26px;font-weight:700;color:#4a9eff;line-height:1}.sl{font-size:10px;opacity:.6;margin-top:3px;text-transform:uppercase;letter-spacing:.05em}
-.main{display:flex;gap:10px;padding:0 16px 10px;flex:1;min-height:0}
-.cl{flex:6;display:flex;flex-direction:column;gap:6px;overflow-y:auto}
-.cr{flex:4;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
-.ttl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:6px}
-.card{background:var(--vscode-sideBar-background);border:1px solid var(--vscode-panel-border);border-radius:6px;padding:8px 12px;transition:border-color .2s}
-.active-card{border-color:#4a9eff66;background:rgba(74,158,255,.05)}
-.active-dot{width:6px;height:6px;border-radius:50%;background:#4caf50;animation:pulse 1.5s ease-in-out infinite;margin-left:4px;flex-shrink:0}
-.st{display:flex;align-items:center;gap:8px}
-.si{color:#4a9eff;flex-shrink:0}.spin{display:inline-block;animation:spin 2s linear infinite}
-.ss{font-weight:600;font-family:var(--vscode-editor-font-family,'monospace')}
-.badge{font-size:10px;padding:2px 7px;border-radius:10px;margin-left:auto;font-weight:600;white-space:nowrap}
-.sa{margin-top:4px;font-size:11px;opacity:.6;padding-left:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wr{padding:3px 0;font-family:var(--vscode-editor-font-family,'monospace');font-size:12px;opacity:.8}
-.em{opacity:.4;font-size:12px;font-style:italic;line-height:1.7}code{font-family:var(--vscode-editor-font-family,'monospace');font-size:11px}
-.ev{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--vscode-panel-border);font-size:11px}
+.live{display:flex;align-items:center;gap:8px;padding:7px 16px;background:rgba(76,175,80,.06);border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
+.dot{width:7px;height:7px;border-radius:50%;background:#4caf50;animation:pulse 1.5s ease-in-out infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.3)}}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.ll{font-weight:700;font-size:11px;letter-spacing:.1em;color:#4caf50}.lm{font-size:12px;opacity:.8}
+.lpill{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.lstream{background:#4a9eff18;color:#4a9eff;border:1px solid #4a9eff44}
+.lrole{background:#9c6af718;color:#9c6af7;border:1px solid #9c6af744}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0;padding:0 16px}
+.tab{padding:6px 14px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;opacity:.55;transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;color:var(--vscode-editor-foreground)}
+.tab.active{opacity:1;border-bottom-color:#4a9eff;color:#4a9eff}
+.tab:hover{opacity:.85}
+.view{flex:1;overflow:hidden;display:none;flex-direction:column}
+.view.active{display:flex}
+/* LIVE VIEW */
+.live-body{display:flex;gap:10px;padding:12px 16px;flex:1;min-height:0}
+.live-left{flex:6;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
+.live-right{flex:4;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+.ttl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.45;margin-bottom:6px}
+.card{background:var(--vscode-sideBar-background);border:1px solid var(--vscode-panel-border);border-radius:6px;padding:8px 12px}
+.active-card{border-color:#4a9eff55;background:rgba(74,158,255,.04)}
+.adot{width:6px;height:6px;border-radius:50%;background:#4caf50;animation:pulse 1.5s ease-in-out infinite}
+.st{display:flex;align-items:center;gap:7px}.si{color:#4a9eff}.spin{display:inline-block;animation:spin 2s linear infinite}
+.ss{font-weight:600;font-family:var(--vscode-editor-font-family,'monospace');font-size:12px}
+.badge{font-size:10px;padding:1px 7px;border-radius:10px;margin-left:auto;font-weight:600;white-space:nowrap}
+.sa{margin-top:3px;font-size:11px;opacity:.6;padding-left:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dim{opacity:.4}
+.ev{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--vscode-panel-border);font-size:11px}
 .ev:last-child{border-bottom:none}
-.ev-icon{flex-shrink:0;width:16px;text-align:center;font-size:10px;opacity:.7}
-.ev-detail{flex:1;font-family:var(--vscode-editor-font-family,'monospace');opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ev-stream{font-size:10px;padding:1px 5px;border-radius:8px;background:#4a9eff15;color:#4a9eff;white-space:nowrap;flex-shrink:0}
-.ev-time{font-size:10px;opacity:.45;white-space:nowrap;flex-shrink:0}
-.footer{display:flex;flex-wrap:wrap;gap:6px;padding:8px 16px;border-top:1px solid var(--vscode-panel-border);flex-shrink:0;font-size:11px}
+.ev-i{flex-shrink:0;width:14px;text-align:center;opacity:.6;font-size:10px}
+.ev-d{flex:1;font-family:var(--vscode-editor-font-family,'monospace');overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85}
+.ev-s{font-size:10px;padding:1px 5px;border-radius:8px;background:#4a9eff12;color:#4a9eff;white-space:nowrap;flex-shrink:0}
+.ev-t{font-size:10px;opacity:.4;white-space:nowrap;flex-shrink:0}
+.wt{padding:3px 0;font-family:var(--vscode-editor-font-family,'monospace');font-size:12px;opacity:.8}
+.em{opacity:.4;font-size:12px;font-style:italic;line-height:1.8}
+code{font-family:var(--vscode-editor-font-family,'monospace');font-size:11px}
+/* CATALOG VIEW */
+.cat-body{display:flex;gap:0;flex:1;overflow:hidden}
+.cat-col{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--vscode-panel-border);overflow:hidden}
+.cat-col:last-child{border-right:none}
+.cat-hdr{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
+.cat-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.cat-title{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.6;flex:1}
+.cat-count{font-size:22px;font-weight:700;line-height:1}
+.cat-list{flex:1;overflow-y:auto;padding:4px 0}
+.cat-item{padding:6px 14px;border-bottom:1px solid rgba(255,255,255,.04);cursor:default}
+.cat-item:hover{background:var(--vscode-list-hoverBackground)}
+.cat-first{border-top:1px solid rgba(255,255,255,.06)}
+.cat-name{display:block;font-family:var(--vscode-editor-font-family,'monospace');font-size:12px;font-weight:500}
+.cat-desc{display:block;font-size:10px;opacity:.45;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cat-more{padding:8px 14px;font-size:11px;opacity:.4;font-style:italic}
+/* FOOTER */
+.footer{display:flex;flex-wrap:wrap;gap:6px;padding:7px 16px;border-top:1px solid var(--vscode-panel-border);flex-shrink:0;font-size:11px}
 .fi{padding:2px 7px;border-radius:4px;background:var(--vscode-sideBar-background);border:1px solid var(--vscode-panel-border)}
-.role-fi{color:#9c6af7;border-color:#9c6af744}.ctx-fi{border:none;background:transparent;padding:2px 0}
-.risk{color:#e8823a;border-color:#e8823a55}
-.ctx-bar{font-family:var(--vscode-editor-font-family,'monospace');font-size:10px;letter-spacing:-1px}
+.fi-role{color:#9c6af7;border-color:#9c6af744}.risk{color:#e8823a;border-color:#e8823a55}
 </style></head><body>
-<div class="hdr"><span class="logo">◆ AGENTBOARD</span><span class="sep">·</span><span class="proj">${projectName}</span>${branch ? `<span class="sep">·</span><span class="br">${branch}</span>` : ""}<button class="rbtn" onclick="vscode.postMessage({command:'refresh'})">↻ Refresh</button></div>
-${hasLive ? `<div class="live"><span class="dot"></span><span class="ll">LIVE</span><span class="lm">${liveMeta}</span><span class="live-task">${activeStream ? `<span class="live-stream">${activeStream}</span>` : ""}${activeRole ? `<span class="live-role">◈ ${activeRole}</span>` : ""}</span></div>` : ""}
-<div class="stats">
-  <div class="sc"><div class="sn">${skillCount}</div><div class="sl">Skills</div></div>
-  <div class="sc"><div class="sn">${roleCount}</div><div class="sl">Roles</div></div>
-  <div class="sc"><div class="sn">${streams.length}</div><div class="sl">Streams</div></div>
-  <div class="sc"><div class="sn">${worktrees.length}</div><div class="sl">Worktrees</div></div>
+
+<div class="hdr">
+  <span class="logo">◆ AGENTBOARD</span><span class="sep">·</span><span class="proj">${projectName}</span>${branch ? `<span class="sep">·</span><span class="br">${branch}</span>` : ""}
+  <button class="rbtn" onclick="vscode.postMessage({command:'refresh'})">↻ Refresh</button>
 </div>
-<div class="main">
-  <div class="cl">
-    <div><div class="ttl">Active Streams</div>${streamCards}</div>
-    <div style="margin-top:8px"><div class="ttl">Recent Activity</div><div class="card" style="padding:6px 10px">${activityLines}</div></div>
-  </div>
-  <div class="cr">
-    <div><div class="ttl">Worktrees</div>${wtLines}</div>
-    <div><div class="ttl">Sessions</div>${sessionBlock}</div>
+
+${hasLive ? `<div class="live">
+  <span class="dot"></span><span class="ll">LIVE</span>
+  <span class="lm">${[modelDisplay, cost, time].filter(Boolean).join(" · ")}</span>
+  ${activeStream ? `<span class="lpill lstream">${activeStream}</span>` : ""}
+  ${activeRole ? `<span class="lpill lrole">◈ ${activeRole}</span>` : ""}
+  <span style="margin-left:auto;font-size:11px;display:flex;align-items:center;gap:6px">${ctxBar}</span>
+</div>` : ""}
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('live',this)">Live</button>
+  <button class="tab" onclick="switchTab('catalog',this)">Catalog · ${skills.length + roles.length}</button>
+</div>
+
+<!-- LIVE TAB -->
+<div id="live" class="view active">
+  <div class="live-body">
+    <div class="live-left">
+      <div><div class="ttl">Active Streams (${streams.length})</div>${streamCards}</div>
+      <div><div class="ttl">Recent Activity</div><div class="card" style="padding:5px 10px">${actRows}</div></div>
+    </div>
+    <div class="live-right">
+      <div>
+        <div class="ttl">Agent</div>
+        <div class="card">
+          <div style="font-size:12px;line-height:2;display:grid;grid-template-columns:auto 1fr;gap:0 12px">
+            <span style="opacity:.45">Model</span><span style="font-weight:600">${modelDisplay || "—"}</span>
+            <span style="opacity:.45">Role</span><span style="font-weight:600;color:#9c6af7">${activeRole || "—"}</span>
+            <span style="opacity:.45">Stream</span><span style="font-weight:600;color:#4a9eff">${activeStream || "—"}</span>
+            <span style="opacity:.45">Cost</span><span style="font-weight:600">${cost || "—"}</span>
+            <span style="opacity:.45">Session</span><span style="font-weight:600">${time || "—"}</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="ttl">Worktrees (${worktrees.length})</div>
+        ${worktrees.map(w => `<div class="wt">⎇ ${w}</div>`).join("") || `<div class="em">None</div>`}
+      </div>
+      <div>
+        <div class="ttl">Sessions</div>
+        ${!cpRunning
+            ? `<div class="em">Control plane not running<br><code>$ ab start</code></div>`
+            : sessions.length
+                ? `<div style="color:#4caf50;font-size:12px">● ${sessions.length} active</div>`
+                : `<div class="em" style="color:#4caf84">● CP running — no sessions</div>`}
+      </div>
+    </div>
   </div>
 </div>
-${hudFooter}
-<script>const vscode=acquireVsCodeApi();</script>
+
+<!-- CATALOG TAB -->
+<div id="catalog" class="view">
+  <div class="cat-body">
+    ${catCol("Skills", skills.length, skills, "#4a9eff")}
+    ${catCol("Roles", roles.length, roles, "#9c6af7")}
+    ${catCol("Commands", commands.length, commands, "#4caf84")}
+  </div>
+</div>
+
+<div class="footer">
+  ${modelDisplay ? `<span class="fi">⬡ ${modelDisplay}</span>` : ""}
+  ${activeRole ? `<span class="fi fi-role">◈ ${activeRole}</span>` : ""}
+  ${branch ? `<span class="fi">⎇ ${branch}</span>` : ""}
+  ${cost ? `<span class="fi">${cost}</span>` : ""}
+  ${hud?.risk?.dirty_worktree ? `<span class="fi risk">⚠ dirty</span>` : ""}
+  <span style="margin-left:auto;opacity:.35;font-size:11px">${skills.length} skills · ${roles.length} roles · ${streams.length} streams</span>
+</div>
+
+<script>
+const vscode = acquireVsCodeApi();
+function switchTab(id, btn) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
 </body></html>`;
     }
     dispose() {
@@ -344,3 +426,16 @@ ${hudFooter}
     }
 }
 exports.DashboardPanel = DashboardPanel;
+function catCol(title, count, items, accent) {
+    return `<div class="cat-col">
+    <div class="cat-hdr"><span class="cat-dot" style="background:${accent}"></span><span class="cat-title">${title}</span><span class="cat-count" style="color:${accent}">${count}</span></div>
+    <div class="cat-list">
+      ${items.slice(0, 100).map((item, i) => `
+        <div class="cat-item${i === 0 ? " cat-first" : ""}">
+          <span class="cat-name">${item.name}</span>
+          ${item.description ? `<span class="cat-desc">${item.description.slice(0, 70)}${item.description.length > 70 ? "…" : ""}</span>` : ""}
+        </div>`).join("")}
+      ${items.length > 100 ? `<div class="cat-more">+ ${items.length - 100} more</div>` : ""}
+    </div>
+  </div>`;
+}
