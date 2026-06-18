@@ -382,6 +382,45 @@ agentboard help
 
 ---
 
+## VS Code extension
+
+A sidebar extension ships in `extensions/vscode/`. It gives you 5 live panels without leaving your editor:
+
+| Panel | What it shows |
+|---|---|
+| **HUD** | Model, branch, token pressure, CI status, cost, risk flags, open PRs |
+| **Streams** | Active streams + next actions from `.platform/work/ACTIVE.md` |
+| **Catalog** | Installed skills, roles, and CLI commands with counts |
+| **Sessions** | Live agent sessions (role, stream, status, started) |
+| **Worktrees** | Active git worktrees per stream |
+
+**Install:**
+
+```bash
+cd extensions/vscode
+npm install && npm run compile
+npx @vscode/vsce package
+code --install-extension agentboard-0.1.0.vsix
+```
+
+Sessions and Worktrees panels require the control plane (`ab start`). All other panels work with no daemon.
+
+## Control plane
+
+`ab start` launches a Node.js daemon on `127.0.0.1:7842` that tracks agent sessions, manages git worktrees, and routes task delegation:
+
+```bash
+ab start                                    # start daemon
+ab sessions                                 # list active sessions
+ab delegate "add rate limiting to the API"  # match task → role → prompt
+ab worktree new feature-auth                # create git worktree for a stream
+ab stop                                     # stop daemon
+```
+
+The daemon writes `agentboard.hud-status.json` on every state change — the VS Code extension picks it up instantly.
+
+---
+
 ## Updating existing installs
 
 As Agentboard evolves, `agentboard update` lets a project pull in newer process files without clobbering project truth.
