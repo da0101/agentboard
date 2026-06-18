@@ -255,19 +255,60 @@ class DashboardPanel {
         const ctxPct = hud?.context?.context_remaining_pct ?? null;
         const rawModel = hud?.context?.model ?? hud?.active_agents?.[0]?.model ?? "";
         const model = rawModel ? fmtModel(rawModel) : "";
-        const cost = hud?.cost?.session_usd ? `$${hud.cost.session_usd.toFixed(3)}` : "";
+        const costUsd = hud?.cost?.session_usd ?? null;
+        const cost = costUsd !== null ? `$${costUsd.toFixed(3)}` : "";
         const sessionTime = hud?.active_agents?.[0]?.started_at ? elapsedStr(hud.active_agents[0].started_at) : "";
         const hasLive = (hud?.active_agents?.length ?? 0) > 0;
         const lastSkill = readLastSkill(this.workspaceRoot);
         const skills = readSkills(this.workspaceRoot);
         const roles = readRoles(this.workspaceRoot);
-        const agentCount = hasLive ? 1 : 0;
+        const allEvents = readRecentEvents(this.workspaceRoot, 200);
+        // Build deduplicated file activity: file → {tool, count, lastTs}
+        const fileMap = new Map();
+        for (const ev of [...allEvents].reverse()) {
+            if (!ev.file && !ev.cmd)
+                continue;
+            const key = ev.file ?? `$ ${(ev.cmd ?? "").slice(0, 60)}`;
+            const existing = fileMap.get(key);
+            if (!existing || ev.ts > existing.lastTs) {
+                fileMap.set(key, { tool: ev.tool, count: (existing?.count ?? 0) + 1, lastTs: ev.ts });
+            }
+            else {
+                fileMap.set(key, { ...existing, count: existing.count + 1 });
+            }
+        }
+        const fileActivity = [...fileMap.entries()]
+            .sort((a, b) => b[1].lastTs.localeCompare(a[1].lastTs))
+            .slice(0, 12)
+            .map(([file, info]) => ({ file, ...info }));
+        // Stream description from body italic line
+        const streamDesc = (() => {
+            if (!activeStream)
+                return "";
+            try {
+                const body = fs.readFileSync(path.join(this.workspaceRoot, ".platform", "work", `${activeStream}.md`), "utf8");
+                return body.match(/^_([^_]+)_/m)?.[1]?.trim() ?? "";
+            }
+            catch {
+                return "";
+            }
+        })();
+        const lastEvent = allEvents[0] ?? null;
+        const lastEventLabel = lastEvent?.file
+            ? path.basename(lastEvent.file)
+            : lastEvent?.cmd
+                ? lastEvent.cmd.slice(0, 50)
+                : "";
+        const lastEventTs = lastEvent?.ts ?? "";
+        const secsSinceLastEvent = lastEventTs ? Math.floor((Date.now() - new Date(lastEventTs).getTime()) / 1000) : null;
+        const isInLongOp = hasLive && secsSinceLastEvent !== null && secsSinceLastEvent > 90;
         void this._panel.webview.postMessage({
             type: "update",
-            hasLive, model, cost, sessionTime, activeStream, activeRole, lastSkill,
-            ctxPct, branch, cpRunning, sessions: sessions.length, agentCount,
+            hasLive, model, cost, sessionTime, activeStream, streamDesc, activeRole, lastSkill,
+            ctxPct, branch, cpRunning, sessions: sessions.length,
             streams: readStreams(this.workspaceRoot),
-            events: readRecentEvents(this.workspaceRoot),
+            fileActivity,
+            lastEventLabel, lastEventTs, isInLongOp,
             worktrees,
             skillCount: skills.length, roleCount: roles.length,
             skills, roles,
@@ -279,78 +320,76 @@ class DashboardPanel {
         return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-/* header */
-#hdr{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
-.logo{color:#4a9eff;font-weight:700;letter-spacing:.08em}.sep{opacity:.3}.proj{opacity:.7}.br{opacity:.45;font-size:12px}
-.rbtn{margin-left:auto;background:transparent;border:1px solid var(--vscode-panel-border);color:inherit;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px}
+#hdr{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
+.logo{color:#4a9eff;font-weight:700;letter-spacing:.08em;font-size:11px}.sep{opacity:.25}.proj{opacity:.65;font-size:12px}.br{opacity:.4;font-size:11px}
+.rbtn{margin-left:auto;background:transparent;border:1px solid var(--vscode-panel-border);color:inherit;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px}
 .rbtn:hover{background:var(--vscode-list-hoverBackground)}
-/* live bar */
-#live-bar{display:none;align-items:center;gap:8px;padding:7px 16px;background:rgba(76,175,80,.06);border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0;flex-wrap:wrap}
-#live-bar.on{display:flex}
-.dot{width:7px;height:7px;border-radius:50%;background:#4caf50;animation:pulse 1.5s ease-in-out infinite;flex-shrink:0}
-.ll{font-weight:700;font-size:11px;letter-spacing:.1em;color:#4caf50}.lm{font-size:12px;opacity:.8}
-.lpill{padding:2px 9px;border-radius:10px;font-size:10px;font-weight:600;white-space:nowrap}
-.lstream{background:#4a9eff18;color:#4a9eff;border:1px solid #4a9eff44}
-.lrole{background:#9c6af718;color:#9c6af7;border:1px solid #9c6af744}
-.lskill{background:#4caf5018;color:#4caf84;border:1px solid #4caf5044}
-/* tabs */
-.tabs{display:flex;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0;padding:0 16px}
-.tab{padding:6px 14px;font-size:12px;cursor:pointer;border:none;border-bottom:2px solid transparent;opacity:.5;transition:all .15s;background:none;color:inherit}
+.tabs{display:flex;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0;padding:0 14px}
+.tab{padding:5px 12px;font-size:12px;cursor:pointer;border:none;border-bottom:2px solid transparent;opacity:.45;transition:all .15s;background:none;color:inherit}
 .tab.on{opacity:1;border-bottom-color:#4a9eff;color:#4a9eff}
-.tab:hover{opacity:.85}
-/* views */
+.tab:hover{opacity:.75}
 .view{flex:1;overflow:hidden;display:none;flex-direction:column}
 .view.on{display:flex}
-/* live view */
-#live-body{display:flex;gap:10px;padding:12px 16px;flex:1;min-height:0}
-.lleft{flex:6;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
-.lright{flex:4;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
-/* catalog view */
+/* NOW block */
+#now{flex-shrink:0;padding:12px 14px;border-bottom:1px solid var(--vscode-panel-border);background:rgba(74,158,255,.04)}
+#now.idle{background:transparent}
+.now-status{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:#4caf50;animation:pulse 1.5s ease-in-out infinite;flex-shrink:0}
+.dot.idle{background:#666;animation:none}
+.now-state{font-size:11px;font-weight:700;letter-spacing:.1em;color:#4caf50}
+.now-state.idle{color:#666}
+.now-stats{font-size:12px;opacity:.65;margin-left:4px}
+.now-last{display:flex;align-items:baseline;gap:6px;margin-bottom:4px}
+.now-file{font-family:var(--vscode-editor-font-family,'monospace');font-size:14px;font-weight:600;color:#e8e8e8}
+.now-tool{font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,.08);font-weight:500}
+.now-ago{font-size:11px;opacity:.4;margin-left:auto;white-space:nowrap}
+.now-desc{font-size:11px;opacity:.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.now-longop{font-size:11px;color:#ff9800;margin-top:4px;display:none}
+.now-longop.on{display:block}
+/* body split */
+#live-body{display:flex;flex:1;min-height:0;overflow:hidden}
+.col-l{flex:3;border-right:1px solid var(--vscode-panel-border);overflow-y:auto;display:flex;flex-direction:column}
+.col-r{flex:2;overflow-y:auto;display:flex;flex-direction:column}
+.sec{padding:10px 14px;border-bottom:1px solid var(--vscode-panel-border)}
+.sec:last-child{border-bottom:none}
+.sec-ttl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.35;margin-bottom:8px}
+/* file activity */
+.fa{display:grid;grid-template-columns:auto 1fr auto auto;gap:0 10px;align-items:center;padding:4px 0;border-bottom:1px solid rgba(128,128,128,.07);font-size:12px}
+.fa:last-child{border-bottom:none}
+.fa-icon{opacity:.45;font-size:11px;text-align:center;width:14px}
+.fa-file{font-family:var(--vscode-editor-font-family,'monospace');overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fa-cnt{font-size:10px;opacity:.3;white-space:nowrap}
+.fa-t{font-size:10px;opacity:.35;white-space:nowrap}
+/* streams */
+.sr{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(128,128,128,.07);font-size:12px}
+.sr:last-child{border-bottom:none}
+.sr-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.sr-name{font-family:var(--vscode-editor-font-family,'monospace');flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sr-name.active{color:#4a9eff;font-weight:600}
+.sr-type{font-size:10px;padding:1px 5px;border-radius:4px;white-space:nowrap;font-weight:500}
+/* stats */
+.stat-grid{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12px;line-height:1.8}
+.sk{opacity:.35;font-size:11px;white-space:nowrap}.sv{font-weight:500}
+.sv-stream{color:#4a9eff}.sv-role{color:#9c6af7}.sv-skill{color:#4caf84}
+.ctx{font-family:monospace;letter-spacing:-1px;font-size:11px}
+/* footer */
+#footer{display:flex;gap:6px;padding:6px 14px;border-top:1px solid var(--vscode-panel-border);flex-shrink:0;font-size:11px;align-items:center;flex-wrap:wrap}
+.fi{padding:2px 6px;border-radius:4px;background:var(--vscode-sideBar-background);border:1px solid var(--vscode-panel-border);white-space:nowrap}
+/* catalog */
 #cat-body{display:flex;flex:1;overflow:hidden}
 .cat-col{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--vscode-panel-border);overflow:hidden}
 .cat-col:last-child{border-right:none}
 .cat-hdr{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
 .cdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.ctitle{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.5;flex:1}
+.ctitle{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.45;flex:1}
 .ccount{font-size:24px;font-weight:700;line-height:1}
 .cat-list{flex:1;overflow-y:auto;padding:4px 0}
-.ci{padding:5px 14px;border-bottom:1px solid rgba(128,128,128,.08);cursor:default;transition:background .1s}
+.ci{padding:5px 14px;border-bottom:1px solid rgba(128,128,128,.07);cursor:default;transition:background .1s}
 .ci:hover{background:var(--vscode-list-hoverBackground)}
 .ci-name{display:block;font-family:var(--vscode-editor-font-family,'monospace');font-size:12px;font-weight:500}
-.ci-desc{display:block;font-size:10px;opacity:.4;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.more{padding:7px 14px;font-size:11px;opacity:.35;font-style:italic}
-/* shared */
-.ttl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.4;margin-bottom:6px}
-.card{background:var(--vscode-sideBar-background);border:1px solid var(--vscode-panel-border);border-radius:6px;padding:8px 12px}
-.active-card{border-color:#4a9eff55;background:rgba(74,158,255,.04)}
-.adot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#4caf50;animation:pulse 1.5s ease-in-out infinite}
-.st{display:flex;align-items:center;gap:7px}
-.si{color:#4a9eff}
-@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-.spin{display:inline-block;animation:spin 2s linear infinite}
-.ss{font-weight:600;font-family:var(--vscode-editor-font-family,'monospace');font-size:12px}
-.badge{font-size:10px;padding:1px 7px;border-radius:10px;margin-left:auto;font-weight:600;white-space:nowrap}
-.sa{margin-top:3px;font-size:11px;opacity:.55;padding-left:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sa.dim{opacity:.35}
-/* activity */
-.ev{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--vscode-panel-border);font-size:11px}
-.ev:last-child{border-bottom:none}
-.ev-i{flex-shrink:0;width:14px;text-align:center;opacity:.55;font-size:10px}
-.ev-d{flex:1;font-family:var(--vscode-editor-font-family,'monospace');overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85}
-.ev-s{font-size:10px;padding:1px 5px;border-radius:8px;background:#4a9eff12;color:#4a9eff;white-space:nowrap;flex-shrink:0}
-.ev-t{font-size:10px;opacity:.35;white-space:nowrap;flex-shrink:0}
-/* agent panel */
-.agent-grid{display:grid;grid-template-columns:56px 1fr;gap:2px 10px;font-size:12px;line-height:1.9}
-.ag-k{opacity:.4;font-size:11px}.ag-v{font-weight:600}
-.ag-role{color:#9c6af7}.ag-stream{color:#4a9eff}.ag-skill{color:#4caf84}
-/* worktrees/sessions */
-.wt{padding:3px 0;font-family:var(--vscode-editor-font-family,'monospace');font-size:12px;opacity:.8}
-.em{opacity:.4;font-size:12px;font-style:italic;line-height:1.9}code{font-family:var(--vscode-editor-font-family,'monospace');font-size:11px}
-/* footer */
-#footer{display:flex;flex-wrap:wrap;gap:6px;padding:7px 16px;border-top:1px solid var(--vscode-panel-border);flex-shrink:0;font-size:11px;align-items:center}
-.fi{padding:2px 7px;border-radius:4px;background:var(--vscode-sideBar-background);border:1px solid var(--vscode-panel-border)}
-.fi-role{color:#9c6af7;border-color:#9c6af744}.fi-risk{color:#e8823a;border-color:#e8823a55}
-.ctx{font-family:monospace;letter-spacing:-1px;font-size:11px}
+.ci-desc{display:block;font-size:10px;opacity:.38;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.more{padding:7px 14px;font-size:11px;opacity:.3;font-style:italic}
+.em{opacity:.35;font-size:11px;font-style:italic}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.3)}}
 </style></head><body>
 
@@ -360,55 +399,72 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
   <button class="rbtn" onclick="vscode.postMessage({command:'refresh'})">↻ Refresh</button>
 </div>
 
-<div id="live-bar">
-  <span class="dot"></span><span class="ll">LIVE</span>
-  <span class="lm" id="lb-meta"></span>
-  <span class="lpill lstream" id="lb-stream" style="display:none"></span>
-  <span class="lpill lrole" id="lb-role" style="display:none"></span>
-  <span class="lpill lskill" id="lb-skill" style="display:none"></span>
-  <span style="margin-left:auto" id="lb-ctx"></span>
-</div>
-
 <div class="tabs">
   <button class="tab on" onclick="switchTab('live',this)">Live</button>
   <button class="tab" id="tab-catalog" onclick="switchTab('catalog',this)">Catalog</button>
 </div>
 
 <div id="live" class="view on">
-  <div id="live-body">
-    <div class="lleft">
-      <div><div class="ttl" id="streams-ttl">Active Streams</div><div id="streams-list"></div></div>
-      <div style="margin-top:4px"><div class="ttl">Recent Activity</div><div class="card" style="padding:5px 10px" id="events-list"></div></div>
+  <!-- NOW block -->
+  <div id="now">
+    <div class="now-status">
+      <span class="dot" id="now-dot"></span>
+      <span class="now-state" id="now-state">IDLE</span>
+      <span class="now-stats" id="now-stats"></span>
     </div>
-    <div class="lright">
-      <div>
-        <div class="ttl" id="agent-ttl">Agent</div>
-        <div class="card"><div class="agent-grid" id="agent-grid">
-          <span class="ag-k">Model</span><span class="ag-v" id="ag-model">—</span>
-          <span class="ag-k">Role</span><span class="ag-v ag-role" id="ag-role">—</span>
-          <span class="ag-k">Skill</span><span class="ag-v ag-skill" id="ag-skill">—</span>
-          <span class="ag-k">Stream</span><span class="ag-v ag-stream" id="ag-stream">—</span>
-          <span class="ag-k">Cost</span><span class="ag-v" id="ag-cost">—</span>
-          <span class="ag-k">Session</span><span class="ag-v" id="ag-session">—</span>
-        </div></div>
+    <div class="now-last">
+      <span class="now-tool" id="now-tool"></span>
+      <span class="now-file" id="now-file">No activity yet</span>
+      <span class="now-ago" id="now-ago"></span>
+    </div>
+    <div class="now-desc" id="now-desc"></div>
+    <div class="now-longop" id="now-longop">⟳ Running long operation — last tool call completed &gt;90s ago</div>
+  </div>
+
+  <div id="live-body">
+    <!-- Left: files touched + streams -->
+    <div class="col-l">
+      <div class="sec">
+        <div class="sec-ttl" id="fa-ttl">Files touched this session</div>
+        <div id="fa-list"><div class="em">No activity yet</div></div>
       </div>
-      <div><div class="ttl" id="wt-ttl">Worktrees</div><div id="wt-list"></div></div>
-      <div><div class="ttl">Sessions</div><div id="sess-block"></div></div>
+      <div class="sec">
+        <div class="sec-ttl" id="sr-ttl">Active streams</div>
+        <div id="sr-list"></div>
+      </div>
+    </div>
+    <!-- Right: session stats -->
+    <div class="col-r">
+      <div class="sec">
+        <div class="sec-ttl">Session</div>
+        <div class="stat-grid" id="stat-grid">
+          <span class="sk">Model</span><span class="sv" id="sv-model">—</span>
+          <span class="sk">Stream</span><span class="sv sv-stream" id="sv-stream">—</span>
+          <span class="sk">Cost</span><span class="sv" id="sv-cost">—</span>
+          <span class="sk">Time</span><span class="sv" id="sv-time">—</span>
+          <span class="sk">Context</span><span class="sv" id="sv-ctx">—</span>
+          <span class="sk">Branch</span><span class="sv" id="sv-branch" style="font-family:var(--vscode-editor-font-family,'monospace');font-size:11px">—</span>
+        </div>
+      </div>
+      <div class="sec" id="sec-role" style="display:none">
+        <div class="sec-ttl">Role / Skill</div>
+        <div class="stat-grid" id="role-grid"></div>
+      </div>
     </div>
   </div>
 </div>
 
 <div id="catalog" class="view">
   <div id="cat-body">
-    <div class="cat-col" id="col-skills">
+    <div class="cat-col">
       <div class="cat-hdr"><span class="cdot" style="background:#4a9eff"></span><span class="ctitle">Skills</span><span class="ccount" style="color:#4a9eff" id="cnt-skills">0</span></div>
       <div class="cat-list" id="list-skills"></div>
     </div>
-    <div class="cat-col" id="col-roles">
+    <div class="cat-col">
       <div class="cat-hdr"><span class="cdot" style="background:#9c6af7"></span><span class="ctitle">Roles</span><span class="ccount" style="color:#9c6af7" id="cnt-roles">0</span></div>
       <div class="cat-list" id="list-roles"></div>
     </div>
-    <div class="cat-col" id="col-cmds">
+    <div class="cat-col">
       <div class="cat-hdr"><span class="cdot" style="background:#4caf84"></span><span class="ctitle">Commands</span><span class="ccount" style="color:#4caf84" id="cnt-cmds">0</span></div>
       <div class="cat-list" id="list-cmds"></div>
     </div>
@@ -419,144 +475,129 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 
 <script>
 const vscode = acquireVsCodeApi();
-const TYPE_COLOR = {bugfix:'#e8823a',feature:'#4caf84',task:'#4a9eff',maintenance:'#888'};
-const TOOL_ICON = {Edit:'✏',Write:'✏',Bash:'$',Read:'👁',WebSearch:'⌕',WebFetch:'⌕',Agent:'◈',Skill:'⚡'};
-
-function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function show(id,v){ const el=document.getElementById(id); if(el){ el.style.display=v?'':'none'; if(v) el.textContent=v; } }
-function html(id,h){ const el=document.getElementById(id); if(el) el.innerHTML=h; }
-function txt(id,t){ const el=document.getElementById(id); if(el) el.textContent=t; }
-function cls(id,c,on){ const el=document.getElementById(id); if(el) el.classList.toggle(c,on); }
-
+const TYPE_COLOR={bugfix:'#e8823a',feature:'#4caf84',task:'#4a9eff',maintenance:'#888',research:'#9c6af7'};
+const TOOL_ICON={Edit:'✏',Write:'✏',Bash:'$',Read:'👁',WebSearch:'⌕',WebFetch:'⌕',Agent:'◈',Skill:'⚡'};
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function html(id,h){const el=document.getElementById(id);if(el)el.innerHTML=h;}
+function txt(id,t){const el=document.getElementById(id);if(el)el.textContent=t;}
 function switchTab(id,btn){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  document.getElementById(id).classList.add('on');
-  btn.classList.add('on');
+  document.getElementById(id).classList.add('on');btn.classList.add('on');
 }
-
+function relTime(iso){
+  if(!iso)return'';
+  const s=Math.floor((Date.now()-new Date(iso).getTime())/1000);
+  if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';return Math.floor(s/3600)+'h ago';
+}
 function ctxBar(pct){
-  if(pct===null||pct===undefined) return '';
-  const used=Math.round(100-pct);
-  const fill=Math.floor(used/10);
+  if(pct===null||pct===undefined)return'—';
+  const used=Math.round(100-pct);const fill=Math.floor(used/10);
   const c=used<50?'#4caf50':used<75?'#ff9800':'#f44336';
   return '<span class="ctx" style="color:'+c+'">'+'█'.repeat(fill)+'░'.repeat(10-fill)+'</span><span style="color:'+c+';font-size:11px"> '+used+'%</span>';
 }
-
-function badge(t){
-  const c=TYPE_COLOR[t.toLowerCase()]||'#888';
-  return '<span class="badge" style="background:'+c+'22;color:'+c+';border:1px solid '+c+'55">'+esc(t)+'</span>';
-}
-
-function renderCatalogCol(listId, items){
+function renderCatalogCol(listId,items){
   const MAX=100;
   let h=items.slice(0,MAX).map(function(item){
-    return '<div class="ci"><span class="ci-name">'+esc(item.name)+'</span>'+(item.description?'<span class="ci-desc">'+esc(item.description.slice(0,80))+'</span>':'')+'</div>';
+    return '<div class="ci"><span class="ci-name">'+esc(item.name)+'</span>'+(item.description?'<span class="ci-desc">'+esc(item.description.slice(0,90))+'</span>':'')+'</div>';
   }).join('');
-  if(items.length>MAX) h+='<div class="more">+ '+(items.length-MAX)+' more</div>';
+  if(items.length>MAX)h+='<div class="more">+' +(items.length-MAX)+' more</div>';
   html(listId,h);
 }
 
-window.addEventListener('message', function(e){
-  const d=e.data;
-  if(d.type!=='update') return;
+window.addEventListener('message',function(e){
+  const d=e.data;if(d.type!=='update')return;
 
   // header
-  txt('h-proj', d.projectName||'—');
-  const br=document.getElementById('h-br');
-  const sep=document.getElementById('h-sep2');
-  if(br&&sep){ br.textContent=d.branch||''; sep.style.display=d.branch?'':'none'; }
+  txt('h-proj',d.projectName||'—');
+  const br=document.getElementById('h-br'),sep=document.getElementById('h-sep2');
+  if(br&&sep){br.textContent=d.branch||'';sep.style.display=d.branch?'':'none';}
 
-  // live bar
-  const lb=document.getElementById('live-bar');
-  if(lb) lb.className=d.hasLive?'on':'';
-  txt('lb-meta',[d.model,d.cost,d.sessionTime].filter(Boolean).join(' · '));
-  const lbStream=document.getElementById('lb-stream');
-  if(lbStream){ lbStream.textContent=d.activeStream||''; lbStream.style.display=d.activeStream?'':'none'; }
-  const lbRole=document.getElementById('lb-role');
-  if(lbRole){ lbRole.textContent='◈ '+(d.activeRole||''); lbRole.style.display=d.activeRole?'':'none'; }
-  const lbSkill=document.getElementById('lb-skill');
-  if(lbSkill){ lbSkill.textContent='/'+d.lastSkill; lbSkill.style.display=d.lastSkill?'':'none'; }
-  const lbCtx=document.getElementById('lb-ctx');
-  if(lbCtx) lbCtx.innerHTML=ctxBar(d.ctxPct);
-
-  // tab catalog label
+  // tabs
   const tc=document.getElementById('tab-catalog');
-  if(tc) tc.textContent='Catalog · '+(d.skillCount+d.roleCount);
+  if(tc)tc.textContent='Catalog · '+(d.skillCount+d.roleCount);
+
+  // NOW block
+  const nowEl=document.getElementById('now');
+  const dot=document.getElementById('now-dot');
+  const stateEl=document.getElementById('now-state');
+  if(d.hasLive){
+    nowEl.classList.remove('idle');dot.classList.remove('idle');
+    stateEl.textContent='LIVE';stateEl.style.color='#4caf50';dot.style.background='#4caf50';
+  } else {
+    nowEl.classList.add('idle');dot.classList.add('idle');
+    stateEl.textContent='IDLE';stateEl.style.color='#666';dot.style.background='#666';
+  }
+  txt('now-stats',[d.model,d.cost,d.sessionTime].filter(Boolean).join(' · '));
+  if(d.lastEventLabel){
+    txt('now-file',d.lastEventLabel);
+    txt('now-ago',relTime(d.lastEventTs));
+    const toolLabel=d.lastEventLabel.startsWith('$')?' bash ':d.fileActivity&&d.fileActivity[0]?d.fileActivity[0].tool:'';
+    txt('now-tool',toolLabel);
+  }
+  txt('now-desc',d.streamDesc||'');
+  const lopEl=document.getElementById('now-longop');
+  if(lopEl)lopEl.className='now-longop'+(d.isInLongOp?' on':'');
+
+  // file activity
+  txt('fa-ttl','Files touched this session'+(d.fileActivity&&d.fileActivity.length?' ('+d.fileActivity.length+' unique)':''));
+  html('fa-list', d.fileActivity&&d.fileActivity.length ? d.fileActivity.map(function(f){
+    const icon=TOOL_ICON[f.tool]||'·';
+    const fname=f.file.startsWith('$')?f.file:f.file.split('/').slice(-2).join('/');
+    return '<div class="fa">'
+      +'<span class="fa-icon">'+icon+'</span>'
+      +'<span class="fa-file">'+esc(fname)+'</span>'
+      +(f.count>1?'<span class="fa-cnt">×'+f.count+'</span>':'<span></span>')
+      +'<span class="fa-t">'+relTime(f.lastTs)+'</span>'
+      +'</div>';
+  }).join('') : '<div class="em">No tool calls logged yet</div>');
 
   // streams
-  txt('streams-ttl','Active Streams ('+d.streams.length+')');
-  html('streams-list', d.streams.length ? d.streams.map(function(s){
-    const isActive=s.slug===d.activeStream;
-    return '<div class="card'+(isActive?' active-card':'')+'" style="margin-bottom:6px">'
-      +'<div class="st"><span class="si'+(isActive?' spin':'')+'">↻</span>'
-      +'<span class="ss">'+esc(s.slug)+'</span>'
-      +(isActive?'<span class="adot" style="margin-left:2px"></span>':'')
-      +badge(s.type)+'</div>'
-      +(s.role?'<div class="sa dim">◈ '+esc(s.role)+'</div>':'')
-      +(s.next_action?'<div class="sa">→ '+esc(s.next_action)+'</div>':'')
+  txt('sr-ttl','Active streams ('+d.streams.length+')');
+  html('sr-list',d.streams.length?d.streams.map(function(s){
+    const isA=s.slug===d.activeStream;
+    const c=TYPE_COLOR[s.type]||'#888';
+    return '<div class="sr">'
+      +'<span class="sr-dot" style="background:'+(isA?'#4caf50':c)+'"></span>'
+      +'<span class="sr-name'+(isA?' active':'')+'">'+esc(s.slug)+'</span>'
+      +'<span class="sr-type" style="background:'+c+'22;color:'+c+'">'+esc(s.type)+'</span>'
       +'</div>';
-  }).join('') : '<div class="em">No active streams</div>');
+  }).join(''):'<div class="em">No active streams</div>');
 
-  // activity
-  html('events-list', d.events.length ? d.events.map(function(ev){
-    const icon=TOOL_ICON[ev.tool]||'·';
-    const isSkill=ev.tool==='Skill';
-    const detail=isSkill?('/'+ev.skill):(ev.file?ev.file.split('/').pop():(ev.cmd?ev.cmd.slice(0,55):ev.tool));
-    const color=isSkill?'color:#4caf84;font-weight:600':'';
-    return '<div class="ev">'
-      +'<span class="ev-i" style="'+(isSkill?'color:#4caf84':'')+'">'+icon+'</span>'
-      +'<span class="ev-d" style="'+color+'">'+esc(detail)+'</span>'
-      +(ev.stream&&!isSkill?'<span class="ev-s">'+esc(ev.stream)+'</span>':'')
-      +'<span class="ev-t">'+relTime(ev.ts)+'</span>'
-      +'</div>';
-  }).join('') : '<div class="em">No activity yet — hooks write here on each tool call</div>');
+  // session stats
+  txt('sv-model',d.model||'—');
+  txt('sv-stream',d.activeStream||'—');
+  txt('sv-cost',d.cost||'—');
+  txt('sv-time',d.sessionTime||'—');
+  const svCtx=document.getElementById('sv-ctx');if(svCtx)svCtx.innerHTML=ctxBar(d.ctxPct);
+  txt('sv-branch',d.branch||'—');
 
-  // agent panel
-  txt('agent-ttl', d.agentCount ? 'Agent ('+d.agentCount+' active)' : 'Agent');
-  txt('ag-model', d.model||'—');
-  txt('ag-role', d.activeRole||'—');
-  txt('ag-skill', d.lastSkill?'/'+d.lastSkill:'—');
-  txt('ag-stream', d.activeStream||'—');
-  txt('ag-cost', d.cost||'—');
-  txt('ag-session', d.sessionTime||'—');
-
-  // worktrees
-  txt('wt-ttl','Worktrees ('+d.worktrees.length+')');
-  html('wt-list', d.worktrees.map(function(w){ return '<div class="wt">⎇ '+esc(w)+'</div>'; }).join('')||'<div class="em">None</div>');
-
-  // sessions
-  html('sess-block', !d.cpRunning
-    ? '<div class="em">Control plane not running<br><code>$ ab start</code></div>'
-    : d.sessions>0
-      ? '<div style="color:#4caf50;font-size:12px">● '+d.sessions+' active session'+(d.sessions>1?'s':'')+'</div>'
-      : '<div class="em" style="color:#4caf84">● CP running — no sessions</div>');
+  // role/skill — only show section if we have something
+  const secRole=document.getElementById('sec-role');
+  const rg=document.getElementById('role-grid');
+  const rows=[];
+  if(d.activeRole)rows.push('<span class="sk">Role</span><span class="sv sv-role">'+esc(d.activeRole)+'</span>');
+  if(d.lastSkill)rows.push('<span class="sk">Skill</span><span class="sv sv-skill">/'+esc(d.lastSkill)+'</span>');
+  if(secRole&&rg){secRole.style.display=rows.length?'':'none';rg.innerHTML=rows.join('');}
 
   // catalog
-  document.getElementById('cnt-skills').textContent=String(d.skillCount);
-  document.getElementById('cnt-roles').textContent=String(d.roleCount);
-  document.getElementById('cnt-cmds').textContent=String(d.commands.length);
-  renderCatalogCol('list-skills', d.skills);
-  renderCatalogCol('list-roles', d.roles);
-  renderCatalogCol('list-cmds', d.commands);
+  txt('cnt-skills',String(d.skillCount));
+  txt('cnt-roles',String(d.roleCount));
+  txt('cnt-cmds',String(d.commands.length));
+  renderCatalogCol('list-skills',d.skills);
+  renderCatalogCol('list-roles',d.roles);
+  renderCatalogCol('list-cmds',d.commands);
 
   // footer
   const fp=[];
-  if(d.model) fp.push('<span class="fi">⬡ '+esc(d.model)+'</span>');
-  if(d.activeRole) fp.push('<span class="fi fi-role">◈ '+esc(d.activeRole)+'</span>');
-  if(d.lastSkill) fp.push('<span class="fi" style="color:#4caf84">/'+esc(d.lastSkill)+'</span>');
-  if(d.branch) fp.push('<span class="fi">⎇ '+esc(d.branch)+'</span>');
-  if(d.cost) fp.push('<span class="fi">'+esc(d.cost)+'</span>');
-  fp.push('<span style="margin-left:auto;opacity:.3;font-size:11px">'+d.skillCount+' skills · '+d.roleCount+' roles · '+d.streams.length+' streams</span>');
-  html('footer', fp.join(''));
+  if(d.model)fp.push('<span class="fi">⬡ '+esc(d.model)+'</span>');
+  if(d.cost)fp.push('<span class="fi">'+esc(d.cost)+'</span>');
+  if(d.branch)fp.push('<span class="fi" style="font-family:monospace;font-size:10px">⎇ '+esc(d.branch)+'</span>');
+  if(d.activeRole)fp.push('<span class="fi" style="color:#9c6af7;border-color:#9c6af744">◈ '+esc(d.activeRole)+'</span>');
+  if(d.lastSkill)fp.push('<span class="fi" style="color:#4caf84">/'+esc(d.lastSkill)+'</span>');
+  fp.push('<span style="margin-left:auto;opacity:.25;font-size:10px">'+d.skillCount+' skills · '+d.roleCount+' roles · '+d.streams.length+' streams</span>');
+  html('footer',fp.join(''));
 });
-
-function relTime(iso){
-  const s=Math.floor((Date.now()-new Date(iso).getTime())/1000);
-  if(s<60) return s+'s ago';
-  if(s<3600) return Math.floor(s/60)+'m ago';
-  return Math.floor(s/3600)+'h ago';
-}
 </script>
 </body></html>`;
     }
