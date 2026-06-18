@@ -4,6 +4,10 @@ export interface HudContext {
   branch?: string;
   token_pressure?: string;
   active_session_id?: string;
+  session_id?: string;
+  started_at?: string;
+  context_remaining_pct?: number;
+  context_tokens?: number;
 }
 
 export interface HudAgent {
@@ -11,6 +15,9 @@ export interface HudAgent {
   objective?: string;
   phase?: string;
   started_at?: string;
+  role?: string;
+  model?: string;
+  session_id?: string;
 }
 
 export interface HudCost {
