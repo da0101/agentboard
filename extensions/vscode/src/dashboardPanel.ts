@@ -5,6 +5,23 @@ import * as http from "http";
 import { execSync } from "child_process";
 import { HudStatus } from "./hudTypes";
 
+const AB_CLI_COMMANDS: CatalogItem[] = [
+  { name: "init", description: "Scaffold .platform/ into any project" },
+  { name: "new-stream", description: "Open a new work stream" },
+  { name: "new-domain", description: "Add a domain context file" },
+  { name: "checkpoint", description: "Save progress snapshot to stream" },
+  { name: "handoff", description: "Generate handoff packet for next session" },
+  { name: "doctor", description: "Diagnose platform health" },
+  { name: "brief", description: "Print session briefing from BRIEF.md" },
+  { name: "progress", description: "Show stream progress summary" },
+  { name: "close", description: "Close and archive a stream" },
+  { name: "watch", description: "Watch active streams for updates" },
+  { name: "migrate", description: "Migrate stream files to current format" },
+  { name: "sync-skills", description: "Sync skill pack from agentboard" },
+  { name: "validate", description: "Validate stream and platform files" },
+  { name: "usage", description: "Token usage log and dashboard" },
+];
+
 interface StreamEntry { slug: string; status: string; type: string; next_action: string; role: string; }
 interface ActivityEvent { ts: string; tool: string; stream: string; file?: string; cmd?: string; hook_event_name?: string; }
 interface CatalogItem { name: string; description: string; }
@@ -215,7 +232,7 @@ export class DashboardPanel {
       worktrees,
       skillCount: skills.length, roleCount: roles.length,
       skills, roles,
-      commands: skills.map(s => ({ name: `/${s.name}`, description: s.description })),
+      commands: AB_CLI_COMMANDS,
       projectName: path.basename(this.workspaceRoot),
     });
   }
