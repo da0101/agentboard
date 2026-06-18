@@ -208,5 +208,59 @@ _usage_dashboard_cmd() {
     ), 0) FROM dates ORDER BY d;
   ")
 
+  # ── Skill Usage Frequency ───────────────────────────────────────────────
+  local _sk_found=0 _sk_rank=0
+  while IFS='|' read -r skill_lbl uses sk_tok; do
+    [[ -z "$skill_lbl" ]] && continue
+    uses="${uses:-0}"; sk_tok="${sk_tok:-0}"
+    (( _sk_found == 0 )) && { _db_section "SKILL USAGE FREQUENCY"; _sk_found=1; }
+    _sk_rank=$(( _sk_rank + 1 ))
+    local sname="${skill_lbl#skill:}"
+    printf '  %s#%d%s %-28.28s  %s%s uses%s  ·  %s%s tokens%s\n' \
+      "$C_BOLD" "$_sk_rank" "$C_RESET" "$sname" \
+      "$C_BOLD" "$uses" "$C_RESET" \
+      "$C_DIM" "$(_db_ktok "$sk_tok")" "$C_RESET"
+  done < <(sqlite3 "$db" \
+    "SELECT note, COUNT(*) AS uses, SUM(total_tokens) AS tokens
+     FROM usage WHERE $where AND note LIKE 'skill:%'
+     GROUP BY note ORDER BY uses DESC LIMIT 8;")
+
+  # ── Per-Stream Cost ──────────────────────────────────────────────────────
+  local _ps_found=0
+  while IFS='|' read -r slug tasks ps_tok; do
+    [[ -z "$slug" ]] && continue
+    tasks="${tasks:-0}"; ps_tok="${ps_tok:-0}"
+    (( _ps_found == 0 )) && { _db_section "PER-STREAM COST"; _ps_found=1; }
+    printf '  %-38.38s  %s%s tasks%s  ·  %s%s tokens%s\n' \
+      "$slug" \
+      "$C_BOLD" "$tasks" "$C_RESET" \
+      "$C_DIM" "$(_db_ktok "$ps_tok")" "$C_RESET"
+  done < <(sqlite3 "$db" \
+    "SELECT stream_slug, COUNT(*) AS tasks, SUM(total_tokens) AS tokens
+     FROM usage WHERE $where AND stream_slug IS NOT NULL AND stream_slug != ''
+     GROUP BY stream_slug ORDER BY tokens DESC LIMIT 6;")
+
+  # ── Model Breakdown ──────────────────────────────────────────────────────
+  local _mb_rows=()
+  while IFS='|' read -r mdl calls inp out; do
+    [[ -z "$mdl" ]] && continue
+    _mb_rows+=("${mdl}|${calls:-0}|${inp:-0}|${out:-0}")
+  done < <(sqlite3 "$db" \
+    "SELECT COALESCE(model,'?'), COUNT(*) AS calls,
+            SUM(input_tokens), SUM(output_tokens)
+     FROM usage WHERE $where
+     GROUP BY model ORDER BY calls DESC;")
+  if (( ${#_mb_rows[@]} > 1 )); then
+    _db_section "MODEL BREAKDOWN"
+    for _mb_row in "${_mb_rows[@]}"; do
+      IFS='|' read -r mdl calls inp out <<< "$_mb_row"
+      printf '  %-32.32s  %s%s calls%s  ·  %s%s in%s / %s%s out%s\n' \
+        "$mdl" \
+        "$C_BOLD" "$calls" "$C_RESET" \
+        "$C_DIM" "$(_db_ktok "$inp")" "$C_RESET" \
+        "$C_DIM" "$(_db_ktok "$out")" "$C_RESET"
+    done
+  fi
+
   printf '\n'
 }

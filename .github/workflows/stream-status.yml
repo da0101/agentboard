@@ -1,0 +1,56 @@
+name: stream-status
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  stream-status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read stream status
+        id: status
+        run: |
+          ACTIVE=".platform/work/ACTIVE.md"
+          MARKER="<!-- agentboard-stream-status -->"
+
+          if [[ ! -f "$ACTIVE" ]]; then
+            body="${MARKER}
+          ### agentboard stream status
+
+          No .platform/ found — agentboard not initialized in this repo"
+            echo "body<<EOF_BODY" >> "$GITHUB_OUTPUT"
+            echo "$body"          >> "$GITHUB_OUTPUT"
+            echo "EOF_BODY"       >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Extract the markdown table (lines starting with | )
+          table=$(grep -E '^\|' "$ACTIVE" || true)
+
+          if [[ -z "$table" ]]; then
+            table="No active streams."
+          fi
+
+          body="${MARKER}
+          ### agentboard stream status
+
+          ${table}"
+
+          echo "body<<EOF_BODY" >> "$GITHUB_OUTPUT"
+          echo "$body"          >> "$GITHUB_OUTPUT"
+          echo "EOF_BODY"       >> "$GITHUB_OUTPUT"
+
+      - name: Post or update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: github-actions[bot]
+          body: ${{ steps.status.outputs.body }}
+          edit-mode: replace
+          body-includes: "<!-- agentboard-stream-status -->"

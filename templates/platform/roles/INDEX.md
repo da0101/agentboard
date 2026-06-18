@@ -54,6 +54,14 @@ wrong to the user, they just say so — switch without ceremony.
 | `data-analyst` | Senior Data Analyst | answers from data — metrics, queries, reports, "why are users churning", dashboards | building data infrastructure (backend-architect) | Sonnet |
 | `tech-writer` | Senior Technical Writer | documentation — READMEs, API references, guides, onboarding docs | marketing copy | Sonnet |
 | `pair-programmer` | Pair Programmer (default) | everything else — small tasks, questions, continuation work | — | Sonnet |
+| `code-simplifier` | Code Simplifier | working code that is too complex — "simplify this", "hard to read", "too clever" | broken code, performance issues, adding features | Opus |
+| `build-error-resolver` | Build Error Resolver | a build, compile, lint, or CI pipeline is failing | runtime bugs, flaky tests | Sonnet |
+| `a11y-engineer` | Accessibility Engineer | WCAG compliance, screen-reader, keyboard nav, colour contrast | general UI work, design aesthetics | Sonnet |
+| `database-reviewer` | Database Reviewer | reviewing schemas, migrations, query patterns, indexing | implementing queries, application bugs | Sonnet |
+| `api-engineer` | API Implementation Engineer | implementing a new API endpoint or integration from a spec | API design review, backend architecture | Opus |
+| `ml-engineer` | ML / AI Pipeline Engineer | ML pipelines, model integrations, embeddings, vector search, eval harnesses | general backend work, data analysis | Opus |
+| `harness-optimizer` | Agent Harness Optimizer | optimising the agent setup — skills not followed, context wasting tokens, hooks misfiring | application bugs, new features | Sonnet |
+| `docs-reviewer` | Documentation Reviewer | reviewing existing docs for accuracy, completeness, staleness | writing new documentation (tech-writer) | Sonnet |
 
 > **Model key:** Sonnet = analysis/writing/review · Opus = complex implementation/architecture · Sonnet→Opus = start Sonnet, upgrade if scope demands it · Fable = frontier reasoning (greenfield systems, hardest design calls)
 
@@ -69,6 +77,6 @@ pairs: `product-manager`+ab-pm, `qa-engineer`+ab-qa, `qa-automation-engineer`+ab
 
 Add project-specific roles as new `.platform/roles/<slug>.md` files following
 the structure of any shipped role, and add a row to the table above. Keep this
-index under ~85 lines — it is loaded once per session; role files are loaded
+index under ~130 lines — it is loaded once per session; role files are loaded
 only on activation.
 <!-- agentboard:roles:end -->

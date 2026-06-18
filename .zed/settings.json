@@ -1,0 +1,19 @@
+{
+  // Zed AI assistant settings for agentboard projects.
+  // The assistant reads these context paths at session start.
+  "assistant": {
+    "version": "2",
+    "default_model": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-5"
+    },
+    "context_servers": {}
+  },
+  // Custom instructions injected into every assistant conversation.
+  // Zed does not yet support file-path references in system_prompt natively;
+  // copy the contents of .platform/work/BRIEF.md and .platform/work/ACTIVE.md
+  // here manually, or use the agentboard sync-context command to regenerate.
+  "agent": {
+    "system_prompt": "You are working inside an agentboard-managed project. At the start of every session read .platform/work/BRIEF.md and .platform/work/ACTIVE.md. Follow the 6-stage workflow in .platform/workflow.md. Never self-declare a stream complete."
+  }
+}
