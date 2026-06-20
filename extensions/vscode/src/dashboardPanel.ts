@@ -25,7 +25,7 @@ const AB_CLI_COMMANDS: CatalogItem[] = [
 
 
 interface ActivityEvent { ts: string; tool: string; stream: string; file?: string; cmd?: string; agent?: string; skill?: string; hook_event_name?: string; session_id?: string; }
-interface CatalogItem { name: string; description: string; fullDescription?: string; usedBy?: string[] }
+interface CatalogItem { name: string; slug?: string; description: string; fullDescription?: string; usedBy?: string[] }
 interface StreamEntry {
   slug: string; type: string; status: string; role: string;
   objective: string; nextAction: string; branch: string;
@@ -123,8 +123,8 @@ function readSkills(root: string): CatalogItem[] {
         const fm = parseFrontmatter(content);
         const afterFm = content.replace(/^---[\s\S]*?---\n?/, '').trim();
         const fullDescription = extractProse(afterFm);
-        return [{ name: fm.name ?? name, description: fm.description ?? '', fullDescription }];
-      } catch { return [{ name, description: '' }]; }
+        return [{ name: fm.name ?? name, slug: name, description: fm.description ?? '', fullDescription }];
+      } catch { return [{ name, slug: name, description: '' }]; }
     });
   } catch { return []; }
 }
@@ -136,9 +136,10 @@ function readRoles(root: string): CatalogItem[] {
       try {
         const content = fs.readFileSync(path.join(dir, f), "utf8");
         const fm = parseFrontmatter(content);
+        const slug = path.basename(f, ".md");
         const afterFm = content.replace(/^---[\s\S]*?---\n?/, '').trim();
         const fullDescription = extractProse(afterFm);
-        return [{ name: fm.name ?? fm.slug ?? path.basename(f, ".md"), description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription }];
+        return [{ name: fm.name ?? fm.slug ?? slug, slug, description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription }];
       } catch { return []; }
     });
   } catch { return []; }
@@ -818,6 +819,13 @@ export class DashboardPanel {
           if (!skillUsage.has(sk)) skillUsage.set(sk, []);
           if (!skillUsage.get(sk)!.includes(nick)) skillUsage.get(sk)!.push(nick);
         }
+        // RoleAdopt: main session read a role file — slug-keyed
+        if (ev.tool === 'RoleAdopt' && (ev as {role?: string}).role) {
+          const ro = (ev as {role?: string}).role!;
+          if (!roleUsage.has(ro)) roleUsage.set(ro, []);
+          if (!roleUsage.get(ro)!.includes(nick)) roleUsage.get(ro)!.push(nick);
+        }
+        // AgentStart with role label (sub-agents dispatched with role:<name>)
         if (ev.tool === 'AgentStart' && (ev as {role?: string}).role) {
           const ro = (ev as {role?: string}).role!;
           if (!roleUsage.has(ro)) roleUsage.set(ro, []);
@@ -825,8 +833,14 @@ export class DashboardPanel {
         }
       }
     }
-    const skillsWithUsage = skills.map(s => ({ ...s, usedBy: skillUsage.get(s.name) ?? [] }));
-    const rolesWithUsage = roles.map(r => ({ ...r, usedBy: roleUsage.get(r.name) ?? [] }));
+    const skillsWithUsage = skills.map(s => ({ ...s, usedBy: skillUsage.get(s.name) ?? skillUsage.get(s.slug ?? '') ?? [] }));
+    // Match roles by slug first (RoleAdopt events use slug), then display name (AgentStart labels)
+    const rolesWithUsage = roles.map(r => {
+      const bySlug = r.slug ? (roleUsage.get(r.slug) ?? []) : [];
+      const byName = roleUsage.get(r.name) ?? [];
+      const merged = [...new Set([...bySlug, ...byName])];
+      return { ...r, usedBy: merged };
+    });
 
     return {
       type: "update",

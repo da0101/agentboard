@@ -344,6 +344,11 @@ function applyUpdate(d){
     // 1 session = 100%, 2 = 50%, 3+ = 33.33%. flex-grow fills row if fewer than 3 on it.
     var totalSess = d.activeSessions.length;
     var colBasis = totalSess <= 1 ? '100%' : totalSess === 2 ? '50%' : '33.333%';
+    // Preserve scroll positions of all inner-scrollable sections before re-render
+    var _scrollState = {};
+    sessionColsEl.querySelectorAll('[id^="act-body-"],[id^="wf-body-"],[id^="agents-body-"]').forEach(function(el){
+      if(el.scrollTop > 0) _scrollState[el.id] = el.scrollTop;
+    });
     sessionColsEl.innerHTML = d.activeSessions.map(function(s) { try {
       // Green dot = this session received a status update within the last 90s (status-bridge fires every turn)
       var lastUpdatedMs = s.lastUpdated ? new Date(s.lastUpdated).getTime() : 0;
@@ -577,6 +582,11 @@ function applyUpdate(d){
       return '<div class="sess-col" style="flex:1 1 ' + colBasis + '">' + hdr + agentsHtml + workflowHtml + actHdr + actBody + '</div>';
     } catch(e) { return '<div class="sess-col" style="padding:12px;opacity:.4;font-size:11px">Error rendering session: '+(e&&e.message||e)+'</div>'; }
     }).join('');
+    // Restore scroll positions after re-render
+    Object.keys(_scrollState).forEach(function(id){
+      var el=document.getElementById(id);
+      if(el) el.scrollTop=_scrollState[id];
+    });
 
     // Streams in bottom row — collapsible
     const srTtl2 = document.getElementById('sr-ttl2');

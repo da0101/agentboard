@@ -128,10 +128,10 @@ function readSkills(root) {
                 const fm = parseFrontmatter(content);
                 const afterFm = content.replace(/^---[\s\S]*?---\n?/, '').trim();
                 const fullDescription = extractProse(afterFm);
-                return [{ name: fm.name ?? name, description: fm.description ?? '', fullDescription }];
+                return [{ name: fm.name ?? name, slug: name, description: fm.description ?? '', fullDescription }];
             }
             catch {
-                return [{ name, description: '' }];
+                return [{ name, slug: name, description: '' }];
             }
         });
     }
@@ -146,9 +146,10 @@ function readRoles(root) {
             try {
                 const content = fs.readFileSync(path.join(dir, f), "utf8");
                 const fm = parseFrontmatter(content);
+                const slug = path.basename(f, ".md");
                 const afterFm = content.replace(/^---[\s\S]*?---\n?/, '').trim();
                 const fullDescription = extractProse(afterFm);
-                return [{ name: fm.name ?? fm.slug ?? path.basename(f, ".md"), description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription }];
+                return [{ name: fm.name ?? fm.slug ?? slug, slug, description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription }];
             }
             catch {
                 return [];
@@ -912,6 +913,15 @@ class DashboardPanel {
                     if (!skillUsage.get(sk).includes(nick))
                         skillUsage.get(sk).push(nick);
                 }
+                // RoleAdopt: main session read a role file — slug-keyed
+                if (ev.tool === 'RoleAdopt' && ev.role) {
+                    const ro = ev.role;
+                    if (!roleUsage.has(ro))
+                        roleUsage.set(ro, []);
+                    if (!roleUsage.get(ro).includes(nick))
+                        roleUsage.get(ro).push(nick);
+                }
+                // AgentStart with role label (sub-agents dispatched with role:<name>)
                 if (ev.tool === 'AgentStart' && ev.role) {
                     const ro = ev.role;
                     if (!roleUsage.has(ro))
@@ -921,8 +931,14 @@ class DashboardPanel {
                 }
             }
         }
-        const skillsWithUsage = skills.map(s => ({ ...s, usedBy: skillUsage.get(s.name) ?? [] }));
-        const rolesWithUsage = roles.map(r => ({ ...r, usedBy: roleUsage.get(r.name) ?? [] }));
+        const skillsWithUsage = skills.map(s => ({ ...s, usedBy: skillUsage.get(s.name) ?? skillUsage.get(s.slug ?? '') ?? [] }));
+        // Match roles by slug first (RoleAdopt events use slug), then display name (AgentStart labels)
+        const rolesWithUsage = roles.map(r => {
+            const bySlug = r.slug ? (roleUsage.get(r.slug) ?? []) : [];
+            const byName = roleUsage.get(r.name) ?? [];
+            const merged = [...new Set([...bySlug, ...byName])];
+            return { ...r, usedBy: merged };
+        });
         return {
             type: "update",
             hasLive, model, cost, sessionTime, activeStream, streamDesc, activeRole, lastSkill,
