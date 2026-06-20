@@ -241,7 +241,7 @@ function applyUpdate(d){
   // agents / workflow panel
   const agentsEl=document.getElementById('agents-list');
   const agentsTtl=document.getElementById('agents-ttl');
-  const wp=d.workflowPlan;
+  const wp=(d.activeSessions&&d.activeSessions.length===1)?d.activeSessions[0].workflowPlan:null;
   const hasWf=wp||(d.activeWorkflow&&d.activeWorkflow.label);
 
   function renderAgentCard(a,i){
@@ -422,7 +422,7 @@ function applyUpdate(d){
       // Workflow panel — collapsible, shown when THIS session launched a workflow
       var workflowHtml = '';
       if (s.hasWorkflow) {
-        var wp2 = d.workflowPlan;
+        var wp2 = s.workflowPlan || null;
         var wfSid = 'wf-' + s.sessionId;
         var wfExpanded = window._workflowExpanded && window._workflowExpanded.has(wfSid);
         var bgLaunch2 = wp2 && wp2.status === 'done' && wp2.ended_at && wp2.started_at

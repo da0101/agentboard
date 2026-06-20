@@ -215,7 +215,7 @@ This is what makes work resumable after context compaction or handoff to another
 
 ## Skills
 
-`agentboard init` installs a shared skill pack for all providers:
+`agentboard init` installs a shared skill pack (~40 skills) for all providers. The core skills include:
 
 - `ab-triage`
 - `ab-workflow`
@@ -227,6 +227,8 @@ This is what makes work resumable after context compaction or handoff to another
 - `ab-qa`
 - `ab-review`
 - `ab-debug`
+
+Additional specialist skills (agent harness, benchmarking, architecture audit, code tours, ADRs, and more) are also installed — run `agentboard role list` or open the Catalog tab in the VS Code extension to see the full set.
 
 Install behavior is additive:
 
@@ -240,7 +242,7 @@ Each skill has a `SKILL.md` and uses progressive disclosure: the name and descri
 
 Skills cover *process stages*; role profiles cover *who is doing the work*. `agentboard init` also installs `.platform/roles/` — a routing index plus one file per role. At the start of a session the agent matches the user's plain-English request against the index (by meaning, not keywords — "make me app for gym" works), adopts the matching role, and announces it with a `[role:<slug>]` label so you always know which hat it's wearing. No match → it works as a plain pair programmer, no ceremony. Naming a role in chat always overrides the automatic routing.
 
-The shipped roles (17 total):
+The shipped roles (26 total):
 
 - `product-manager` — shapes what to build: requirements, priorities, "is this worth it"
 - `tech-advisor` — research and comparison: "X vs Y", "which database", "how does Z work for us"
@@ -385,15 +387,10 @@ agentboard help
 
 ## VS Code extension
 
-A sidebar extension ships in `extensions/vscode/`. It gives you 5 live panels without leaving your editor:
+A webview dashboard extension ships in `extensions/vscode/`. It gives you a live multi-session panel without leaving your editor:
 
-| Panel | What it shows |
-|---|---|
-| **HUD** | Model, branch, token pressure, CI status, cost, risk flags, open PRs |
-| **Streams** | Active streams + next actions from `.platform/work/ACTIVE.md` |
-| **Catalog** | Installed skills, roles, and CLI commands with counts |
-| **Sessions** | Live agent sessions (role, stream, status, started) |
-| **Worktrees** | Active git worktrees per stream |
+- **Live tab** — real-time session grid (one column per active Claude Code session) showing cost, context %, branch, current stream, file/bash activity feed, workflow agent status, and sub-agent tracking. An active-streams row lists all non-closed streams from `.platform/work/`.
+- **Catalog tab** — three columns: Skills (`~40`), Roles (`~26`), and CLI Commands (`14`). Each card shows a description and "used by" badges; clicking expands the full protocol.
 
 **Install:**
 
@@ -401,10 +398,12 @@ A sidebar extension ships in `extensions/vscode/`. It gives you 5 live panels wi
 cd extensions/vscode
 npm install && npm run compile
 npx @vscode/vsce package
-code --install-extension agentboard-0.1.0.vsix
+code --install-extension agentboard-2.1.0.vsix
 ```
 
-Sessions and Worktrees panels require the control plane (`ab start`). All other panels work with no daemon.
+Open the dashboard via **Agentboard: Open Dashboard** in the command palette (`Cmd+Shift+P`). Lightweight sidebar tree views (Session Status, Streams, Catalog, Sessions, Worktrees) remain available as an alternative.
+
+The extension reads `~/.agentboard/sessions/*.json` written by the `status-bridge.js` Stop hook and `.platform/events.jsonl` written by the `event-logger.sh` PostToolUse hook. Both are installed by `agentboard install-hooks`. The dashboard does **not** require the control plane to be running for core functionality.
 
 ## Control plane
 
@@ -418,7 +417,7 @@ ab worktree new feature-auth                # create git worktree for a stream
 ab stop                                     # stop daemon
 ```
 
-The daemon writes `agentboard.hud-status.json` on every state change — the VS Code extension picks it up instantly.
+The daemon writes `agentboard.hud-status.json` on every state change. The Sessions and Worktrees sidebar panels use it when available and fall back gracefully when it is not running.
 
 ---
 

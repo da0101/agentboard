@@ -439,6 +439,8 @@ class DashboardPanel {
         this._rolesCache = null;
         // Branch cache: avoid spawning git every 10s
         this._branchCache = { value: "", ts: 0 };
+        // Numstat cache: avoid blocking the extension host on every tick (30 s TTL per root)
+        this._numstatCache = new Map();
         // HTTP backoff: slow down if server consistently absent
         this._httpFailStreak = 0;
         this._workspaceRoot = workspaceRoot;
@@ -460,7 +462,7 @@ class DashboardPanel {
                 void this._update();
             if (msg.command === "openStream") {
                 const fp = String(msg.filePath ?? "");
-                const allowed = this._workspaceRoot && fp.startsWith(this._workspaceRoot);
+                const allowed = this._workspaceRoot && fp.startsWith(this._workspaceRoot + path.sep);
                 if (allowed && fp.endsWith(".md")) {
                     void vscode.workspace.openTextDocument(fp).then(doc => vscode.window.showTextDocument(doc));
                 }
@@ -659,7 +661,6 @@ class DashboardPanel {
             const secAgo = Math.floor((Date.now() - new Date(a.ts).getTime()) / 1000);
             return secAgo < 1800;
         });
-        const workflowPlan = readWorkflowPlan(this._workspaceRoot);
         const sessionsDir = path.join(os.homedir(), ".agentboard", "sessions");
         const activeSessions = [];
         try {
@@ -707,14 +708,23 @@ class DashboardPanel {
                             .sort((a, b) => b[1].lastTs.localeCompare(a[1].lastTs))
                             .slice(0, 15)
                             .map(([file, info]) => ({ file, ...info })));
-                        // Enrich Edit/Write entries with git diff numstat
+                        // Enrich Edit/Write entries with git diff numstat (cached per root, 30 s TTL)
                         try {
-                            const numstatOut = (0, child_process_1.execSync)("git diff --numstat HEAD", { cwd: sRoot, timeout: 3000, encoding: "utf8" });
-                            const diffMap = new Map();
-                            for (const line of numstatOut.split("\n")) {
-                                const m = line.match(/^(\d+)\t(\d+)\t(.+)$/);
-                                if (m)
-                                    diffMap.set(m[3].trim(), { added: parseInt(m[1], 10), deleted: parseInt(m[2], 10) });
+                            const NUMSTAT_TTL = 30000;
+                            const cached = this._numstatCache.get(sRoot);
+                            let diffMap;
+                            if (cached && (Date.now() - cached.ts) < NUMSTAT_TTL) {
+                                diffMap = cached.diffMap;
+                            }
+                            else {
+                                diffMap = new Map();
+                                const numstatOut = (0, child_process_1.execSync)("git diff --numstat HEAD", { cwd: sRoot, timeout: 3000, encoding: "utf8" });
+                                for (const line of numstatOut.split("\n")) {
+                                    const m = line.match(/^(\d+)\t(\d+)\t(.+)$/);
+                                    if (m)
+                                        diffMap.set(m[3].trim(), { added: parseInt(m[1], 10), deleted: parseInt(m[2], 10) });
+                                }
+                                this._numstatCache.set(sRoot, { ts: Date.now(), diffMap });
                             }
                             for (const entry of sActivity) {
                                 if (entry.tool === "Edit" || entry.tool === "Write" || entry.tool === "MultiEdit") {
@@ -840,6 +850,7 @@ class DashboardPanel {
                         workflowAgentCount: sWorkflowAgentCount,
                         workflowLabel: sWorkflowLabel,
                         workflowTranscriptAgents: transcriptAgents,
+                        workflowPlan: sRoot ? readWorkflowPlan(sRoot) : null,
                     });
                 }
                 catch { /* skip malformed file */ }
@@ -918,7 +929,6 @@ class DashboardPanel {
             ctxPct, branch, cpRunning: false, sessions: 0, totalUniqueFiles,
             activeSessions,
             activeWorkflow,
-            workflowPlan,
             streams: this._streamsCache?.data ?? [],
             fileActivity, recentAgents,
             lastEventLabel, lastEventTs, isInLongOp,
