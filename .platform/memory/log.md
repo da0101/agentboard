@@ -4,6 +4,7 @@ One line per completed task. Newest at the top. Append-only.
 
 Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 
+2026-06-20 — Released vscode extension 2.1.0 with live dashboard, workflow tracking, catalog expand, git diff stats, security fixes. 2.1.1 prep: audit + rescan pass.
 2026-06-12 — graphify-integration stream — shipped ab-graphify skill + init prompt + ACTIVATE.md step across all three provider templates
 2026-04-30 — closed: skills-baseline-testing — pressure-tested 5 ab-* skills, patched ab-debug/security/workflow with rationalization counters, all 3 re-passed; 2 real bugs found as side-effects (close row deletion, brief domain display)
 2026-04-30 — closed: skills-improvement — overhauled all 10 ab-* skills: trigger descriptions, ab-qa browser auth, targeted fixes per skill, synced .claude/.agents; shipped in v1.9.0
@@ -16,6 +17,30 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 2026-04-19 — search-command — shipped: agentboard search with ripgrep/grep fallback, OR-join, scope flags, token estimates — instruction-driven approach works for Claude + Codex + Gemini without needing MCP; BM25-style OR search on well-structured .platform/ files is ~85% as good as semantic search at zero infrastructure cost
 
 ---
+- 2026-06-20 — commit `6088dbc`: chore: add codex dashboard support stream + 2.1.0 staleness + workflow scroll fixes — auto-logged
+- 2026-06-20 — commit `652abca`: feat: vscode extension 2.1.0 — real-time dashboard with workflow + catalog — auto-logged
+- 2026-06-18 — commit `be76239`: fix: global ~/.agentboard/live.json bridges across VS Code windows — no more blank dashboard — auto-logged
+- 2026-06-18 — commit `6311e8a`: fix: smart workspace root detection — prefer folder with .platform/ or active HUD file — auto-logged
+- 2026-06-18 — commit `1dc1b07`: feat: stream accordion with objective, done criteria, next action, open-in-editor — auto-logged
+- 2026-06-18 — commit `56f2749`: feat: robust workflow agent parser, show roster with role/skill/model even when 0 parsed — auto-logged
+- 2026-06-18 — commit `5a23cd6`: feat: parse workflow script to show all agents with role/skill/model in dashboard — auto-logged
+- 2026-06-18 — commit `79db718`: feat: role+skill per agent — PreToolUse hook, label format, dashboard rendering — auto-logged
+- 2026-06-18 — commit `520005d`: feat: capture Agent tool dispatches, show agents panel in Live tab — auto-logged
+- 2026-06-17 — commit `9dedcea`: fix: capture skill reads + all Bash commands in event-logger — auto-logged
+- 2026-06-17 — commit `2326c35`: feat: detect compaction state (context >75% + long op) in NOW block — auto-logged
+- 2026-06-17 — commit `62e45d8`: redesign: NOW block shows last action + deduplicated file activity — auto-logged
+- 2026-06-17 — commit `ef35d12`: fix: show role mission as description in Catalog roles column — auto-logged
+- 2026-06-17 — commit `2808db9`: fix: Commands column shows 14 ab CLI commands, not skills — auto-logged
+- 2026-06-17 — commit `60ccca3`: feat: capture /skill invocations in event-logger, show agent count, skill in activity — auto-logged
+- 2026-06-17 — commit `246378f`: fix: postMessage architecture prevents tab reset on data updates — auto-logged
+- 2026-06-17 — commit `b988380`: feat: two-tab dashboard (Live + Catalog), agent info panel, ECC-style catalog view — auto-logged
+- 2026-06-17 — commit `677f763`: fix: worktree object rendering, strip model name from role display — auto-logged
+- 2026-06-17 — commit `2148534`: feat: add active stream, role, activity feed to dashboard; fix HudAgent types — auto-logged
+- 2026-06-17 — commit `b73ade2`: feat: add statusLine hook (status-bridge.js) for live model/cost/context data — auto-logged
+- 2026-06-17 — commit `2fa9bd1`: fix: parse sessions/worktrees from CP response object, show CP status correctly — auto-logged
+- 2026-06-17 — commit `a74e5a2`: fix: pipe SQL via stdin to fix sqlite3 quoting, add WebviewPanel dashboard — auto-logged
+- 2026-06-17 — commit `26b790e`: fix: add @types/node and repository field to VS Code extension package.json — auto-logged
+- 2026-06-17 — commit `50ece85`: chore: release 2.0.0 — agentboard OS — auto-logged
 
 2026-06-15 — closed stream qa-execution-journal → ./.platform/work/archive/qa-execution-journal.md (by danilulmashev)
 

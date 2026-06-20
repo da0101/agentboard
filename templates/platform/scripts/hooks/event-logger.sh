@@ -127,16 +127,6 @@ fi
 
 tool="$(_json_string_field "tool_name")"
 
-# Skip Bash events that are ab meta-calls — those commands produce
-# their own structured events (Reason, checkpoint, etc.) which are the signal.
-# Logging the Bash wrapper too just duplicates noise.
-if [[ "$tool" == "Bash" ]]; then
-  _cmd_peek="$(_json_string_field "command")"
-  case "$_cmd_peek" in
-    ab\ *|agentboard\ *) exit 0 ;;
-  esac
-fi
-
 _jsesc() {
   printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'
 }
@@ -144,6 +134,36 @@ provider_e="$(_jsesc "$provider")"
 stream_e="$(_jsesc "$stream")"
 tool_e="$(_jsesc "$tool")"
 hook_e="$(_jsesc "$hook_event")"
+
+# ── Agent start (PreToolUse on Agent tool) ────────────────────────────────────
+# Label format enforced by CLAUDE.md: "role:<name> · skill:<name> · <task desc>"
+if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_start" ]]; then
+  _label="$(_json_string_field "label")"
+  _subtype="$(_json_string_field "subagent_type")"
+  _role=""
+  _skill=""
+  if [[ "$_label" == *"role:"* ]]; then
+    _role="$(printf '%s' "$_label" | sed 's/.*role:\([^·|]*\).*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  fi
+  if [[ "$_label" == *"skill:"* ]]; then
+    _skill="$(printf '%s' "$_label" | sed 's/.*skill:\([^·|]*\).*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  fi
+  _task="${_label:-${_subtype:-sub-agent}}"
+  printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"AgentStart","label":"%s","role":"%s","skill":"%s","session_id":"%s"}\n' \
+    "$ts" "$provider_e" "$stream_e" \
+    "$(_jsesc "$_task")" "$(_jsesc "$_role")" "$(_jsesc "$_skill")" \
+    "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+  exit 0
+fi
+
+# Skip Bash events that are ab meta-calls — those commands produce
+# their own structured events (Reason, checkpoint, etc.) which are the signal.
+if [[ "$tool" == "Bash" ]]; then
+  _cmd_peek="$(_json_string_field "command")"
+  case "$_cmd_peek" in
+    ab\ *|agentboard\ *) exit 0 ;;
+  esac
+fi
 
 # Session events (SessionStart/End, FileChange, Reason) are identified by
 # hook_event_name — regardless of whether tool_name is also present.
@@ -165,7 +185,21 @@ case "$hook_event" in
     detail_val=""
     case "$tool" in
       Read)
-        exit 0  # internal lookups — not "what I changed"
+        _fp="$(_json_string_field "file_path")"
+        # Detect skill file reads — log as Skill invocation
+        case "$_fp" in
+          */.claude/skills/*/SKILL.md|*/.claude/skills/*/*)
+            _skill_name="$(printf '%s' "$_fp" | sed 's|.*\.claude/skills/\([^/]*\)/.*|\1|')"
+            if [[ -n "$_skill_name" ]]; then
+              printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
+                "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_skill_name")" "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+            fi
+            exit 0
+            ;;
+          *)
+            exit 0  # other reads — not useful activity
+            ;;
+        esac
         ;;
       Edit|Write|MultiEdit|NotebookEdit)
         _fp="$(_json_string_field "file_path")"
@@ -179,15 +213,25 @@ case "$hook_event" in
         ;;
       Bash)
         _cmd="$(_json_string_field "command")"
-        # Keep only git commits/pushes — all other Bash is handoff noise
+        # Skip trivial internal commands — keep everything else
         case "$_cmd" in
-          git\ commit\ *|git\ push\ *) ;;
-          *) exit 0 ;;
+          echo\ *|printf\ *|cat\ *|ls\ *|cd\ *|pwd|true|false|:|\
+          mkdir\ *|rm\ *|mv\ *|cp\ *|touch\ *|chmod\ *|wc\ *|head\ *|tail\ *|\
+          sed\ *|awk\ *|grep\ *|find\ *|sort\ *|uniq\ *|test\ *|\[\ *|\
+          export\ *|source\ *|\.\ *|read\ *) exit 0 ;;
+          *) ;;
         esac
         if [[ -n "$_cmd" ]]; then
           detail_key="cmd"
           detail_val="${_cmd:0:120}"
         fi
+        ;;
+      Agent)
+        _label="$(_json_string_field "label")"
+        _subtype="$(_json_string_field "subagent_type")"
+        _agent_id="${_label:-${_subtype:-sub-agent}}"
+        detail_key="agent"
+        detail_val="$_agent_id"
         ;;
       WebSearch|WebFetch)
         exit 0  # internal research — not "what I changed"
