@@ -112,6 +112,13 @@ process.stdin.on('end', () => {
 
     writeHudAtomic(hudPath, hud);
 
+    // Write global live.json so VS Code extension finds the active project regardless of open workspace
+    try {
+      const globalDir = path.join(os.homedir(), '.agentboard');
+      fs.mkdirSync(globalDir, { recursive: true });
+      writeHudAtomic(path.join(globalDir, 'live.json'), { ...hud, _root: root });
+    } catch {}
+
     // Terminal statusLine output
     const parts = [];
     parts.push(model);
