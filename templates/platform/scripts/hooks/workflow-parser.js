@@ -79,19 +79,20 @@ process.stdin.on('end', () => {
       const firstArgM = callBody.match(/^\s*['"`]([\s\S]{1,80}?)['"`]/);
       const label = (labelM ? labelM[1] : firstArgM ? firstArgM[1] : '').trim().slice(0, 100);
 
-      if (label) {
-        const roleM = label.match(/role:\s*([^·|]+)/);
-        const skillM = label.match(/skill:\s*([^·|]+)/);
-        agents.push({
-          label,
-          role: roleM ? roleM[1].trim() : '',
-          skill: skillM ? skillM[1].trim() : '',
-          model: modelM ? modelM[1] : '',
-          phase: phaseM ? phaseM[1] : '',
-          agentType: agentTypeM ? agentTypeM[1] : '',
-          status: 'planned',
-        });
-      }
+      // Always push — use "Agent N" placeholder if no label found so total count is accurate
+      const finalLabel = label || `Agent ${agents.length + 1}`;
+      const roleM = finalLabel.match(/role:\s*([^·|]+)/);
+      const skillM = finalLabel.match(/skill:\s*([^·|]+)/);
+      agents.push({
+        label: finalLabel,
+        role: roleM ? roleM[1].trim() : '',
+        skill: skillM ? skillM[1].trim() : '',
+        model: modelM ? modelM[1] : '',
+        phase: phaseM ? phaseM[1] : '',
+        agentType: agentTypeM ? agentTypeM[1] : '',
+        unlabeled: !label,
+        status: 'planned',
+      });
 
       i = j + 1;
     }

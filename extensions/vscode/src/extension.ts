@@ -9,20 +9,19 @@ import { SessionsProvider } from "./sessionsProvider";
 import { WorktreesProvider } from "./worktreesProvider";
 import { DashboardPanel } from "./dashboardPanel";
 
-function detectWorkspaceRoot(): string {
-  // Primary: read the global live.json written by status-bridge.js on every Claude turn.
-  // This works regardless of which VS Code window is open.
+export function detectWorkspaceRoot(): string {
+  // Primary: ~/.agentboard/live.json written by status-bridge.js on every Claude turn
   const globalLive = path.join(os.homedir(), ".agentboard", "live.json");
   try {
     const live = JSON.parse(fs.readFileSync(globalLive, "utf8")) as { _root?: string; last_updated?: string };
     const root = live._root ?? "";
     if (root && fs.existsSync(path.join(root, ".platform"))) {
       const ageMs = Date.now() - new Date(live.last_updated ?? 0).getTime();
-      if (ageMs < 4 * 60 * 60 * 1000) return root; // fresh within 4 hours
+      if (ageMs < 4 * 60 * 60 * 1000) return root;
     }
   } catch { /* fall through */ }
 
-  // Fallback: score open workspace folders
+  // Fallback: score open workspace folders by evidence of agentboard usage
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (!folders.length) return "";
   const scored = folders.map(f => {
@@ -40,13 +39,8 @@ function detectWorkspaceRoot(): string {
 export function activate(context: vscode.ExtensionContext): void {
   let workspaceRoot = detectWorkspaceRoot();
 
-  const hudEmitter = new vscode.EventEmitter<
-    vscode.TreeItem | undefined | null | void
-  >();
-  const streamsEmitter = new vscode.EventEmitter<
-    vscode.TreeItem | undefined | null | void
-  >();
-
+  const hudEmitter = new vscode.EventEmitter<vscode.TreeItem | undefined | null | void>();
+  const streamsEmitter = new vscode.EventEmitter<vscode.TreeItem | undefined | null | void>();
   const hudProvider = new HudProvider(workspaceRoot, hudEmitter);
   const streamsProvider = new StreamsProvider(workspaceRoot, streamsEmitter);
   const catalogProvider = new CatalogProvider(workspaceRoot);
@@ -55,102 +49,62 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("agentboard.hud", hudProvider),
-    vscode.window.registerTreeDataProvider(
-      "agentboard.streams",
-      streamsProvider
-    ),
+    vscode.window.registerTreeDataProvider("agentboard.streams", streamsProvider),
     vscode.window.registerTreeDataProvider("agentboard.catalog", catalogProvider),
     vscode.window.registerTreeDataProvider("agentboard.sessions", sessionsProvider),
     vscode.window.registerTreeDataProvider("agentboard.worktrees", worktreesProvider)
   );
 
-  // Watch the global live.json (updated by status-bridge.js on every Claude turn)
-  const globalLivePath = path.join(os.homedir(), ".agentboard", "live.json");
-  const globalWatcher = vscode.workspace.createFileSystemWatcher(
-    new vscode.RelativePattern(vscode.Uri.file(path.join(os.homedir(), ".agentboard")), "live.json")
-  );
-  const onGlobalChange = () => {
-    const newRoot = detectWorkspaceRoot();
-    if (newRoot !== workspaceRoot) {
-      workspaceRoot = newRoot;
-      DashboardPanel.createOrShow(workspaceRoot);
-    } else {
-      DashboardPanel.refresh();
-    }
-    hudEmitter.fire();
-    sessionsProvider.refresh();
-  };
-  globalWatcher.onDidChange(onGlobalChange);
-  globalWatcher.onDidCreate(onGlobalChange);
-  context.subscriptions.push(globalWatcher);
-
+  // Watch project HUD file for tree view updates
   const hudFile = path.join(workspaceRoot, "agentboard.hud-status.json");
   const watcher = vscode.workspace.createFileSystemWatcher(hudFile);
-
-  watcher.onDidChange(() => {
-    hudEmitter.fire();
-    sessionsProvider.refresh();
-  });
-  watcher.onDidCreate(() => {
-    hudEmitter.fire();
-    sessionsProvider.refresh();
-  });
-  watcher.onDidDelete(() => {
-    hudEmitter.fire();
-    sessionsProvider.refresh();
-  });
-
+  watcher.onDidChange(() => { hudEmitter.fire(); sessionsProvider.refresh(); });
+  watcher.onDidCreate(() => { hudEmitter.fire(); sessionsProvider.refresh(); });
+  watcher.onDidDelete(() => { hudEmitter.fire(); sessionsProvider.refresh(); });
   context.subscriptions.push(watcher);
 
-  // Re-detect workspace when a HUD file appears in any folder (new Claude session)
-  const anyHudWatcher = vscode.workspace.createFileSystemWatcher("**/agentboard.hud-status.json");
-  anyHudWatcher.onDidCreate(() => {
-    const best = detectWorkspaceRoot();
-    if (best && best !== workspaceRoot) {
-      workspaceRoot = best;
-      DashboardPanel.createOrShow(workspaceRoot);
-    }
-  });
-  context.subscriptions.push(anyHudWatcher);
+  // Poll ~/.agentboard/live.json every 3s to detect workspace switches
+  // (avoids vscode.RelativePattern issues with paths outside workspace)
+  const globalLive = path.join(os.homedir(), ".agentboard", "live.json");
+  let lastLiveMtime = 0;
+  const globalPoll = setInterval(() => {
+    try {
+      const mtime = fs.statSync(globalLive).mtimeMs;
+      if (mtime !== lastLiveMtime) {
+        lastLiveMtime = mtime;
+        const newRoot = detectWorkspaceRoot();
+        if (newRoot && newRoot !== workspaceRoot) {
+          workspaceRoot = newRoot;
+        }
+        DashboardPanel.forceUpdate(workspaceRoot);
+        hudEmitter.fire();
+        sessionsProvider.refresh();
+      }
+    } catch { /* file not yet written */ }
+  }, 3000);
+  context.subscriptions.push({ dispose: () => clearInterval(globalPoll) });
 
   context.subscriptions.push(
     vscode.commands.registerCommand("agentboard.refresh", () => {
       workspaceRoot = detectWorkspaceRoot();
-      hudEmitter.fire();
-      streamsEmitter.fire();
-      catalogProvider.refresh();
-      sessionsProvider.refresh();
-      worktreesProvider.refresh();
-      DashboardPanel.createOrShow(workspaceRoot);
-    })
-  );
-
-  context.subscriptions.push(
+      hudEmitter.fire(); streamsEmitter.fire();
+      catalogProvider.refresh(); sessionsProvider.refresh(); worktreesProvider.refresh();
+      DashboardPanel.forceUpdate(workspaceRoot);
+    }),
     vscode.commands.registerCommand("agentboard.openDashboard", () => {
-      DashboardPanel.createOrShow(workspaceRoot);
-    })
-  );
-  // Auto-open dashboard on activation
-  DashboardPanel.createOrShow(workspaceRoot);
-
-  context.subscriptions.push(
+      DashboardPanel.createOrShow(workspaceRoot, context.extensionUri);
+    }),
     vscode.commands.registerCommand("agentboard.openBrief", async () => {
-      const briefPath = path.join(
-        workspaceRoot,
-        ".platform",
-        "work",
-        "BRIEF.md"
-      );
-      const uri = vscode.Uri.file(briefPath);
+      const briefPath = path.join(workspaceRoot, ".platform", "work", "BRIEF.md");
       try {
-        await vscode.window.showTextDocument(uri);
+        await vscode.window.showTextDocument(vscode.Uri.file(briefPath));
       } catch {
-        void vscode.window.showErrorMessage(
-          "Could not open BRIEF.md — file may not exist."
-        );
+        void vscode.window.showErrorMessage("Could not open BRIEF.md — file may not exist.");
       }
     })
   );
+
+  DashboardPanel.createOrShow(workspaceRoot, context.extensionUri);
 }
 
 export function deactivate(): void {}
