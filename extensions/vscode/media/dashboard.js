@@ -457,7 +457,7 @@ function applyUpdate(d){
           + '</div>';
 
         // Expanded body
-        workflowHtml += '<div id="wf-body-'+esc(wfSid)+'" style="display:'+(wfExpanded?'block':'none')+';padding:'+(wfExpanded?'0 14px 10px':'0')+'">';
+        workflowHtml += '<div id="wf-body-'+esc(wfSid)+'" style="display:'+(wfExpanded?'block':'none')+';padding:'+(wfExpanded?'0 14px 10px':'0')+';max-height:260px;overflow-y:auto;scrollbar-width:thin">';
 
         // Phase pills
         if(wp2 && wp2.phases && wp2.phases.length) {

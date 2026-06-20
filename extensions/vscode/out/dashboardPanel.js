@@ -95,6 +95,30 @@ function readStreams(root) {
         return [];
     }
 }
+// Extract readable prose from a markdown body — skip headings, blockquotes, code fences, ANSI lines.
+// Returns up to `maxChars` of the first substantive paragraph found.
+function extractProse(body, maxChars = 600) {
+    const lines = body.split("\n");
+    const prose = [];
+    let inCode = false;
+    for (const raw of lines) {
+        const l = raw.trim();
+        if (l.startsWith("```")) {
+            inCode = !inCode;
+            continue;
+        }
+        if (inCode)
+            continue;
+        if (!l || l.startsWith("#") || l.startsWith(">") || l.startsWith("\\033") || l.includes("\x1b["))
+            continue;
+        // Section boundary — stop at first blank line after we've collected prose
+        if (!l && prose.length)
+            break;
+        if (l)
+            prose.push(l);
+    }
+    return prose.join(" ").slice(0, maxChars).trim();
+}
 function readSkills(root) {
     const dir = path.join(root, ".claude", "skills");
     try {
@@ -103,8 +127,8 @@ function readSkills(root) {
                 const content = fs.readFileSync(path.join(dir, name, "SKILL.md"), "utf8");
                 const fm = parseFrontmatter(content);
                 const afterFm = content.replace(/^---[\s\S]*?---\n?/, '').trim();
-                const firstPara = afterFm.split(/\n\n/)[0]?.trim().slice(0, 500) ?? '';
-                return [{ name: fm.name ?? name, description: fm.description ?? '', fullDescription: firstPara }];
+                const fullDescription = extractProse(afterFm);
+                return [{ name: fm.name ?? name, description: fm.description ?? '', fullDescription }];
             }
             catch {
                 return [{ name, description: '' }];
@@ -123,8 +147,8 @@ function readRoles(root) {
                 const content = fs.readFileSync(path.join(dir, f), "utf8");
                 const fm = parseFrontmatter(content);
                 const afterFm = content.replace(/^---[\s\S]*?---\n?/, '').trim();
-                const firstPara = afterFm.split(/\n\n/)[0]?.trim().slice(0, 500) ?? '';
-                return [{ name: fm.name ?? fm.slug ?? path.basename(f, ".md"), description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription: firstPara }];
+                const fullDescription = extractProse(afterFm);
+                return [{ name: fm.name ?? fm.slug ?? path.basename(f, ".md"), description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription }];
             }
             catch {
                 return [];
@@ -734,13 +758,25 @@ class DashboardPanel {
                         }
                     }
                     // Sort newest-first, cap at 50.
-                    // Staleness: a sub-agent without a PostToolUse completion can only still be running if
-                    // the SESSION itself is still alive. If the session hasn't written a status update in
-                    // more than 10 minutes, the session is idle/dead and all pending agents are stale.
-                    const sessionIdleMs = ageMs; // ageMs = Date.now() - new Date(lastUpdated) from line above
-                    const sessionIsIdle = sessionIdleMs > 10 * 60 * 1000; // 10-minute window
+                    // Two-tier staleness:
+                    // 1. Session idle >10 min → all pending agents are stale (session is dead/paused)
+                    // 2. Per-agent: started >30 min ago with no completion → stale regardless of session state.
+                    //    Workflow sub-agents never fire PostToolUse in the main session, so they'd stay
+                    //    "running" forever. 30 min is a safe upper bound for any real agent task.
+                    const sessionIdleMs = ageMs; // ageMs = Date.now() - new Date(lastUpdated)
+                    const sessionIsIdle = sessionIdleMs > 10 * 60 * 1000;
+                    const AGENT_STALE_MS = 30 * 60 * 1000; // 30 min per-agent timeout
                     const sAgents = Array.from(sAgentMap.values())
-                        .map(a => (!a.done && sessionIsIdle) ? { ...a, done: true } : a)
+                        .map(a => {
+                        if (a.done)
+                            return a;
+                        if (sessionIsIdle)
+                            return { ...a, done: true };
+                        const agentAgeMs = a.ts ? Date.now() - new Date(a.ts).getTime() : Infinity;
+                        if (agentAgeMs > AGENT_STALE_MS)
+                            return { ...a, done: true };
+                        return a;
+                    })
                         .sort((a, b) => b.ts.localeCompare(a.ts))
                         .slice(0, 50);
                     // Detect if THIS session has an active workflow.
