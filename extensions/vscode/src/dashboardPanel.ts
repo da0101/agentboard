@@ -568,9 +568,11 @@ DO NOT proceed to Phase 3 until the plan is approved.
             void (async () => { try {
               const termPids = await Promise.all(terminals.map(t => t.processId));
               let target: vscode.Terminal | undefined;
+              // Strategy 1: terminal whose shell PID matches — Claude runs INSIDE this terminal
               if (shellPid > 0) {
-                const byPid = terminals.find((_, i) => termPids[i] === shellPid);
-                if (byPid) {
+                target = terminals.find((_, i) => termPids[i] === shellPid);
+                // Also check children (handles when status-bridge logs shell's parent PID)
+                if (!target) {
                   try {
                     const { execSync: _ex } = require("child_process") as typeof import("child_process");
                     const children = _ex(`pgrep -P ${shellPid} 2>/dev/null`).toString().trim().split("\n");
@@ -582,11 +584,15 @@ DO NOT proceed to Phase 3 until the plan is approved.
                   } catch { /* fall through */ }
                 }
               }
+              // Strategy 2: nick name in terminal name
               if (!target && sessionNick) {
                 const nickLower = sessionNick.toLowerCase();
                 target = terminals.find(t2 => t2.name.toLowerCase().includes(nickLower));
               }
-              if (!target && terminals.length === 1) target = terminals[0];
+              // Strategy 3: any terminal named "claude" or "Claude ·"
+              if (!target) {
+                target = terminals.find(t2 => /claude/i.test(t2.name));
+              }
               if (target) {
                 target.show(false);
                 target.sendText(refactorPrompt, true);
