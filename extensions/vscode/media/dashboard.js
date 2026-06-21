@@ -855,21 +855,29 @@ document.addEventListener('click',function(e){
     menu._sessionNick=diffEl.dataset.sessionNick||'';
     var _sep='<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
     var _fmItem=function(fm,icon,label,color,hint){
-      return '<div data-fm="'+fm+'" style="padding:7px 14px;cursor:pointer;font-size:12px;color:'+(color||'#d4d4d4')+';display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="opacity:.45;font-size:11px;width:14px;text-align:center;flex-shrink:0">'+icon+'</span><span style="flex:1">'+label+'</span>'+(hint?'<span style="font-size:9px;opacity:.35;white-space:nowrap">'+hint+'</span>':'')+'</div>';
+      return '<div data-fm="'+fm+'" style="padding:7px 14px;cursor:pointer;font-size:12px;color:'+(color||'#d4d4d4')+';display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="font-size:13px;width:18px;text-align:center;flex-shrink:0">'+icon+'</span><span style="flex:1">'+label+'</span>'+(hint?'<span style="font-size:9px;white-space:nowrap">'+hint+'</span>':'')+'</div>';
     };
-    var _mHtml = _fmItem('diff','⇄', menu._isNew||menu._isDeleted?'Open file':'Open diff');
-    if(menu._isNew||menu._isDeleted) _mHtml = _fmItem('diff','↗','Open file');
-    _mHtml += _fmItem('copy','⊹','Copy path');
+    var _diffHint='';
+    if(menu._added||menu._deleted){
+      _diffHint=(menu._added?'<span style="color:#4caf50">+'+menu._added+'</span>':'')
+        +(menu._added&&menu._deleted?'<span style="opacity:.3"> / </span>':'')
+        +(menu._deleted?'<span style="color:#f44336">-'+menu._deleted+'</span>':'');
+    }
+    var _mHtml = _fmItem('diff', menu._isNew||menu._isDeleted?'↗️':'↔️', menu._isNew||menu._isDeleted?'Open file':'Open diff','#d4d4d4',_diffHint);
+    _mHtml += _fmItem('copy','📋','Copy path');
     if(menu._totalChanged>=50){
-      var _tc=menu._totalChanged; var _wHint='+'+menu._added+' / -'+menu._deleted;
+      var _wHint=(menu._added?'<span style="color:#4caf50">+'+menu._added+'</span>':'')
+        +(menu._added&&menu._deleted?'<span style="opacity:.3"> / </span>':'')
+        +(menu._deleted?'<span style="color:#f44336">-'+menu._deleted+'</span>':'');
       _mHtml += _sep;
-      _mHtml += _fmItem('explain-change','⊙','Explain this change','#89ddff',_wHint);
+      _mHtml += _fmItem('explain-change','🔍','Explain this change','#89ddff',_wHint);
     }
     if(menu._lineCount>=500){
-      var _lcHint=menu._lineCount+'L';
+      var _lcTier=menu._lineCount>=1000?'🔴':menu._lineCount>=800?'🟠':'🟡';
+      var _lcHint='<span style="opacity:.45">'+_lcTier+' '+menu._lineCount+'L</span>';
       if(menu._totalChanged<50) _mHtml += _sep;
-      _mHtml += _fmItem('refactor-here','↺','Refactor in this session','#c792ea',_lcHint);
-      _mHtml += _fmItem('refactor-new','⊕','Refactor in new session','#82aaff');
+      _mHtml += _fmItem('refactor-here','⚡','Refactor in this session','#c792ea',_lcHint);
+      _mHtml += _fmItem('refactor-new','✨','Refactor in new session','#82aaff');
     }
     menu.innerHTML=_mHtml;
     var rect=diffEl.getBoundingClientRect();
