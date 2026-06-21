@@ -70,6 +70,8 @@ print(json.dumps({
 " > "$delegate_dir/delegate.json"
 
   ok "Delegation queued → ${role_slug}: ${task}"
-  printf '  %sVS Code will open a new terminal with Claude as %s%s%s%s.\n' \
-    "$C_DIM" "$C_RESET" "$C_BOLD" "$role_slug" "$C_RESET"
+  printf '  VS Code will open a new terminal with Claude as %s%s%s.\n\n' "$C_BOLD" "$role_slug" "$C_RESET"
+  printf '  %s⚠  YOUR TURN IS DONE. Do NOT continue this work, spawn sub-agents,\n' "$C_YELLOW"
+  printf '     or use the Agent tool for the delegated task. The specialist terminal\n'
+  printf '     will open automatically in VS Code. Just stop.%s\n' "$C_RESET"
 }
