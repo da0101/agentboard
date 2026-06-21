@@ -49,8 +49,8 @@ function renderStreams(streams, activeStream) {
 }
 
 // Deterministic pet name from session ID (like Docker: "swift-falcon")
-const _SN_ADJ=['bold','calm','swift','bright','deep','sharp','keen','dark','wild','quiet','brave','cool','warm','soft','fast','wise','pure','deft','lean','teal','grey','sage'];
-const _SN_NON=['falcon','tiger','wolf','eagle','raven','fox','bear','hawk','lynx','crane','otter','pike','heron','wren','viper','bison','moose','ibis','kite','wasp','colt','finch'];
+const _SN_ADJ=['bold','calm','swift','bright','sharp','keen','wild','quiet','brave','cool','warm','soft','fast','wise','pure','deft','lean','sage','red','blue','gold','jade','iron','amber','violet','azure','coral','frost','storm','sand','ember','cedar','steel','nova','oak','ivy','clay','moss','dawn','rust'];
+const _SN_NON=['falcon','tiger','wolf','eagle','raven','fox','bear','hawk','lynx','crane','otter','pike','heron','wren','viper','bison','moose','ibis','kite','wasp','colt','finch','puma','cobra','gecko','quail','trout','mink','stork','stoat','dingo','snipe','marten','condor','osprey','ferret','oriole','magpie','jaguar','marlin'];
 function sessionNickname(id) {
   var h = 0;
   for (var i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0;
@@ -344,6 +344,11 @@ function applyUpdate(d){
     // 1 session = 100%, 2 = 50%, 3+ = 33.33%. flex-grow fills row if fewer than 3 on it.
     var totalSess = d.activeSessions.length;
     var colBasis = totalSess <= 1 ? '100%' : totalSess === 2 ? '50%' : '33.333%';
+    // Preserve scroll positions of all inner-scrollable sections before re-render
+    var _scrollState = {};
+    sessionColsEl.querySelectorAll('[id^="act-body-"],[id^="wf-body-"],[id^="agents-body-"]').forEach(function(el){
+      if(el.scrollTop > 0) _scrollState[el.id] = el.scrollTop;
+    });
     sessionColsEl.innerHTML = d.activeSessions.map(function(s) { try {
       // Green dot = this session received a status update within the last 90s (status-bridge fires every turn)
       var lastUpdatedMs = s.lastUpdated ? new Date(s.lastUpdated).getTime() : 0;
@@ -369,6 +374,7 @@ function applyUpdate(d){
         + '<span style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:' + dotColor + (isLive ? ';box-shadow:0 0 5px ' + dotColor + ';animation:pulse 1.5s ease-in-out infinite' : '') + '"></span>'
         + '<span style="font-size:12px;font-weight:' + (isLive ? '600' : '400') + ';color:' + (isLive ? '#e8e8e8' : '#aaa') + ';flex:1">' + esc(displayName) + '</span>'
         + '<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:' + modelColor + '22;color:' + modelColor + '">' + esc(s.model) + '</span>'
+        + '<button data-focus-terminal="1" data-session-root="' + esc(s.root||'') + '" data-session-nick="' + esc(nick) + '" data-shell-pid="' + (s.shellPid||0) + '" data-session-started-at="' + esc(s.startedAt||'') + '" title="Open terminal for ' + esc(nick) + '" style="background:#ffffff0d;border:1px solid #ffffff18;cursor:pointer;padding:2px 8px;border-radius:4px;color:#aaa;font-size:10px;line-height:1.6;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap" onmouseover="this.style.background=\'#ffffff1a\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'#ffffff0d\';this.style.color=\'#aaa\'">⌨ terminal</button>'
         + '</div>'
         + '<div class="sess-col-grid">'
         + (s.stream ? '<span style="opacity:.4">Stream</span><span style="color:#4a9eff">' + esc(s.stream) + '</span>' : '')
@@ -377,6 +383,8 @@ function applyUpdate(d){
         + (ctxBar ? '<span style="opacity:.4">Context</span><span>' + ctxBar + '</span>' : '')
         + (s.branch ? '<span style="opacity:.4">Branch</span><span style="font-family:monospace;font-size:10px">' + esc(s.branch) + '</span>' : '')
         + '<span style="opacity:.4">Last</span><span style="opacity:.5">' + age + '</span>'
+        + (s.sessionLastRole ? '<span style="opacity:.4">Role</span><span style="color:#9c6af7;font-size:10px">◈ ' + esc(s.sessionLastRole) + '</span>' : '')
+        + (s.sessionLastSkill ? '<span style="opacity:.4">Skill</span><span style="color:#4caf84;font-size:10px">/ ' + esc(s.sessionLastSkill) + '</span>' : '')
         + '</div>'
         + '</div>';
       // Agents panel (shown when agents active in last 30 min)
@@ -393,19 +401,27 @@ function applyUpdate(d){
         var doneBadge = (totalAgents - runningAgents.length) > 0
           ? '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,.06);color:#888">' + (totalAgents - runningAgents.length) + ' done</span>'
           : '';
-        var agentRows = s.agents.map(function(a) {
+        var RECENT_MS = 5 * 60 * 1000; // 5 min — done agents older than this collapse to summary
+        var now = Date.now();
+        var recentDone = s.agents.filter(function(a){ return a.done && a.ts && (now - new Date(a.ts).getTime()) < RECENT_MS; });
+        var oldDone = s.agents.filter(function(a){ return a.done && (!a.ts || (now - new Date(a.ts).getTime()) >= RECENT_MS); });
+        var visibleAgents = runningAgents.concat(recentDone);
+        var agentRows = visibleAgents.map(function(a) {
           var label = (a.label || 'agent').replace(/^role:[^·]+·\s*skill:[^·]+·\s*/i, '').trim() || (a.label || 'agent');
           var roleColor = (a.role||'').toLowerCase().includes('debug') ? '#f44336' : (a.role||'').toLowerCase().includes('research') ? '#9c6af7' : '#4a9eff';
           var pulse = a.done
-            ? '<span style="width:6px;height:6px;border-radius:50%;background:#444;flex-shrink:0;display:inline-block"></span>'
+            ? '<span style="width:6px;height:6px;border-radius:50%;background:#4caf50;flex-shrink:0;display:inline-block;opacity:.5"></span>'
             : '<span style="width:6px;height:6px;border-radius:50%;background:#4caf50;flex-shrink:0;display:inline-block;animation:pulse 1.5s ease-in-out infinite"></span>';
-          return '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;' + (a.done ? 'opacity:.35' : '') + '">'
+          return '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;' + (a.done ? 'opacity:.4' : '') + '">'
             + pulse
             + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(label) + '</span>'
             + (a.role ? '<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:' + roleColor + '22;color:' + roleColor + '">' + esc(a.role) + '</span>' : '')
             + '<span style="font-size:9px;opacity:.3;white-space:nowrap">' + relTime(a.ts) + '</span>'
             + '</div>';
         }).join('');
+        if (oldDone.length) {
+          agentRows += '<div style="font-size:9px;opacity:.25;padding:4px 0;border-top:1px solid rgba(255,255,255,.05)">✓ ' + oldDone.length + ' done earlier</div>';
+        }
         agentsHtml = '<div style="border-bottom:1px solid rgba(128,128,128,.1)">'
           + '<div data-agents-toggle="' + esc(sid) + '" style="display:flex;align-items:center;gap:6px;padding:8px 14px;cursor:pointer;user-select:none" title="Toggle sub-agents">'
           + '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#888">◈ Sub-agents</span>'
@@ -473,50 +489,58 @@ function applyUpdate(d){
           workflowHtml += '</div>';
         }
 
-        // Agent rows — transcript agents are richest; fall back to workflowPlan
+        // Agent rows — show running agents in detail; collapse done into summary
+        window._wfAgentExpanded = window._wfAgentExpanded || new Set();
         if(wfAgents && wfAgents.length) {
-          workflowHtml += wfAgents.map(function(a) {
-            var done = a.status === 'done';
+          var runningWfAgents = wfAgents.filter(function(a){ return a.status !== 'done'; });
+          var doneWfAgents = wfAgents.filter(function(a){ return a.status === 'done'; });
+          workflowHtml += runningWfAgents.map(function(a, ai) {
             var mc = (a.model||'').toLowerCase();
             var mColor = mc.includes('opus')?'#9c6af7':mc.includes('haiku')?'#4a9eff':'#ff9800';
-            // Transcript agents already have formatted model; plan agents need stripping
             var mLabel = a.model || '';
             if(!txAgents) mLabel = mLabel.replace(/^claude-/,'').replace(/-\d{8}$/,'').replace(/-latest$/,'');
             var taskLabel = (a.label||'agent').replace(/^role:[^·]+·\s*skill:[^·]+·\s*/i,'').trim()||(a.label||'agent');
-            var subDetail = txAgents
-              ? (done ? (a.result ? a.result.split('.')[0].trim().slice(0,80) : '') : (a.currentTool ? 'using '+a.currentTool : ''))
-              : (a.phase || '');
-            var statusDot = done
-              ? '<span title="Done" style="width:6px;height:6px;border-radius:50%;background:#4caf50;flex-shrink:0;display:inline-block"></span>'
-              : '<span title="Running" style="width:6px;height:6px;border-radius:50%;background:'+wfColor+';flex-shrink:0;display:inline-block;animation:pulse 1.2s ease-in-out infinite"></span>';
-            var statusTag = done
-              ? '<span style="font-size:9px;color:#4caf50;opacity:.7;flex-shrink:0">✓</span>'
-              : '<span style="font-size:9px;color:'+wfColor+';opacity:.8;flex-shrink:0;font-weight:600">running</span>';
-            return '<div style="display:flex;flex-direction:column;gap:1px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">'
-              +'<div style="display:flex;align-items:center;gap:5px;font-size:10px">'
-              +statusDot
-              +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'+(done?'opacity:.4':'')+'">'+esc(taskLabel)+'</span>'
-              +statusTag
+            var subDetail = txAgents ? (a.currentTool ? 'using '+a.currentTool : '') : (a.phase || '');
+            var agKey = wfSid+'-'+ai;
+            var agExpanded = window._wfAgentExpanded.has(agKey);
+            var labelStyle = agExpanded
+              ? 'flex:1;word-break:break-word;cursor:pointer;font-size:10px'
+              : 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;font-size:10px';
+            var chevronStr = agExpanded ? ' ▾' : ' ▸';
+            return '<div data-wf-agent-expand="'+agKey+'" style="display:flex;flex-direction:column;gap:1px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" title="Click to expand/collapse">'
+              +'<div style="display:flex;align-items:flex-start;gap:5px">'
+              +'<span title="Running" style="width:6px;height:6px;border-radius:50%;background:'+wfColor+';flex-shrink:0;display:inline-block;margin-top:3px;animation:pulse 1.2s ease-in-out infinite"></span>'
+              +'<span style="'+labelStyle+'">'+esc(taskLabel)+'<span style="opacity:.3">'+chevronStr+'</span></span>'
+              +'<span style="font-size:9px;color:'+wfColor+';opacity:.8;flex-shrink:0;font-weight:600">running</span>'
               +(mLabel?'<span style="font-size:9px;padding:1px 5px;border-radius:6px;background:'+mColor+'22;color:'+mColor+';font-weight:600;flex-shrink:0">'+esc(mLabel)+'</span>':'')
               +'</div>'
               +(subDetail?'<div style="font-size:9px;opacity:.3;padding-left:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(subDetail)+'</div>':'')
               +'</div>';
           }).join('');
+          if(doneWfAgents.length) {
+            var doneModels=[];
+            doneWfAgents.forEach(function(a){var m=(a.model||'').trim();if(m&&doneModels.indexOf(m)<0)doneModels.push(m);});
+            workflowHtml += '<div style="font-size:9px;opacity:.28;padding:6px 0 2px;border-top:1px solid rgba(255,255,255,.05)">'
+              +'✓ '+doneWfAgents.length+' done'
+              +(doneModels.length?' · '+doneModels.join(', '):'')
+              +'</div>';
+          }
         } else if(s.agents && s.agents.length) {
-          // Fall back to AgentStart events for this session
-          workflowHtml += s.agents.map(function(a) {
+          // Fall back to AgentStart events — show running only, summarize done
+          var runningEvAgents = s.agents.filter(function(a){ return !a.done; });
+          var doneEvAgents = s.agents.filter(function(a){ return a.done; });
+          workflowHtml += runningEvAgents.map(function(a) {
             var label = (a.label||'agent').replace(/^role:[^·]+·\s*skill:[^·]+·\s*/i,'').trim()||(a.label||'agent');
             var roleColor = (a.role||'').toLowerCase().includes('debug')?'#f44336':(a.role||'').toLowerCase().includes('research')?'#9c6af7':'#4a9eff';
-            var pulse = a.done
-              ? '<span style="width:5px;height:5px;border-radius:50%;background:#444;flex-shrink:0;display:inline-block"></span>'
-              : '<span style="width:5px;height:5px;border-radius:50%;background:'+wfColor+';flex-shrink:0;display:inline-block;animation:pulse 1.2s ease-in-out infinite"></span>';
-            return '<div style="display:flex;align-items:center;gap:5px;padding:3px 0;font-size:10px;'+(a.done?'opacity:.35':'')+'">'
-              +pulse
+            return '<div style="display:flex;align-items:center;gap:5px;padding:3px 0;font-size:10px">'
+              +'<span style="width:5px;height:5px;border-radius:50%;background:'+wfColor+';flex-shrink:0;display:inline-block;animation:pulse 1.2s ease-in-out infinite"></span>'
               +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(label)+'</span>'
               +(a.role?'<span style="font-size:9px;padding:1px 5px;border-radius:6px;background:'+roleColor+'22;color:'+roleColor+'">'+esc(a.role)+'</span>':'')
-              +'<span style="font-size:9px;opacity:.25">'+relTime(a.ts)+'</span>'
               +'</div>';
           }).join('');
+          if(doneEvAgents.length) {
+            workflowHtml += '<div style="font-size:9px;opacity:.28;padding:6px 0 2px;border-top:1px solid rgba(255,255,255,.05)">✓ '+doneEvAgents.length+' done</div>';
+          }
         } else {
           // Background workflow: harness returns immediately, agents run in background process
           // — no hook events fire per-agent, only the total count (if parser found it) is known
@@ -544,15 +568,40 @@ function applyUpdate(d){
 
       // Activity feed
       const TOOL_ICON_LOCAL={Edit:'✏',Write:'✏',Bash:'$',Read:'👁',WebSearch:'⌕',WebFetch:'⌕',Agent:'◈',Skill:'⚡'};
+      var sessRoot = s.root || '';
       const acts = (s.activity || []).map(function(f) {
         const icon = TOOL_ICON_LOCAL[f.tool] || '·';
         const isCmd = f.file.startsWith('$ ');
+        const isEdited = (f.tool === 'Edit' || f.tool === 'Write' || f.tool === 'MultiEdit') && !isCmd;
         const ago = relTime(f.lastTs);
-        return '<div class="fa">'
+
+        // Large-edit warning: total lines changed >= 50
+        var totalChanged = (f.added || 0) + (f.deleted || 0);
+        var editWarn = '';
+        if (isEdited && totalChanged >= 50) {
+          var warnColor = totalChanged >= 150 ? '#ff7043' : '#f0b429';
+          editWarn = '<span title="'+totalChanged+' lines changed" style="color:'+warnColor+';font-size:11px;flex-shrink:0;margin-right:2px">⚠</span>';
+        }
+
+        // File-size badge: line count tiers
+        var sizeBadge = '';
+        if (f.lineCount) {
+          var lc = f.lineCount;
+          var sizeColor = lc >= 1000 ? '#ef5350' : lc >= 800 ? '#ff7043' : lc >= 500 ? '#f0b429' : '';
+          if (sizeColor) {
+            var sizeLabel = lc >= 1000 ? (Math.round(lc/100)/10)+'k' : lc+'';
+            sizeBadge = '<span title="'+lc+' lines — '+(lc>=1000?'monolith, very hard to refactor':lc>=800?'large, hard to refactor':'growing, consider splitting')+'" style="font-size:9px;padding:1px 5px;border-radius:8px;background:'+sizeColor+'22;color:'+sizeColor+';border:1px solid '+sizeColor+'44;flex-shrink:0;cursor:default">'+sizeLabel+'L</span>';
+          }
+        }
+
+        const diffAttrs = isEdited
+          ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'" title="Click for options" style="cursor:pointer"'
+          : '';
+        return '<div class="fa"'+diffAttrs+'>'
           + '<span class="fa-icon">' + icon + '</span>'
           + '<div class="fa-body">'
-          + '<span class="fa-file" style="color:' + (isCmd ? '#f0b429' : 'inherit') + '">' + esc(f.file) + '</span>'
-          + ((f.tool === 'Edit' || f.tool === 'Write' || f.tool === 'MultiEdit') && (f.added != null || f.deleted != null)
+          + '<span class="fa-file"'+(isEdited?' onmouseover="this.style.color=\'#7cbfff\'" onmouseout="this.style.color=\'\'"':'')+' style="color:' + (isCmd ? '#f0b429' : 'inherit') + '">' + esc(f.file) + '</span>'
+          + (isEdited && (f.added != null || f.deleted != null)
             ? '<span style="font-size:10px;white-space:nowrap;flex-shrink:0">'
               + (f.added  ? '<span style="color:#4caf50">+' + f.added  + '</span>' : '')
               + (f.added && f.deleted ? '<span style="opacity:.3"> / </span>' : '')
@@ -561,6 +610,8 @@ function applyUpdate(d){
             : '')
           + (f.count > 1 ? '<span class="fa-cnt">×' + f.count + '</span>' : '')
           + '<span class="fa-t">' + ago + '</span>'
+          + sizeBadge
+          + editWarn
           + '</div>'
           + '</div>';
       }).join('') || '<div class="em" style="padding:8px 14px">No activity yet</div>';
@@ -577,6 +628,11 @@ function applyUpdate(d){
       return '<div class="sess-col" style="flex:1 1 ' + colBasis + '">' + hdr + agentsHtml + workflowHtml + actHdr + actBody + '</div>';
     } catch(e) { return '<div class="sess-col" style="padding:12px;opacity:.4;font-size:11px">Error rendering session: '+(e&&e.message||e)+'</div>'; }
     }).join('');
+    // Restore scroll positions after re-render
+    Object.keys(_scrollState).forEach(function(id){
+      var el=document.getElementById(id);
+      if(el) el.scrollTop=_scrollState[id];
+    });
 
     // Streams in bottom row — collapsible
     const srTtl2 = document.getElementById('sr-ttl2');
@@ -642,15 +698,8 @@ function applyUpdate(d){
   renderCatalogCol('list-roles',d.roles,'#9c6af7');
   renderCatalogCol('list-cmds',d.commands,'#888');
 
-  // footer
-  const fp=[];
-  if(d.model)fp.push('<span class="fi">⬡ '+esc(d.model)+'</span>');
-  if(d.cost)fp.push('<span class="fi">'+esc(d.cost)+'</span>');
-  if(d.branch)fp.push('<span class="fi" style="font-family:monospace;font-size:10px">⎇ '+esc(d.branch)+'</span>');
-  if(d.activeRole)fp.push('<span class="fi" style="color:#9c6af7;border-color:#9c6af744">◈ '+esc(d.activeRole)+'</span>');
-  if(d.lastSkill)fp.push('<span class="fi" style="color:#4caf84">/'+esc(d.lastSkill)+'</span>');
-  fp.push('<span style="margin-left:auto;opacity:.25;font-size:10px">'+d.skillCount+' skills · '+d.roleCount+' roles · '+d.streams.length+' streams</span>');
-  html('footer',fp.join(''));
+  // footer — global counts only (session-specific data is shown on each session card)
+  html('footer','<span style="opacity:.25;font-size:10px">'+d.skillCount+' skills · '+d.roleCount+' roles · '+d.streams.length+' streams</span>');
 }
 
 window.addEventListener('message',function(e){
@@ -662,12 +711,79 @@ window.addEventListener('message',function(e){
 window._agentExpanded = window._agentExpanded || new Set();
 window._workflowExpanded = window._workflowExpanded || new Set();
 
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){var m=document.getElementById('_file-menu');if(m)m.style.display='none';}
+});
+
 // Event delegation — handles tabs, stream toggles, open-stream, refresh, agents toggle
 document.addEventListener('click',function(e){
   const t=e.target;
   // Refresh button
   if(t.id==='refresh-btn'||t.closest('#refresh-btn')){
     vscode.postMessage({command:'refresh'});return;
+  }
+  // File options menu (diff / copy path)
+  if(t.closest('#_file-menu')){
+    const fm=t.closest('[data-fm]');
+    if(fm){
+      const menu=document.getElementById('_file-menu');
+      const fp=menu._filePath||''; const sr=menu._sessionRoot||'';
+      if(fm.dataset.fm==='diff'){
+        vscode.postMessage({command:'openDiff',filePath:fp,sessionRoot:sr});
+      } else if(fm.dataset.fm==='copy'){
+        vscode.postMessage({command:'copyPath',filePath:fp,sessionRoot:sr});
+      }
+      menu.style.display='none';
+    }
+    e.stopPropagation(); return;
+  }
+  // Close file menu on outside click
+  const existMenu=document.getElementById('_file-menu');
+  if(existMenu&&existMenu.style.display!=='none'&&!existMenu.contains(t)){
+    existMenu.style.display='none';
+  }
+  // Open file options menu on click
+  const diffEl = t.closest('[data-open-diff]');
+  if(diffEl){
+    e.stopPropagation();
+    var menu=document.getElementById('_file-menu');
+    if(!menu){
+      menu=document.createElement('div');
+      menu.id='_file-menu';
+      menu.style.cssText='position:fixed;z-index:9999;background:#252526;border:1px solid rgba(255,255,255,.12);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,.6);display:none;flex-direction:column;min-width:170px;overflow:hidden;padding:3px 0';
+      menu.innerHTML='<div data-fm="diff" style="padding:7px 14px;cursor:pointer;font-size:12px;color:#d4d4d4;display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="opacity:.5;font-size:11px">⇄</span>Open diff</div>'
+        +'<div data-fm="copy" style="padding:7px 14px;cursor:pointer;font-size:12px;color:#d4d4d4;display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="opacity:.5;font-size:11px">⧉</span>Copy path</div>';
+      document.body.appendChild(menu);
+    }
+    menu._filePath=diffEl.dataset.openDiff||'';
+    menu._sessionRoot=diffEl.dataset.sessionRoot||'';
+    var rect=diffEl.getBoundingClientRect();
+    menu.style.display='flex';
+    menu.style.left=Math.min(e.clientX, window.innerWidth-180)+'px';
+    menu.style.top=(rect.bottom+2)+'px';
+    return;
+  }
+  // Workflow agent label expand/collapse
+  const wfAgentEl = t.closest('[data-wf-agent-expand]');
+  if(wfAgentEl){
+    var agKey2 = wfAgentEl.dataset.wfAgentExpand;
+    window._wfAgentExpanded = window._wfAgentExpanded || new Set();
+    var labelEl = wfAgentEl.querySelector('span[style*="cursor:pointer"]');
+    if(window._wfAgentExpanded.has(agKey2)){
+      window._wfAgentExpanded.delete(agKey2);
+      if(labelEl){ labelEl.style.whiteSpace='nowrap'; labelEl.style.overflow='hidden'; labelEl.style.textOverflow='ellipsis'; labelEl.style.wordBreak=''; }
+    } else {
+      window._wfAgentExpanded.add(agKey2);
+      if(labelEl){ labelEl.style.whiteSpace='normal'; labelEl.style.overflow='visible'; labelEl.style.textOverflow='clip'; labelEl.style.wordBreak='break-word'; }
+    }
+    return;
+  }
+  // Focus terminal button
+  const ftBtn = t.closest('[data-focus-terminal]');
+  if(ftBtn){
+    e.stopPropagation();
+    vscode.postMessage({command:'focusTerminal',sessionRoot:ftBtn.dataset.sessionRoot||'',sessionNick:ftBtn.dataset.sessionNick||'',shellPid:parseInt(ftBtn.dataset.shellPid||'0',10),sessionStartedAt:ftBtn.dataset.sessionStartedAt||''});
+    return;
   }
   // Workflow toggle
   const wfToggle=t.closest('[data-workflow-toggle]');

@@ -535,7 +535,11 @@ Repeat until the scorecard is all 🟢:
 ## Hard rules
 
 1. **No `.md` artifacts for plans.** Plans live in chat. Only write `.md` files when they're genuinely reusable (specs, docs, conventions). **`work/` stream files, `.platform/work/qa/<stream-slug>-manual-qa.md` QA artifacts, and `.platform/work/qa/<stream-slug>-execution-journal.md` QA execution journals are exceptions — they are mandatory operational state, not plan documents. Always create required stream files (Stage 1b) and QA artifacts/journals (Stage 6) before shipping.**
-2. **Max ~300 lines per file.** Extract components before hitting the limit.
+2. **Max ~300 lines per file.** Extract components before hitting the limit. The agentboard dashboard flags files visually by size — treat these as mandatory signals, not suggestions:
+   - **500–799 lines** (amber): growing monolith — avoid adding more code; propose extracting a module.
+   - **800–999 lines** (orange): large, hard to refactor — do not add code; propose splitting before any further work.
+   - **1000+ lines** (red): extreme monolith — stop, escalate to user, propose a refactor plan before ANY additions. Adding more code to a 1000-line file without splitting it first is a hard rule violation.
+   When you find a file already at or near 500 lines and your task would push it further, pause, tell the user the current line count and your estimate of what the task adds, and propose a split first. The user decides whether to split now or proceed with a documented exception.
 3. **Trivial tasks skip to Stage 5.** Don't bureaucratize small work.
 4. **Parallelize subagents.** Never run independent subagents sequentially.
 5. **Every success logs one line.** `.platform/memory/log.md` is append-only, newest-on-top.

@@ -25,7 +25,7 @@ const AB_CLI_COMMANDS: CatalogItem[] = [
 
 
 interface ActivityEvent { ts: string; tool: string; stream: string; file?: string; cmd?: string; agent?: string; skill?: string; hook_event_name?: string; session_id?: string; }
-interface CatalogItem { name: string; description: string; fullDescription?: string; usedBy?: string[] }
+interface CatalogItem { name: string; slug?: string; description: string; fullDescription?: string; usedBy?: string[] }
 interface StreamEntry {
   slug: string; type: string; status: string; role: string;
   objective: string; nextAction: string; branch: string;
@@ -123,8 +123,8 @@ function readSkills(root: string): CatalogItem[] {
         const fm = parseFrontmatter(content);
         const afterFm = content.replace(/^---[\s\S]*?---\n?/, '').trim();
         const fullDescription = extractProse(afterFm);
-        return [{ name: fm.name ?? name, description: fm.description ?? '', fullDescription }];
-      } catch { return [{ name, description: '' }]; }
+        return [{ name: fm.name ?? name, slug: name, description: fm.description ?? '', fullDescription }];
+      } catch { return [{ name, slug: name, description: '' }]; }
     });
   } catch { return []; }
 }
@@ -136,9 +136,10 @@ function readRoles(root: string): CatalogItem[] {
       try {
         const content = fs.readFileSync(path.join(dir, f), "utf8");
         const fm = parseFrontmatter(content);
+        const slug = path.basename(f, ".md");
         const afterFm = content.replace(/^---[\s\S]*?---\n?/, '').trim();
         const fullDescription = extractProse(afterFm);
-        return [{ name: fm.name ?? fm.slug ?? path.basename(f, ".md"), description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription }];
+        return [{ name: fm.name ?? fm.slug ?? slug, slug, description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription }];
       } catch { return []; }
     });
   } catch { return []; }
@@ -307,11 +308,12 @@ function readWorkflowPlan(root: string): WorkflowPlan | null {
   } catch { return null; }
 }
 
-function lastSkillFromEvents(events: ActivityEvent[]): string {
+function lastSkillFromEvents(events: ActivityEvent[]): { skill: string; sessionId: string } {
   for (const e of events) {
-    if (e.tool === "Skill" && (e as {skill?: string}).skill) return (e as {skill?: string}).skill!;
+    if (e.tool === "Skill" && (e as {skill?: string}).skill)
+      return { skill: (e as {skill?: string}).skill!, sessionId: e.session_id ?? "" };
   }
-  return "";
+  return { skill: "", sessionId: "" };
 }
 
 function relTime(iso: string): string {
@@ -353,6 +355,7 @@ export class DashboardPanel {
   private _branchCache: { value: string; ts: number } = { value: "", ts: 0 };
   // Numstat cache: avoid blocking the extension host on every tick (30 s TTL per root)
   private _numstatCache = new Map<string, { ts: number; diffMap: Map<string, { added: number; deleted: number }> }>();
+  private _lineCountCache = new Map<string, { ts: number; count: number }>();
   // HTTP backoff: slow down if server consistently absent
   private _httpFailStreak = 0;
 
@@ -404,7 +407,7 @@ export class DashboardPanel {
     } catch { /* watcher failed — poll interval covers it */ }
     this._interval = setInterval(() => void this._update(), 5_000);
     this._panel.webview.onDidReceiveMessage(
-      (msg: { command: string; filePath?: string }) => {
+      (msg: { command: string; filePath?: string; sessionRoot?: string; sessionNick?: string }) => {
         if (msg.command === "refresh") void this._update();
         if (msg.command === "openStream") {
           const fp = String(msg.filePath ?? "");
@@ -412,6 +415,118 @@ export class DashboardPanel {
           if (allowed && fp.endsWith(".md")) {
             void vscode.workspace.openTextDocument(fp).then(doc => vscode.window.showTextDocument(doc));
           }
+          return;
+        }
+        if (msg.command === "openDiff") {
+          const relPath = (msg as {filePath?: string; sessionRoot?: string}).filePath ?? "";
+          const sessRoot = (msg as {filePath?: string; sessionRoot?: string}).sessionRoot ?? this._workspaceRoot;
+          if (!relPath) return;
+          const absPath = path.isAbsolute(relPath) ? relPath : path.join(sessRoot, relPath);
+          const rightUri = vscode.Uri.file(absPath);
+          // Use VS Code git extension's URI scheme to show HEAD version on the left
+          const gitUri = rightUri.with({
+            scheme: "git",
+            query: JSON.stringify({ path: absPath, ref: "HEAD" }),
+          });
+          const fileName = path.basename(absPath);
+          void vscode.commands.executeCommand("vscode.diff", gitUri, rightUri, `${fileName}: HEAD ↔ Working Tree`).then(undefined, () => {
+            // Fallback if file is new (not in HEAD) — just open the file
+            void vscode.window.showTextDocument(rightUri);
+          });
+          return;
+        }
+        if (msg.command === "copyPath") {
+          const relPath = (msg as {filePath?: string; sessionRoot?: string}).filePath ?? "";
+          const sessRoot = (msg as {filePath?: string; sessionRoot?: string}).sessionRoot ?? this._workspaceRoot;
+          if (!relPath) return;
+          const absPath = path.isAbsolute(relPath) ? relPath : path.join(sessRoot, relPath);
+          void vscode.env.clipboard.writeText(absPath).then(() => {
+            void vscode.window.setStatusBarMessage(`Copied: ${absPath}`, 3000);
+          });
+          return;
+        }
+        if (msg.command === "focusTerminal") {
+          const root = (msg as {sessionRoot?: string; sessionNick?: string; shellPid?: number}).sessionRoot ?? "";
+          const nick = (msg as {sessionRoot?: string; sessionNick?: string; shellPid?: number}).sessionNick ?? "";
+          const shellPid = (msg as {sessionRoot?: string; sessionNick?: string; shellPid?: number}).shellPid ?? 0;
+          const terminals = vscode.window.terminals;
+          const sessionStartedAt = (msg as {sessionRoot?: string; sessionNick?: string; shellPid?: number; sessionStartedAt?: string}).sessionStartedAt ?? "";
+          void (async () => {
+            const { execSync: _ex } = await import("child_process");
+            const termPids = await Promise.all(terminals.map(t => t.processId));
+
+            // 1. Stored shell PID from status-bridge — most reliable, try first
+            if (shellPid > 0) {
+              const byPid = terminals.find((_, i) => termPids[i] === shellPid);
+              if (byPid) { byPid.show(true); return; }
+            }
+
+            // 2. Live process-tree match.
+            // macOS note: claude binary shows as version number (e.g. "2.1.181") in ps COMM,
+            // so we use pgrep -x claude (matches the real binary name) then query each PID
+            // individually. etime is in "[[DD-]HH:]MM:SS" format on macOS, not decimal seconds.
+            const parseEtime = (s: string): number => {
+              s = s.trim();
+              let days = 0;
+              if (s.includes("-")) { const [d, rest] = s.split("-"); days = parseInt(d, 10); s = rest; }
+              const parts = s.split(":").map(Number);
+              const secs = parts.length === 3 ? parts[0]*3600 + parts[1]*60 + parts[2] : parts[0]*60 + (parts[1] ?? 0);
+              return days * 86400 + secs;
+            };
+            const findTerminalByProcessTree = (): vscode.Terminal | undefined => {
+              try {
+                const rawPids = _ex("/usr/bin/pgrep -x claude 2>/dev/null || true").toString().trim().split("\n").filter(Boolean).map(Number).filter(n => !isNaN(n) && n > 0);
+                if (rawPids.length === 0) return undefined;
+
+                const sessionAgeS = sessionStartedAt ? Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000) : -1;
+                interface Match { ageS: number; termIdx: number }
+                const matches: Match[] = [];
+
+                for (const cpid of rawPids) {
+                  try {
+                    // Check cwd
+                    const cwd = _ex(`/usr/sbin/lsof -p ${cpid} 2>/dev/null | /usr/bin/awk '$4 == "cwd" { print $NF; exit }'`).toString().trim();
+                    if (!root || !cwd || !cwd.startsWith(root)) continue;
+                    // Get process elapsed time for disambiguation
+                    const etimeStr = _ex(`/bin/ps -p ${cpid} -o etime= 2>/dev/null`).toString();
+                    const ageS = parseEtime(etimeStr);
+                    // Walk ppid chain (up to 4 hops) to find the VS Code terminal shell
+                    let cur = cpid;
+                    let termIdx = -1;
+                    for (let d = 0; d < 4; d++) {
+                      const ppidStr = _ex(`/bin/ps -p ${cur} -o ppid= 2>/dev/null`).toString().trim();
+                      const ppid = parseInt(ppidStr, 10);
+                      if (!ppid || ppid === cur) break;
+                      const idx = termPids.findIndex(p => p === ppid);
+                      if (idx >= 0) { termIdx = idx; break; }
+                      cur = ppid;
+                    }
+                    if (termIdx >= 0) matches.push({ ageS, termIdx });
+                  } catch { continue; }
+                }
+
+                if (matches.length === 0) return undefined;
+                if (matches.length === 1) return terminals[matches[0].termIdx];
+                // Multiple claude processes in same root — pick closest by process age
+                if (sessionAgeS >= 0) matches.sort((a, b) => Math.abs(a.ageS - sessionAgeS) - Math.abs(b.ageS - sessionAgeS));
+                return terminals[matches[0].termIdx];
+              } catch { return undefined; }
+            };
+
+            const byTree = findTerminalByProcessTree();
+            if (byTree) { byTree.show(true); return; }
+
+            // 3. Unambiguous CWD match (only if exactly one terminal is in this root)
+            if (root) {
+              const cwdMatches = terminals.filter(t => {
+                const cwd = (t.shellIntegration as { cwd?: vscode.Uri } | undefined)?.cwd?.fsPath ?? "";
+                return cwd && cwd.startsWith(root);
+              });
+              if (cwdMatches.length === 1) { cwdMatches[0].show(true); return; }
+            }
+
+            void vscode.window.showInformationMessage(`Terminal not found for "${nick || root}". Click ⌨ terminal again after the session's next Claude turn.`);
+          })();
           return;
         }
       },
@@ -480,7 +595,7 @@ export class DashboardPanel {
       return evs;
     };
     const allEvents = getEventsForRoot(this._workspaceRoot);
-    const lastSkill = lastSkillFromEvents(allEvents);
+    // lastSkill computed after activeSessions is built so we can filter to active sessions only
 
     // Filter events to current session only (prevents stale events from previous /clear sessions bleeding through)
     const hasSessionIds = allEvents.some(e => e.session_id);
@@ -585,10 +700,11 @@ export class DashboardPanel {
     // Read all active sessions from ~/.agentboard/sessions/
     interface SessionEntry {
       sessionId: string; model: string; costUsd: number; cost: string;
-      branch: string; root: string; projectName: string;
+      branch: string; root: string; shellPid: number; projectName: string;
+      sessionLastSkill: string; sessionLastRole: string;
       startedAt: string; lastUpdated: string; ageSeconds: number;
       ctxPct: number | null; stream: string; sessionTime: string;
-      activity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number }[];
+      activity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number; lineCount?: number }[];
       agents: { label: string; role: string; skill: string; ts: string; done: boolean }[];
       hasWorkflow: boolean; workflowAgentCount: number; workflowLabel: string;
       workflowTranscriptAgents: TranscriptAgent[];
@@ -616,7 +732,7 @@ export class DashboardPanel {
             return sec < 3600 ? `${Math.floor(sec / 60)}m ${sec % 60}s` : `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
           })() : "";
           // Per-session activity feed (deduplicated, most recent first)
-          const sActivity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number }[] = [];
+          const sActivity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number; lineCount?: number }[] = [];
           const sId = (s._session_id as string) || (ctx.session_id as string) || f.replace(".json", "");
           if (sRoot) {
             const allSEvents = getEventsForRoot(sRoot); // cached — no extra file read
@@ -660,6 +776,22 @@ export class DashboardPanel {
                 }
               }
             } catch { /* git unavailable or repo not found — skip diff stats */ }
+            // Enrich file entries with current line count (cached, 60 s TTL)
+            const LINE_COUNT_TTL = 60_000;
+            for (const entry of sActivity) {
+              if (entry.file.startsWith("$ ") || !sRoot) continue;
+              const absFile = path.join(sRoot, entry.file);
+              try {
+                const cached = this._lineCountCache.get(absFile);
+                if (cached && (Date.now() - cached.ts) < LINE_COUNT_TTL) {
+                  entry.lineCount = cached.count;
+                } else {
+                  const lines = fs.readFileSync(absFile, "utf8").split("\n").length;
+                  this._lineCountCache.set(absFile, { ts: Date.now(), count: lines });
+                  entry.lineCount = lines;
+                }
+              } catch { /* file may not exist yet */ }
+            }
           }
           // Skip ghost sessions: no tool events AND session started >15 min ago
           // Use startedAt age (not lastUpdated) so status-bridge pings don't keep ghosts alive
@@ -750,7 +882,9 @@ export class DashboardPanel {
             cost: costUsd > 0 ? `$${costUsd.toFixed(3)}` : "",
             branch: (ctx.branch as string) || "",
             root: sRoot,
+            shellPid: (s._shell_pid as number) || 0,
             projectName: sRoot ? path.basename(sRoot) : "",
+            sessionLastSkill: "", sessionLastRole: "",
             startedAt: sStartedAt,
             lastUpdated,
             ageSeconds: Math.floor(ageMs / 1000),
@@ -798,16 +932,23 @@ export class DashboardPanel {
       activeSessions.push(...Array.from(slotMap.values()).sort((a, b) => a.startedAt.localeCompare(b.startedAt)));
     } catch { /* sessions dir doesn't exist yet */ }
 
-    // Build skill/role usage map from session events
+    // lastSkill: only from currently active sessions (avoids stale closed-session data in footer)
+    const activeSessionIds = new Set(activeSessions.map(s => s.sessionId));
     function sessionNick(id: string): string {
-      const ADJ = ['bold','calm','swift','bright','deep','sharp','keen','dark','wild','quiet','brave','cool','warm','soft','fast','wise','pure','deft','lean','teal','grey','sage'];
-      const NON = ['falcon','tiger','wolf','eagle','raven','fox','bear','hawk','lynx','crane','otter','pike','heron','wren','viper','bison','moose','ibis','kite','wasp','colt','finch'];
+      const ADJ = ['bold','calm','swift','bright','sharp','keen','wild','quiet','brave','cool','warm','soft','fast','wise','pure','deft','lean','sage','red','blue','gold','jade','iron','amber','violet','azure','coral','frost','storm','sand','ember','cedar','steel','nova','oak','ivy','clay','moss','dawn','rust'];
+      const NON = ['falcon','tiger','wolf','eagle','raven','fox','bear','hawk','lynx','crane','otter','pike','heron','wren','viper','bison','moose','ibis','kite','wasp','colt','finch','puma','cobra','gecko','quail','trout','mink','stork','stoat','dingo','snipe','marten','condor','osprey','ferret','oriole','magpie','jaguar','marlin'];
       let h = 0;
       for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0;
       return ADJ[h % ADJ.length] + '-' + NON[(h >>> 8) % NON.length];
     }
+    const activeEventsForSkill = allEvents.filter(e => !e.session_id || activeSessionIds.has(e.session_id));
+    const { skill: lastSkill, sessionId: lastSkillSessionId } = lastSkillFromEvents(activeEventsForSkill);
+    const lastSkillSession = (lastSkillSessionId && activeSessionIds.has(lastSkillSessionId)) ? sessionNick(lastSkillSessionId) : "";
+
     const skillUsage = new Map<string, string[]>();
     const roleUsage = new Map<string, string[]>();
+    const sessionLastSkillMap = new Map<string, string>();
+    const sessionLastRoleMap = new Map<string, string>();
     for (const sess of activeSessions) {
       if (!sess.root) continue;
       const evs = getEventsForRoot(sess.root).filter(e => e.session_id === sess.sessionId);
@@ -817,20 +958,38 @@ export class DashboardPanel {
           const sk = (ev as {skill?: string}).skill!;
           if (!skillUsage.has(sk)) skillUsage.set(sk, []);
           if (!skillUsage.get(sk)!.includes(nick)) skillUsage.get(sk)!.push(nick);
+          sessionLastSkillMap.set(sess.sessionId, sk); // last wins = most recent
         }
+        // RoleAdopt: main session read a role file — slug-keyed
+        if (ev.tool === 'RoleAdopt' && (ev as {role?: string}).role) {
+          const ro = (ev as {role?: string}).role!;
+          if (!roleUsage.has(ro)) roleUsage.set(ro, []);
+          if (!roleUsage.get(ro)!.includes(nick)) roleUsage.get(ro)!.push(nick);
+          sessionLastRoleMap.set(sess.sessionId, ro);
+        }
+        // AgentStart with role label (sub-agents dispatched with role:<name>)
         if (ev.tool === 'AgentStart' && (ev as {role?: string}).role) {
           const ro = (ev as {role?: string}).role!;
           if (!roleUsage.has(ro)) roleUsage.set(ro, []);
           if (!roleUsage.get(ro)!.includes(nick)) roleUsage.get(ro)!.push(nick);
+          if (!sessionLastRoleMap.has(sess.sessionId)) sessionLastRoleMap.set(sess.sessionId, ro);
         }
       }
+      sess.sessionLastSkill = sessionLastSkillMap.get(sess.sessionId) ?? "";
+      sess.sessionLastRole = sessionLastRoleMap.get(sess.sessionId) ?? "";
     }
-    const skillsWithUsage = skills.map(s => ({ ...s, usedBy: skillUsage.get(s.name) ?? [] }));
-    const rolesWithUsage = roles.map(r => ({ ...r, usedBy: roleUsage.get(r.name) ?? [] }));
+    const skillsWithUsage = skills.map(s => ({ ...s, usedBy: skillUsage.get(s.name) ?? skillUsage.get(s.slug ?? '') ?? [] }));
+    // Match roles by slug first (RoleAdopt events use slug), then display name (AgentStart labels)
+    const rolesWithUsage = roles.map(r => {
+      const bySlug = r.slug ? (roleUsage.get(r.slug) ?? []) : [];
+      const byName = roleUsage.get(r.name) ?? [];
+      const merged = [...new Set([...bySlug, ...byName])];
+      return { ...r, usedBy: merged };
+    });
 
     return {
       type: "update",
-      hasLive, model, cost, sessionTime, activeStream, streamDesc, activeRole, lastSkill,
+      hasLive, model, cost, sessionTime, activeStream, streamDesc, activeRole, lastSkill, lastSkillSession,
       ctxPct, branch, cpRunning: false, sessions: 0, totalUniqueFiles,
       activeSessions,
       activeWorkflow,
@@ -934,8 +1093,8 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 .fa{display:grid;grid-template-columns:auto 1fr;gap:0 10px;padding:4px 0;border-bottom:1px solid rgba(128,128,128,.07);font-size:12px}
 .fa:last-child{border-bottom:none}
 .fa-icon{opacity:.45;font-size:11px;text-align:center;width:14px;padding-top:2px}
-.fa-body{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;min-width:0}
-.fa-file{font-family:var(--vscode-editor-font-family,'monospace');word-break:break-all;line-height:1.5}
+.fa-body{display:flex;flex-wrap:nowrap;align-items:baseline;gap:0 6px;min-width:0;overflow:hidden}
+.fa-file{font-family:var(--vscode-editor-font-family,'monospace');overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
 .fa-cnt{font-size:10px;opacity:.3;white-space:nowrap;flex-shrink:0}
 .fa-t{font-size:10px;opacity:.35;white-space:nowrap;flex-shrink:0}
 /* streams */
