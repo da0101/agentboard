@@ -156,6 +156,17 @@ if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_start" ]]; then
   exit 0
 fi
 
+# ── Agent done (PostToolUse on Agent tool) ────────────────────────────────────
+# Matches the AgentStart label so the dashboard can flip done=true.
+if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_done" ]]; then
+  _label="$(_json_string_field "label")"
+  _task="${_label:-sub-agent}"
+  printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"AgentDone","label":"%s","session_id":"%s"}\n' \
+    "$ts" "$provider_e" "$stream_e" \
+    "$(_jsesc "$_task")" "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+  exit 0
+fi
+
 # Skip Bash events that are ab meta-calls — those commands produce
 # their own structured events (Reason, checkpoint, etc.) which are the signal.
 if [[ "$tool" == "Bash" ]]; then

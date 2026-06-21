@@ -49,6 +49,16 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); [ -n \"$ROOT\" ] && [ -f \"$ROOT/.platform/scripts/hooks/event-logger.sh\" ] && { cd \"$ROOT\" && AGENTBOARD_HOOK_TYPE=agent_done bash \".platform/scripts/hooks/event-logger.sh\"; } || exit 0'",
+            "timeout": 3
+          }
+        ]
+      },
+      {
         "hooks": [
           {
             "type": "command",

@@ -977,8 +977,8 @@ DO NOT proceed to Phase 3 until the plan is approved.
                         done: false,
                     });
             }
-            else if (ev.tool === "Agent" && ev.agent) {
-                const key = ev.agent ?? "";
+            else if (ev.tool === "AgentDone") {
+                const key = ev.label ?? "";
                 const existing = agentMap.get(key);
                 if (existing)
                     agentMap.set(key, { ...existing, done: true });
@@ -1167,8 +1167,8 @@ DO NOT proceed to Phase 3 until the plan is approved.
                                     ts: ev.ts, done: false,
                                 });
                             }
-                            else if (ev.tool === "Agent" && ev.agent) {
-                                const k = ev.agent ?? "";
+                            else if (ev.tool === "AgentDone") {
+                                const k = ev.label ?? "";
                                 const ex = sAgentMap.get(k);
                                 if (ex)
                                     sAgentMap.set(k, { ...ex, done: true });

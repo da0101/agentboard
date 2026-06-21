@@ -858,8 +858,8 @@ DO NOT proceed to Phase 3 until the plan is approved.
           ts: ev.ts,
           done: false,
         });
-      } else if (ev.tool === "Agent" && (ev as {agent?: string}).agent) {
-        const key = (ev as {agent?: string}).agent ?? "";
+      } else if (ev.tool === "AgentDone") {
+        const key = (ev as {label?: string}).label ?? "";
         const existing = agentMap.get(key);
         if (existing) agentMap.set(key, { ...existing, done: true });
       }
@@ -1036,8 +1036,8 @@ DO NOT proceed to Phase 3 until the plan is approved.
                   skill: (ev as {skill?: string}).skill ?? "",
                   ts: ev.ts, done: false,
                 });
-              } else if (ev.tool === "Agent" && (ev as {agent?: string}).agent) {
-                const k = (ev as {agent?: string}).agent ?? "";
+              } else if (ev.tool === "AgentDone") {
+                const k = (ev as {label?: string}).label ?? "";
                 const ex = sAgentMap.get(k);
                 if (ex) sAgentMap.set(k, { ...ex, done: true });
               }
