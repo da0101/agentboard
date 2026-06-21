@@ -543,100 +543,105 @@ class DashboardPanel {
                 const terminals = vscode.window.terminals;
                 const sessionStartedAt = msg.sessionStartedAt ?? "";
                 void (async () => {
-                    const { execSync: _ex } = await Promise.resolve().then(() => require("child_process"));
-                    const termPids = await Promise.all(terminals.map(t => t.processId));
-                    // 1. Stored shell PID from status-bridge — most reliable, try first
-                    if (shellPid > 0) {
-                        const byPid = terminals.find((_, i) => termPids[i] === shellPid);
-                        if (byPid) {
-                            byPid.show(true);
-                            return;
-                        }
-                    }
-                    // 2. Live process-tree match.
-                    // macOS note: claude binary shows as version number (e.g. "2.1.181") in ps COMM,
-                    // so we use pgrep -x claude (matches the real binary name) then query each PID
-                    // individually. etime is in "[[DD-]HH:]MM:SS" format on macOS, not decimal seconds.
-                    const parseEtime = (s) => {
-                        s = s.trim();
-                        let days = 0;
-                        if (s.includes("-")) {
-                            const [d, rest] = s.split("-");
-                            days = parseInt(d, 10);
-                            s = rest;
-                        }
-                        const parts = s.split(":").map(Number);
-                        const secs = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + (parts[1] ?? 0);
-                        return days * 86400 + secs;
-                    };
-                    const findTerminalByProcessTree = () => {
-                        try {
-                            const rawPids = _ex("/usr/bin/pgrep -x claude 2>/dev/null || true").toString().trim().split("\n").filter(Boolean).map(Number).filter(n => !isNaN(n) && n > 0);
-                            if (rawPids.length === 0)
-                                return undefined;
-                            const sessionAgeS = sessionStartedAt ? Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000) : -1;
-                            const matches = [];
-                            for (const cpid of rawPids) {
-                                try {
-                                    // Check cwd
-                                    const cwd = _ex(`/usr/sbin/lsof -p ${cpid} 2>/dev/null | /usr/bin/awk '$4 == "cwd" { print $NF; exit }'`).toString().trim();
-                                    if (!root || !cwd || !cwd.startsWith(root))
-                                        continue;
-                                    // Get process elapsed time for disambiguation
-                                    const etimeStr = _ex(`/bin/ps -p ${cpid} -o etime= 2>/dev/null`).toString();
-                                    const ageS = parseEtime(etimeStr);
-                                    // Walk ppid chain (up to 4 hops) to find the VS Code terminal shell
-                                    let cur = cpid;
-                                    let termIdx = -1;
-                                    for (let d = 0; d < 4; d++) {
-                                        const ppidStr = _ex(`/bin/ps -p ${cur} -o ppid= 2>/dev/null`).toString().trim();
-                                        const ppid = parseInt(ppidStr, 10);
-                                        if (!ppid || ppid === cur)
-                                            break;
-                                        const idx = termPids.findIndex(p => p === ppid);
-                                        if (idx >= 0) {
-                                            termIdx = idx;
-                                            break;
-                                        }
-                                        cur = ppid;
-                                    }
-                                    if (termIdx >= 0)
-                                        matches.push({ ageS, termIdx });
-                                }
-                                catch {
-                                    continue;
-                                }
+                    try {
+                        const { execSync: _ex } = await Promise.resolve().then(() => require("child_process"));
+                        const termPids = await Promise.all(terminals.map(t => t.processId));
+                        // 1. Stored shell PID from status-bridge — most reliable, try first
+                        if (shellPid > 0) {
+                            const byPid = terminals.find((_, i) => termPids[i] === shellPid);
+                            if (byPid) {
+                                byPid.show(true);
+                                return;
                             }
-                            if (matches.length === 0)
-                                return undefined;
-                            if (matches.length === 1)
+                        }
+                        // 2. Live process-tree match.
+                        // macOS note: claude binary shows as version number (e.g. "2.1.181") in ps COMM,
+                        // so we use pgrep -x claude (matches the real binary name) then query each PID
+                        // individually. etime is in "[[DD-]HH:]MM:SS" format on macOS, not decimal seconds.
+                        const parseEtime = (s) => {
+                            s = s.trim();
+                            let days = 0;
+                            if (s.includes("-")) {
+                                const [d, rest] = s.split("-");
+                                days = parseInt(d, 10);
+                                s = rest;
+                            }
+                            const parts = s.split(":").map(Number);
+                            const secs = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + (parts[1] ?? 0);
+                            return days * 86400 + secs;
+                        };
+                        const findTerminalByProcessTree = () => {
+                            try {
+                                const rawPids = _ex("/usr/bin/pgrep -x claude 2>/dev/null || true").toString().trim().split("\n").filter(Boolean).map(Number).filter(n => !isNaN(n) && n > 0);
+                                if (rawPids.length === 0)
+                                    return undefined;
+                                const sessionAgeS = sessionStartedAt ? Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000) : -1;
+                                const matches = [];
+                                for (const cpid of rawPids) {
+                                    try {
+                                        // Check cwd
+                                        const cwd = _ex(`/usr/sbin/lsof -p ${cpid} 2>/dev/null | /usr/bin/awk '$4 == "cwd" { print $NF; exit }'`).toString().trim();
+                                        if (!root || !cwd || !cwd.startsWith(root))
+                                            continue;
+                                        // Get process elapsed time for disambiguation
+                                        const etimeStr = _ex(`/bin/ps -p ${cpid} -o etime= 2>/dev/null`).toString();
+                                        const ageS = parseEtime(etimeStr);
+                                        // Walk ppid chain (up to 4 hops) to find the VS Code terminal shell
+                                        let cur = cpid;
+                                        let termIdx = -1;
+                                        for (let d = 0; d < 4; d++) {
+                                            const ppidStr = _ex(`/bin/ps -p ${cur} -o ppid= 2>/dev/null`).toString().trim();
+                                            const ppid = parseInt(ppidStr, 10);
+                                            if (!ppid || ppid === cur)
+                                                break;
+                                            const idx = termPids.findIndex(p => p === ppid);
+                                            if (idx >= 0) {
+                                                termIdx = idx;
+                                                break;
+                                            }
+                                            cur = ppid;
+                                        }
+                                        if (termIdx >= 0)
+                                            matches.push({ ageS, termIdx });
+                                    }
+                                    catch {
+                                        continue;
+                                    }
+                                }
+                                if (matches.length === 0)
+                                    return undefined;
+                                if (matches.length === 1)
+                                    return terminals[matches[0].termIdx];
+                                // Multiple claude processes in same root — pick closest by process age
+                                if (sessionAgeS >= 0)
+                                    matches.sort((a, b) => Math.abs(a.ageS - sessionAgeS) - Math.abs(b.ageS - sessionAgeS));
                                 return terminals[matches[0].termIdx];
-                            // Multiple claude processes in same root — pick closest by process age
-                            if (sessionAgeS >= 0)
-                                matches.sort((a, b) => Math.abs(a.ageS - sessionAgeS) - Math.abs(b.ageS - sessionAgeS));
-                            return terminals[matches[0].termIdx];
-                        }
-                        catch {
-                            return undefined;
-                        }
-                    };
-                    const byTree = findTerminalByProcessTree();
-                    if (byTree) {
-                        byTree.show(true);
-                        return;
-                    }
-                    // 3. Unambiguous CWD match (only if exactly one terminal is in this root)
-                    if (root) {
-                        const cwdMatches = terminals.filter(t => {
-                            const cwd = t.shellIntegration?.cwd?.fsPath ?? "";
-                            return cwd && cwd.startsWith(root);
-                        });
-                        if (cwdMatches.length === 1) {
-                            cwdMatches[0].show(true);
+                            }
+                            catch {
+                                return undefined;
+                            }
+                        };
+                        const byTree = findTerminalByProcessTree();
+                        if (byTree) {
+                            byTree.show(true);
                             return;
                         }
+                        // 3. Unambiguous CWD match (only if exactly one terminal is in this root)
+                        if (root) {
+                            const cwdMatches = terminals.filter(t => {
+                                const cwd = t.shellIntegration?.cwd?.fsPath ?? "";
+                                return cwd && cwd.startsWith(root);
+                            });
+                            if (cwdMatches.length === 1) {
+                                cwdMatches[0].show(true);
+                                return;
+                            }
+                        }
+                        void vscode.window.showInformationMessage(`Chat terminal not found for "${nick || root}". Try clicking ⌨ chat after the session's next tool call.`);
                     }
-                    void vscode.window.showInformationMessage(`Terminal not found for "${nick || root}". Click ⌨ terminal again after the session's next Claude turn.`);
+                    catch (err) {
+                        void vscode.window.showErrorMessage(`Failed to focus chat terminal: ${err instanceof Error ? err.message : String(err)}`);
+                    }
                 })();
                 return;
             }

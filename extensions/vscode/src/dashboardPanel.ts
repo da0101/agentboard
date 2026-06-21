@@ -484,7 +484,7 @@ export class DashboardPanel {
           const shellPid = (msg as {sessionRoot?: string; sessionNick?: string; shellPid?: number}).shellPid ?? 0;
           const terminals = vscode.window.terminals;
           const sessionStartedAt = (msg as {sessionRoot?: string; sessionNick?: string; shellPid?: number; sessionStartedAt?: string}).sessionStartedAt ?? "";
-          void (async () => {
+          void (async () => { try {
             const { execSync: _ex } = await import("child_process");
             const termPids = await Promise.all(terminals.map(t => t.processId));
 
@@ -558,8 +558,10 @@ export class DashboardPanel {
               if (cwdMatches.length === 1) { cwdMatches[0].show(true); return; }
             }
 
-            void vscode.window.showInformationMessage(`Terminal not found for "${nick || root}". Click ⌨ terminal again after the session's next Claude turn.`);
-          })();
+            void vscode.window.showInformationMessage(`Chat terminal not found for "${nick || root}". Try clicking ⌨ chat after the session's next tool call.`);
+          } catch (err) {
+            void vscode.window.showErrorMessage(`Failed to focus chat terminal: ${err instanceof Error ? err.message : String(err)}`);
+          } })();
           return;
         }
       },
