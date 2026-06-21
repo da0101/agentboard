@@ -284,6 +284,7 @@ function applyUpdate(d){
     var diffAttrs = isEdited
       ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(_singleRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')
         +' data-line-count="'+(f.lineCount||0)+'"'
+        +' data-added="'+(f.added||0)+'" data-deleted="'+(f.deleted||0)+'" data-total-changed="'+totalChanged+'"'
         +' data-session-id="'+esc((_singleSess&&_singleSess.sessionId)||'')+'"'
         +' data-shell-pid="'+((_singleSess&&_singleSess.shellPid)||0)+'"'
         +' data-session-nick="'+esc((_singleSess&&_singleSess.nick)||'')+'"'
@@ -669,6 +670,7 @@ function applyUpdate(d){
         const diffAttrs = isEdited
           ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')
             +' data-line-count="'+(f.lineCount||0)+'"'
+            +' data-added="'+(f.added||0)+'" data-deleted="'+(f.deleted||0)+'" data-total-changed="'+totalChanged+'"'
             +' data-session-id="'+esc(s.sessionId||'')+'"'
             +' data-shell-pid="'+(s.shellPid||0)+'"'
             +' data-session-nick="'+esc(s.nick||'')+'"'
@@ -813,6 +815,8 @@ document.addEventListener('click',function(e){
         vscode.postMessage({command:'openDiff',filePath:fp,sessionRoot:sr,isNew:menu._isNew||false});
       } else if(fm.dataset.fm==='copy'){
         vscode.postMessage({command:'copyPath',filePath:fp,sessionRoot:sr});
+      } else if(fm.dataset.fm==='explain-change'){
+        vscode.postMessage({command:'explainChange',filePath:fp,sessionRoot:sr,added:menu._added||0,deleted:menu._deleted||0,totalChanged:menu._totalChanged||0,shellPid:menu._shellPid||0,sessionNick:menu._sessionNick||'',sessionId:menu._sessionId||''});
       } else if(fm.dataset.fm==='refactor-here'){
         vscode.postMessage({command:'refactorInSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0,shellPid:menu._shellPid||0,sessionNick:menu._sessionNick||'',sessionId:menu._sessionId||''});
       } else if(fm.dataset.fm==='refactor-new'){
@@ -843,6 +847,9 @@ document.addEventListener('click',function(e){
     menu._isNew=diffEl.dataset.isNew==='1';
     menu._isDeleted=diffEl.dataset.isDeleted==='1';
     menu._lineCount=parseInt(diffEl.dataset.lineCount||'0',10);
+    menu._added=parseInt(diffEl.dataset.added||'0',10);
+    menu._deleted=parseInt(diffEl.dataset.deleted||'0',10);
+    menu._totalChanged=parseInt(diffEl.dataset.totalChanged||'0',10);
     menu._sessionId=diffEl.dataset.sessionId||'';
     menu._shellPid=parseInt(diffEl.dataset.shellPid||'0',10);
     menu._sessionNick=diffEl.dataset.sessionNick||'';
@@ -851,9 +858,14 @@ document.addEventListener('click',function(e){
     };
     var _mHtml = _fmItem('diff', menu._isNew||menu._isDeleted?'↗':'⇄', menu._isNew||menu._isDeleted?'Open file':'Open diff');
     _mHtml += _fmItem('copy','⧉','Copy path');
+    if(menu._totalChanged>=50){
+      var _warnTier=menu._totalChanged>=150?'🔴':'⚠';
+      _mHtml += '<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
+      _mHtml += _fmItem('explain-change','🔍',_warnTier+' Explain this change','#89ddff');
+    }
     if(menu._lineCount>=500){
       var _lTier=menu._lineCount>=1000?'🔴':menu._lineCount>=800?'🟠':'🟡';
-      _mHtml += '<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
+      if(menu._totalChanged<50) _mHtml += '<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
       _mHtml += _fmItem('refactor-here','⚡',_lTier+' Refactor in this session','#c792ea');
       _mHtml += _fmItem('refactor-new','◈','Refactor in new session','#82aaff');
     }

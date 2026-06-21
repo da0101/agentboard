@@ -501,6 +501,90 @@ export class DashboardPanel {
           terminal.sendText(`claude "${escaped}"`, true);
           return;
         }
+        if (msg.command === "explainChange") {
+          const filePath = (msg as {filePath?: string}).filePath ?? "";
+          const sessRoot = (msg as {sessionRoot?: string}).sessionRoot ?? this._workspaceRoot;
+          const added = (msg as {added?: number}).added ?? 0;
+          const deleted = (msg as {deleted?: number}).deleted ?? 0;
+          const totalChanged = (msg as {totalChanged?: number}).totalChanged ?? 0;
+          const claudePid = (msg as {shellPid?: number}).shellPid ?? 0;
+          const sessionNick = (msg as {sessionNick?: string}).sessionNick ?? "";
+          if (!filePath) return;
+          const absPath = path.isAbsolute(filePath) ? filePath : path.join(sessRoot, filePath);
+          const diffStat = (added ? `+${added}` : "") + (added && deleted ? " / " : "") + (deleted ? `-${deleted}` : "");
+          const explainPrompt = `/ab-review
+
+A reviewer is auditing \`${absPath}\` and sees ⚠ **${totalChanged} lines changed** (${diffStat}).
+
+You made these changes — walk through your decisions clearly and directly. No preamble. Assume the reviewer is a senior engineer.
+
+═══ 1. PROBLEM & APPROACH
+What problem were you solving in this file specifically, and why did you choose this approach over the alternatives you considered?
+
+═══ 2. KEY CHANGES — section by section
+For each significant block you added or rewrote:
+• What was there before (brief)
+• What you changed it to
+• Why this is strictly better
+
+═══ 3. WHAT WAS REMOVED AND WHY
+For every significant deletion: what did you remove, why was it wrong/redundant/dead, and what (if anything) replaces it?
+
+═══ 4. DESIGN DECISIONS
+Any non-obvious architectural choices — naming, structure, data flow, abstraction boundaries, dependency direction. State the reasoning and the tradeoff you accepted.
+
+═══ 5. RISK SURFACE
+What is the most fragile thing about these changes? Any edge cases, regressions, or coupling risks introduced? What guards did you put in place?
+
+═══ 6. WHAT TO WATCH NEXT
+Anything in this file that is still wrong, incomplete, or will need follow-up attention?`;
+
+          const terminals = [...vscode.window.terminals];
+          void (async () => { try {
+            const { execSync: _ex } = require("child_process") as typeof import("child_process");
+            const termPids = await Promise.all(terminals.map(t => t.processId));
+            let target: vscode.Terminal | undefined;
+            if (claudePid > 0) {
+              try {
+                const ppidStr = _ex(`ps -p ${claudePid} -o ppid= 2>/dev/null`).toString().trim();
+                const parentPid = parseInt(ppidStr, 10);
+                if (parentPid > 0) target = terminals.find((_, i) => termPids[i] === parentPid);
+              } catch { /* fall through */ }
+              if (!target) target = terminals.find((_, i) => termPids[i] === claudePid);
+            }
+            if (!target && sessionNick && this._sessionTerminalMap.has(sessionNick)) {
+              const cachedName = this._sessionTerminalMap.get(sessionNick)!;
+              target = terminals.find(t2 => t2.name === cachedName);
+            }
+            if (!target && sessionNick) {
+              const nickLower = sessionNick.toLowerCase();
+              target = terminals.find(t2 => t2.name.toLowerCase().includes(nickLower));
+            }
+            if (!target && sessRoot) {
+              const sameCwd: vscode.Terminal[] = [];
+              for (const term of terminals) {
+                try {
+                  const wd = (term as unknown as { shellIntegration?: { cwd?: vscode.Uri } }).shellIntegration?.cwd?.fsPath ?? "";
+                  if (wd && (wd === sessRoot || wd.startsWith(sessRoot + "/"))) sameCwd.push(term);
+                } catch { /* */ }
+              }
+              if (sameCwd.length === 1) target = sameCwd[0];
+            }
+            if (target) {
+              target.show(false);
+              target.sendText(explainPrompt, true);
+            } else {
+              const picked = await vscode.window.showQuickPick(
+                terminals.map(t2 => ({ label: t2.name, terminal: t2 })),
+                { placeHolder: "Pick the Claude terminal to send the explanation request to" }
+              );
+              if (picked) { picked.terminal.show(false); picked.terminal.sendText(explainPrompt, true); }
+            }
+          } catch (err) {
+            void vscode.window.showErrorMessage(`Explain change error: ${err instanceof Error ? err.message : String(err)}`);
+          } })();
+          return;
+        }
         if (msg.command === "refactorInSession" || msg.command === "refactorNewSession") {
           const filePath = (msg as {filePath?: string}).filePath ?? "";
           const sessRoot = (msg as {sessionRoot?: string}).sessionRoot ?? this._workspaceRoot;
