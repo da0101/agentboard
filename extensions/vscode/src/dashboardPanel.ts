@@ -1605,6 +1605,15 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 .more{padding:7px 14px;font-size:11px;opacity:.3;font-style:italic}
 .em{opacity:.35;font-size:11px;font-style:italic}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.3)}}
+/* KPI grid */
+#kpi-grid{padding:10px 14px 6px;border-bottom:1px solid var(--vscode-panel-border);display:none;flex-direction:column;gap:8px}
+.kpi-group{display:flex;flex-direction:column;gap:4px}
+.kpi-group-lbl{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.25}
+.kpi-row{display:flex;flex-wrap:wrap;gap:5px}
+.kpi-tile{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:5px;padding:5px 10px;min-width:48px;cursor:default;transition:background .1s}
+.kpi-tile:hover{background:rgba(255,255,255,.07)}
+.kpi-val{font-size:14px;font-weight:700;line-height:1.15;letter-spacing:-.01em}
+.kpi-lbl{font-size:9px;opacity:.38;margin-top:1px;white-space:nowrap}
 /* Session tab mode — stacked single-column layout, no nav bar */
 #session-hdr{display:none;flex-direction:column;flex-shrink:0;border-bottom:1px solid var(--vscode-panel-border);background:rgba(255,255,255,.015)}
 body.session-tab #hdr{display:none}
@@ -1660,6 +1669,8 @@ body.session-tab #sec-streams{display:none!important}
       <div class="now-longop" id="now-longop">⟳ Running long operation — last tool call completed &gt;90s ago</div>
     </div>
   </div>
+
+  <div id="kpi-grid" style="display:none"></div>
 
   <div id="live-body">
     <!-- Multi-session: N activity columns (shown by JS when activeSessions.length > 1) -->

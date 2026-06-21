@@ -164,6 +164,124 @@ function renderCatalogCol(listId, items, accentColor) {
   html(listId, h);
 }
 
+function computeKPIs(d) {
+  var sessions = d.activeSessions || [];
+  var streams = d.streams || [];
+
+  // Sessions
+  var totalCostUsd = sessions.reduce(function(s, sess) { return s + (sess.costUsd || 0); }, 0);
+  var ctxVals = sessions.map(function(s) {
+    return s.ctxPct !== null && s.ctxPct !== undefined ? Math.round(100 - s.ctxPct) : null;
+  }).filter(function(v) { return v !== null; });
+  var avgCtx = ctxVals.length ? Math.round(ctxVals.reduce(function(a,b){return a+b;},0) / ctxVals.length) : null;
+  var highCtx = ctxVals.filter(function(v) { return v >= 80; }).length;
+  var allAgents = sessions.reduce(function(arr, s) { return arr.concat(s.agents || []); }, []);
+  var runningAgents = allAgents.filter(function(a) { return !a.done; }).length;
+
+  // Code activity — aggregate across all sessions (richest data source)
+  var allFiles = sessions.reduce(function(arr, s) { return arr.concat(s.activity || []); }, []);
+  var edited = allFiles.filter(function(f) { return f.tool === 'Edit' || f.tool === 'Write' || f.tool === 'MultiEdit'; });
+  var totalAdded = edited.reduce(function(s, f) { return s + (f.added || 0); }, 0);
+  var totalDeleted = edited.reduce(function(s, f) { return s + (f.deleted || 0); }, 0);
+  var totalEdits = edited.reduce(function(s, f) { return s + (f.count || 1); }, 0);
+  var newFiles = edited.filter(function(f) { return f.isNew; }).length;
+  var deletedFiles = edited.filter(function(f) { return f.isDeleted; }).length;
+  var commandCount = allFiles.filter(function(f) { return f.file && f.file.startsWith('$ '); }).length;
+
+  // Code health
+  var redFiles = allFiles.filter(function(f) { return (f.lineCount || 0) >= 1000; }).length;
+  var amberFiles = allFiles.filter(function(f) { var lc = f.lineCount || 0; return lc >= 500 && lc < 1000; }).length;
+  var bigEdits = edited.filter(function(f) { return (f.added || 0) + (f.deleted || 0) >= 50; }).length;
+
+  // Streams
+  var streamsByType = {};
+  streams.forEach(function(s) {
+    var t = s.type || 'task';
+    streamsByType[t] = (streamsByType[t] || 0) + 1;
+  });
+  var awaitingQA = streams.filter(function(s) { return s.status === 'awaiting-verification'; }).length;
+  var totalDC = streams.reduce(function(s, st) { return s + ((st.doneCriteria && st.doneCriteria.length) || 0); }, 0);
+  var checkedDC = streams.reduce(function(s, st) {
+    return s + (st.doneCriteria ? st.doneCriteria.filter(function(c) { return c.done; }).length : 0);
+  }, 0);
+
+  return {
+    sessions: sessions.length, totalCostUsd: totalCostUsd, avgCtx: avgCtx, highCtx: highCtx,
+    runningAgents: runningAgents, totalAgents: allAgents.length,
+    totalUniqueFiles: d.totalUniqueFiles || allFiles.length,
+    totalAdded: totalAdded, totalDeleted: totalDeleted, totalEdits: totalEdits,
+    newFiles: newFiles, deletedFiles: deletedFiles, commandCount: commandCount,
+    redFiles: redFiles, amberFiles: amberFiles, bigEdits: bigEdits,
+    streams: streams.length, streamsByType: streamsByType, awaitingQA: awaitingQA,
+    totalDC: totalDC, checkedDC: checkedDC,
+    skills: d.skillCount || 0, roles: d.roleCount || 0, commands: (d.commands || []).length,
+  };
+}
+
+function renderKPIGrid(kpi) {
+  function tile(val, lbl, color, tip) {
+    return '<div class="kpi-tile"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>'
+      + '<div class="kpi-val"' + (color ? ' style="color:' + color + '"' : '') + '>' + val + '</div>'
+      + '<div class="kpi-lbl">' + lbl + '</div>'
+      + '</div>';
+  }
+  function group(lbl, tiles) {
+    return '<div class="kpi-group"><div class="kpi-group-lbl">' + lbl + '</div><div class="kpi-row">' + tiles + '</div></div>';
+  }
+  var g = '';
+
+  // Sessions
+  var sessTiles = ''
+    + tile(kpi.sessions, 'Active', kpi.sessions > 0 ? '#4caf50' : '#666')
+    + tile('$' + kpi.totalCostUsd.toFixed(2), 'Total Cost', '#4caf50')
+    + (kpi.avgCtx !== null ? tile(kpi.avgCtx + '%', 'Avg Ctx', kpi.avgCtx >= 80 ? '#f44336' : kpi.avgCtx >= 50 ? '#ff9800' : '#4caf50', 'Average context window used across sessions') : '')
+    + (kpi.highCtx > 0 ? tile(kpi.highCtx, 'High Ctx', '#f44336', 'Sessions above 80% context — consider compacting') : '')
+    + tile(kpi.runningAgents, 'Agents Running', kpi.runningAgents > 0 ? '#4a9eff' : '#555')
+    + (kpi.totalAgents > 0 ? tile(kpi.totalAgents, 'Agents Total', '#888') : '');
+  g += group('Sessions', sessTiles);
+
+  // Code Activity
+  var actTiles = ''
+    + tile(kpi.totalUniqueFiles, 'Files Touched', '#e8e8e8')
+    + (kpi.totalEdits > 0 ? tile(kpi.totalEdits, 'Total Edits', '#e8e8e8') : '')
+    + (kpi.totalAdded > 0 ? tile('+' + kpi.totalAdded.toLocaleString(), 'Lines Added', '#4caf50') : '')
+    + (kpi.totalDeleted > 0 ? tile('−' + kpi.totalDeleted.toLocaleString(), 'Lines Deleted', '#f44336') : '')
+    + (kpi.totalAdded > 0 || kpi.totalDeleted > 0 ? (function(){
+        var net = kpi.totalAdded - kpi.totalDeleted;
+        return tile((net >= 0 ? '+' : '') + net.toLocaleString(), 'Net Delta', net >= 0 ? '#4caf50' : '#ff9800', 'Net lines added minus deleted');
+      })() : '')
+    + (kpi.newFiles > 0 ? tile(kpi.newFiles, 'New Files', '#4caf84') : '')
+    + (kpi.deletedFiles > 0 ? tile(kpi.deletedFiles, 'Deleted', '#f44336') : '')
+    + (kpi.commandCount > 0 ? tile(kpi.commandCount, 'Commands', '#f0b429') : '');
+  if (kpi.totalUniqueFiles > 0) g += group('Code Activity', actTiles);
+
+  // Code Health
+  if (kpi.redFiles > 0 || kpi.amberFiles > 0 || kpi.bigEdits > 0) {
+    var healthTiles = ''
+      + (kpi.redFiles > 0 ? tile(kpi.redFiles, 'Monoliths', '#ef5350', 'Files with 1000+ lines touched this session') : '')
+      + (kpi.amberFiles > 0 ? tile(kpi.amberFiles, 'Large Files', '#f0b429', 'Files with 500–999 lines touched this session') : '')
+      + (kpi.bigEdits > 0 ? tile(kpi.bigEdits, 'Big Edits', '#ff9800', 'Files where 50+ lines were changed') : '');
+    g += group('Code Health ⚠', healthTiles);
+  }
+
+  // Streams
+  var streamTiles = tile(kpi.streams, 'Active', '#4a9eff');
+  if (kpi.awaitingQA > 0) streamTiles += tile(kpi.awaitingQA, 'Awaiting QA', '#ff9800');
+  if (kpi.totalDC > 0) streamTiles += tile(kpi.checkedDC + '/' + kpi.totalDC, 'Criteria Done', kpi.checkedDC === kpi.totalDC ? '#4caf50' : '#888', 'Done criteria checked across all streams');
+  Object.keys(kpi.streamsByType).sort().forEach(function(type) {
+    streamTiles += tile(kpi.streamsByType[type], type, '#888');
+  });
+  g += group('Streams', streamTiles);
+
+  // Catalog
+  g += group('Catalog', ''
+    + tile(kpi.skills, 'Skills', '#4a9eff')
+    + tile(kpi.roles, 'Roles', '#9c6af7')
+    + tile(kpi.commands, 'Commands', '#888'));
+
+  return g;
+}
+
 function renderSessionHdr(s, d) {
   var el = document.getElementById('session-hdr');
   if (!el) return;
@@ -211,6 +329,8 @@ function applyUpdate(d){
       window._stSession = s0;
       window._stSiblings = (d.sessionTabSiblings || []).filter(function(x) { return x.sessionId !== s0.sessionId; });
       // Override top-level global fields with session-specific values so all downstream code is correct
+      var _s0act = s0.activity || [];
+      var _s0act0 = _s0act[0] || null;
       d = Object.assign({}, d, {
         model: s0.model || d.model,
         cost: s0.cost || d.cost,
@@ -220,7 +340,12 @@ function applyUpdate(d){
         activeStream: s0.stream || d.activeStream,
         projectName: s0.projectName || d.projectName,
         hasLive: typeof s0.ageSeconds === 'number' ? s0.ageSeconds < 120 : d.hasLive,
-        fileActivity: (s0.activity && s0.activity.length) ? s0.activity : d.fileActivity,
+        fileActivity: _s0act.length ? _s0act : d.fileActivity,
+        // Per-session NOW block — prevents both tabs showing the same global last-event
+        lastEventLabel: _s0act0 ? _s0act0.file : '',
+        lastEventTs: _s0act0 ? _s0act0.lastTs : null,
+        streamDesc: s0.streamDesc || d.streamDesc,
+        isInLongOp: false,
       });
       renderSessionHdr(s0, d);
     }
@@ -240,6 +365,12 @@ function applyUpdate(d){
     if (nsEl2) nsEl2.style.display = '';
     var catEl2 = document.getElementById('catalog');
     if (catEl2) catEl2.style.display = '';
+    // KPI grid — main hub only
+    var kpiEl = document.getElementById('kpi-grid');
+    if (kpiEl) {
+      kpiEl.style.display = 'flex';
+      kpiEl.innerHTML = renderKPIGrid(computeKPIs(d));
+    }
   }
 
   // header
