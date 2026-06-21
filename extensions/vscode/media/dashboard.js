@@ -254,31 +254,61 @@ function applyUpdate(d){
     }
   }
 
-  // file activity
-  var _totalFiles = d.totalUniqueFiles || (d.fileActivity && d.fileActivity.length) || 0;
-  var _shownFiles = d.fileActivity && d.fileActivity.length || 0;
+  // file activity — use rich session data (with isNew/isDeleted/added/deleted) when available
+  var _singleSess = (d.activeSessions && d.activeSessions.length === 1) ? d.activeSessions[0] : null;
+  var _richActivity = _singleSess ? (_singleSess.activity || null) : null;
+  var _singleRoot = _singleSess ? (_singleSess.root || '') : '';
+  var _actFiles = _richActivity || d.fileActivity || [];
+  var _totalFiles = d.totalUniqueFiles || _actFiles.length || 0;
+  var _shownFiles = _actFiles.length || 0;
   var _actLabel = 'Activity this session';
   if (_totalFiles > 0) {
     _actLabel += ' · ' + _totalFiles + ' file' + (_totalFiles !== 1 ? 's' : '');
     if (_shownFiles < _totalFiles) _actLabel += ' (showing ' + _shownFiles + ')';
   }
   txt('fa-ttl', _actLabel);
-  html('fa-list', d.fileActivity&&d.fileActivity.length ? d.fileActivity.map(function(f){
-    const isSkillEntry=f.tool==='Skill';
-    const isBash=f.tool==='Bash';
-    const icon=TOOL_ICON[f.tool]||'·';
-    let fname;
-    if(isSkillEntry) fname='/'+f.file;
-    else fname=f.file; // full path/command — let .fa-file word-break handle layout
-    const color=isSkillEntry?'color:#4caf84;font-weight:600':isBash?'color:#ff9800':'';
-    return '<div class="fa">'
-      +'<span class="fa-icon" style="'+(isSkillEntry?'color:#4caf84':'')+'">'+icon+'</span>'
-      +'<div class="fa-body">'
-      +'<span class="fa-file" style="'+color+'">'+esc(fname)+'</span>'
-      +(f.count>1?'<span class="fa-cnt">×'+f.count+'</span>':'')
-      +'<span class="fa-t">'+relTime(f.lastTs)+'</span>'
-      +'</div>'
-      +'</div>';
+  html('fa-list', _actFiles.length ? _actFiles.map(function(f){
+    const TOOL_ICON_SS={Edit:'✏',Write:'✏',Bash:'$',Read:'👁',WebSearch:'⌕',WebFetch:'⌕',Agent:'◈',Skill:'⚡'};
+    const icon = TOOL_ICON_SS[f.tool] || TOOL_ICON[f.tool] || '·';
+    const isCmd = f.file.startsWith('$ ');
+    const isEdited = (f.tool === 'Edit' || f.tool === 'Write' || f.tool === 'MultiEdit') && !isCmd;
+    const ago = relTime(f.lastTs);
+    var totalChanged = (f.added || 0) + (f.deleted || 0);
+    var editWarn = '';
+    if (isEdited && totalChanged >= 50) {
+      var warnColor = totalChanged >= 150 ? '#ff7043' : '#f0b429';
+      editWarn = '<span title="'+totalChanged+' lines changed" style="color:'+warnColor+';font-size:11px;flex-shrink:0;margin-right:2px">⚠</span>';
+    }
+    var sizeBadge = '';
+    if (f.lineCount) {
+      var lc = f.lineCount;
+      var sizeColor = lc >= 1000 ? '#ef5350' : lc >= 800 ? '#ff7043' : lc >= 500 ? '#f0b429' : '';
+      if (sizeColor) {
+        var sizeLabel = lc >= 1000 ? (Math.round(lc/100)/10)+'k' : lc+'';
+        sizeBadge = '<span title="'+lc+' lines" style="font-size:9px;padding:1px 5px;border-radius:8px;background:'+sizeColor+'22;color:'+sizeColor+';border:1px solid '+sizeColor+'44;flex-shrink:0;cursor:default">'+sizeLabel+'L</span>';
+      }
+    }
+    var rowBg = f.isNew ? 'background:rgba(40,200,80,.07);border-left:2px solid rgba(40,200,80,.35);padding-left:4px;' : f.isDeleted ? 'background:rgba(220,60,60,.07);border-left:2px solid rgba(220,60,60,.35);padding-left:4px;' : '';
+    var diffAttrs = isEdited
+      ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(_singleRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')+' title="Click for options" style="cursor:pointer;'+rowBg+'"'
+      : (rowBg ? ' style="'+rowBg+'"' : '');
+    return '<div class="fa"'+diffAttrs+'>'
+      + '<span class="fa-icon">'+icon+'</span>'
+      + '<div class="fa-body">'
+      + '<span class="fa-file"'+(isEdited?' onmouseover="this.style.color=\'#7cbfff\'" onmouseout="this.style.color=\'\'"':'')+' style="color:'+(isCmd?'#f0b429':'inherit')+'">'+esc(f.file)+'</span>'
+      + (isEdited && (f.added != null || f.deleted != null)
+        ? '<span style="font-size:10px;white-space:nowrap;flex-shrink:0">'
+          + (f.added  ? '<span style="color:#4caf50">+'+f.added+'</span>' : '')
+          + (f.added && f.deleted ? '<span style="opacity:.3"> / </span>' : '')
+          + (f.deleted ? '<span style="color:#f44336">-'+f.deleted+'</span>' : '')
+          + '</span>'
+        : '')
+      + (f.count > 1 ? '<span class="fa-cnt">×'+f.count+'</span>' : '')
+      + '<span class="fa-t">'+ago+'</span>'
+      + sizeBadge + editWarn
+      + (f.committed && f.added == null && f.deleted == null ? '<span title="Committed to branch" style="color:#4caf50;font-size:11px;flex-shrink:0;margin-left:2px">✓</span>' : '')
+      + '</div>'
+      + '</div>';
   }).join('') : '<div class="em">No edits or commands yet this session</div>');
 
   // agents / workflow panel
