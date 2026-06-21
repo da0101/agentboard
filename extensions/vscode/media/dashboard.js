@@ -816,7 +816,7 @@ function applyUpdate(d){
         + '<span style="margin-left:auto;font-size:11px;opacity:.3">'+actChevron+'</span>'
         + '</div>';
       var actBody = '<div id="act-body-'+esc(actSid)+'" style="display:'+(actExpanded?'block':'none')+';padding:4px 14px;max-height:260px;overflow-y:auto;scrollbar-width:thin">' + acts + '</div>';
-      return '<div class="sess-col" style="flex:1 1 ' + colBasis + '">' + hdr + agentsHtml + workflowHtml + actHdr + actBody + '</div>';
+      return '<div class="sess-col" style="flex:1 1 ' + colBasis + '">' + hdr + '</div>';
     } catch(e) { return '<div class="sess-col" style="padding:12px;opacity:.4;font-size:11px">Error rendering session: '+(e&&e.message||e)+'</div>'; }
     }).join('');
     // Restore scroll positions after re-render
