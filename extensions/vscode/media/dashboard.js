@@ -765,6 +765,8 @@ document.addEventListener('click',function(e){
   const t=e.target;
   // Refresh button
   if(t.id==='refresh-btn'||t.closest('#refresh-btn')){
+    var rbtn=document.getElementById('refresh-btn');
+    if(rbtn){rbtn.textContent='↻ Refreshing…';rbtn.disabled=true;setTimeout(function(){rbtn.textContent='↻ Refresh';rbtn.disabled=false;},1200);}
     vscode.postMessage({command:'refresh'});return;
   }
   // File options menu (diff / copy path)
