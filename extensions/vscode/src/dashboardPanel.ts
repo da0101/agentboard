@@ -727,7 +727,7 @@ export class DashboardPanel {
       sessionLastSkill: string; sessionLastRole: string;
       startedAt: string; lastUpdated: string; ageSeconds: number;
       ctxPct: number | null; stream: string; sessionTime: string;
-      activity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number; lineCount?: number; committed?: boolean }[];
+      activity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number; lineCount?: number; committed?: boolean; isNew?: boolean; isDeleted?: boolean }[];
       agents: { label: string; role: string; skill: string; ts: string; done: boolean }[];
       hasWorkflow: boolean; workflowAgentCount: number; workflowLabel: string;
       workflowTranscriptAgents: TranscriptAgent[];
@@ -755,7 +755,7 @@ export class DashboardPanel {
             return sec < 3600 ? `${Math.floor(sec / 60)}m ${sec % 60}s` : `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
           })() : "";
           // Per-session activity feed (deduplicated, most recent first)
-          const sActivity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number; lineCount?: number; committed?: boolean }[] = [];
+          const sActivity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number; lineCount?: number; committed?: boolean; isNew?: boolean; isDeleted?: boolean }[] = [];
           const sId = (s._session_id as string) || (ctx.session_id as string) || f.replace(".json", "");
           if (sRoot) {
             const allSEvents = getEventsForRoot(sRoot); // cached — no extra file read
@@ -846,6 +846,24 @@ export class DashboardPanel {
                 if (entry.tool === "Edit" || entry.tool === "Write" || entry.tool === "MultiEdit") {
                   entry.committed = committedFiles.has(entry.file);
                 }
+              }
+            } catch { /* git unavailable */ }
+          }
+          // Detect new/deleted files via git status --porcelain
+          if (sRoot) {
+            try {
+              const statusOut = execSync(`git -C "${sRoot}" status --porcelain 2>/dev/null`, { timeout: 3000, encoding: "utf8" });
+              const statusMap = new Map<string, string>();
+              for (const line of statusOut.split("\n")) {
+                if (line.length < 4) continue;
+                const xy = line.slice(0, 2);
+                const fpath = line.slice(3).trim().replace(/^"(.*)"$/, "$1"); // git quotes paths with spaces
+                statusMap.set(fpath, xy);
+              }
+              for (const entry of sActivity) {
+                const xy = statusMap.get(entry.file) ?? statusMap.get(entry.file.replace(/\\/g, "/")) ?? "";
+                if (xy === "??" || xy[0] === "A" || xy[1] === "A") entry.isNew = true;
+                else if (xy[0] === "D" || xy[1] === "D") entry.isDeleted = true;
               }
             } catch { /* git unavailable */ }
           }

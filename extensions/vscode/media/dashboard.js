@@ -638,9 +638,10 @@ function applyUpdate(d){
           }
         }
 
+        var rowBg = f.isNew ? 'background:rgba(40,200,80,.07);border-left:2px solid rgba(40,200,80,.35);padding-left:4px;' : f.isDeleted ? 'background:rgba(220,60,60,.07);border-left:2px solid rgba(220,60,60,.35);padding-left:4px;' : '';
         const diffAttrs = isEdited
-          ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'" title="Click for options" style="cursor:pointer"'
-          : '';
+          ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'" title="Click for options" style="cursor:pointer;'+rowBg+'"'
+          : (rowBg ? ' style="'+rowBg+'"' : '');
         return '<div class="fa"'+diffAttrs+'>'
           + '<span class="fa-icon">' + icon + '</span>'
           + '<div class="fa-body">'

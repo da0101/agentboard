@@ -958,6 +958,28 @@ class DashboardPanel {
                         }
                         catch { /* git unavailable */ }
                     }
+                    // Detect new/deleted files via git status --porcelain
+                    if (sRoot) {
+                        try {
+                            const statusOut = (0, child_process_1.execSync)(`git -C "${sRoot}" status --porcelain 2>/dev/null`, { timeout: 3000, encoding: "utf8" });
+                            const statusMap = new Map();
+                            for (const line of statusOut.split("\n")) {
+                                if (line.length < 4)
+                                    continue;
+                                const xy = line.slice(0, 2);
+                                const fpath = line.slice(3).trim().replace(/^"(.*)"$/, "$1"); // git quotes paths with spaces
+                                statusMap.set(fpath, xy);
+                            }
+                            for (const entry of sActivity) {
+                                const xy = statusMap.get(entry.file) ?? statusMap.get(entry.file.replace(/\\/g, "/")) ?? "";
+                                if (xy === "??" || xy[0] === "A" || xy[1] === "A")
+                                    entry.isNew = true;
+                                else if (xy[0] === "D" || xy[1] === "D")
+                                    entry.isDeleted = true;
+                            }
+                        }
+                        catch { /* git unavailable */ }
+                    }
                     // Skip ghost sessions: no tool events AND session started >15 min ago
                     // Use startedAt age (not lastUpdated) so status-bridge pings don't keep ghosts alive
                     const startedAtAgeMs = sStartedAt ? Date.now() - new Date(sStartedAt).getTime() : Infinity;
