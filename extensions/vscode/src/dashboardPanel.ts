@@ -499,6 +499,17 @@ export class DashboardPanel {
     this._panel.webview.onDidReceiveMessage(
       (msg: { command: string; filePath?: string; sessionRoot?: string; sessionNick?: string }) => {
         if (msg.command === "refresh") void this._update();
+        if (msg.command === "focusSessionTab") {
+          const sid = (msg as {targetSessionId?: string}).targetSessionId ?? "";
+          const sp = DashboardPanel.sessionPanels.get(sid);
+          if (sp) try { sp._panel.reveal(undefined, false); } catch { /* disposed */ }
+          return;
+        }
+        if (msg.command === "openChat") {
+          // "Open Chat" button in session tab — delegate to focusTerminal via same PID-matching logic
+          // (handled by the focusTerminal branch below; this branch is a no-op alias)
+          (msg as Record<string, unknown>).command = "focusTerminal";
+        }
         if (msg.command === "openStream") {
           const fp = String(msg.filePath ?? "");
           const allowed = this._workspaceRoot && fp.startsWith(this._workspaceRoot + path.sep);
@@ -1457,11 +1468,16 @@ DO NOT proceed to Phase 3 until the plan is approved.
     const payloadRec = payload as Record<string, unknown>;
     if (!this._boundSessionId) {
       DashboardPanel._syncSessionPanels(payloadRec, this._workspaceRoot);
-      // Push filtered data to each open session panel
+      // Push filtered data (+ family context) to each open session panel
+      const allActiveSess = (payloadRec.activeSessions as Array<{ sessionId: string }> | undefined) ?? [];
       for (const [sid, sp] of DashboardPanel.sessionPanels) {
-        const activeSess = (payloadRec.activeSessions as Array<{ sessionId: string }> | undefined) ?? [];
-        const mySession = activeSess.find(s => s.sessionId === sid);
-        const spPayload = { ...payloadRec, activeSessions: mySession ? [mySession] : [] };
+        const mySession = allActiveSess.find(s => s.sessionId === sid);
+        const spPayload = {
+          ...payloadRec,
+          activeSessions: mySession ? [mySession] : [],
+          isSessionTab: true,
+          sessionTabSiblings: allActiveSess, // all sessions for family bar
+        };
         void sp._panel.webview.postMessage(spPayload);
       }
     }
@@ -1470,7 +1486,12 @@ DO NOT proceed to Phase 3 until the plan is approved.
     if (this._boundSessionId) {
       const activeSess = (payloadRec.activeSessions as Array<{ sessionId: string }> | undefined) ?? [];
       const mySession = activeSess.find(s => s.sessionId === this._boundSessionId);
-      postPayload = { ...payloadRec, activeSessions: mySession ? [mySession] : [] };
+      postPayload = {
+        ...payloadRec,
+        activeSessions: mySession ? [mySession] : [],
+        isSessionTab: true,
+        sessionTabSiblings: activeSess,
+      };
     }
 
     const delivered = await this._panel.webview.postMessage(postPayload);
@@ -1584,8 +1605,21 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 .more{padding:7px 14px;font-size:11px;opacity:.3;font-style:italic}
 .em{opacity:.35;font-size:11px;font-style:italic}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.3)}}
+/* Session tab mode — stacked single-column layout, no nav bar */
+#session-hdr{display:none;flex-direction:column;flex-shrink:0;border-bottom:1px solid var(--vscode-panel-border);background:rgba(255,255,255,.015)}
+body.session-tab #hdr{display:none}
+body.session-tab .tabs{display:none}
+body.session-tab #session-hdr{display:flex}
+body.session-tab #live{overflow-y:auto;overflow-x:hidden}
+body.session-tab #live-body{flex-direction:column;overflow:visible}
+body.session-tab .col-l{flex:none;width:100%;overflow-y:visible;border-right:none;border-bottom:1px solid var(--vscode-panel-border)}
+body.session-tab .col-r{flex:none;width:100%;overflow-y:visible}
+body.session-tab #footer{display:none}
+.sib-pill{cursor:pointer;padding:2px 8px;border-radius:10px;border:1px solid rgba(255,255,255,.18);font-size:10px;font-family:monospace;opacity:.65;display:inline-block;transition:opacity .15s}
+.sib-pill:hover{opacity:1}
 </style></head><body>
 
+<div id="session-hdr"></div>
 <div id="hdr">
   <span class="logo">◆ AGENTBOARD</span><span class="sep">·</span>
   <span class="proj" id="h-proj">—</span><span class="sep" id="h-sep2" style="display:none">·</span><span class="br" id="h-br"></span>
