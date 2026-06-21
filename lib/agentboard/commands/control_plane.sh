@@ -51,23 +51,6 @@ for r in rows:
 "
 }
 
-cmd_delegate() {
-  local task="${*}"
-  [[ -n "$task" ]] || die "Usage: ab delegate <task description>"
-  _cp_is_running || die "Control plane not running. Run: ab start"
-  local payload; payload="{\"task\":$(printf "%s" "$task" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")"
-  local stream_slug; stream_slug="$(frontmatter_value "$(ls .platform/work/*.md 2>/dev/null | head -1)" "slug" 2>/dev/null || true)"
-  [[ -n "$stream_slug" ]] && payload="${payload},\"stream_slug\":\"${stream_slug}\""
-  payload="${payload}}"
-  curl -sf -m 5 -X POST -H "Content-Type: application/json" -d "$payload" "$(_cp_url)/delegate" 2>/dev/null | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print(f'Role: {d[\"role\"][\"name\"]} [{d[\"role\"][\"slug\"]}] (model: {d[\"role\"][\"model\"]})')
-print(f'Worktree recommended: {d[\"suggest_worktree\"]}')
-print('\n--- Delegation prompt ---')
-print(d['prompt'])
-"
-}
 
 cmd_worktree() {
   local sub="${1:-list}"; shift 2>/dev/null || true

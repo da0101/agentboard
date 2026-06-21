@@ -2,7 +2,7 @@
   "name": "agentboard",
   "displayName": "Agentboard",
   "description": "Live agentboard session status — streams, agents, cost, risk",
-  "version": "2.2.0",
+  "version": "2.3.1",
   "publisher": "da0101",
   "license": "MIT",
   "engines": {

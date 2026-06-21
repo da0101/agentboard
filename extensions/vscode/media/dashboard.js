@@ -93,6 +93,49 @@ function ctxBar(pct){
   const c=used<50?'#4caf50':used<75?'#ff9800':'#f44336';
   return '<span class="ctx" style="color:'+c+'">'+'█'.repeat(fill)+'░'.repeat(10-fill)+'</span><span style="color:'+c+';font-size:11px"> '+used+'%</span>';
 }
+// Role launcher — selectable role cards with linked skills + launch button
+window._selectedRole = window._selectedRole || null;
+window._rolesData   = window._rolesData   || [];
+
+function renderRolesCol(listId, roles, accentColor) {
+  window._catExpanded = window._catExpanded || new Set();
+  var selected = window._selectedRole;
+  var h = roles.slice(0, 200).map(function(role, idx) {
+    var eid = listId + '-' + idx;
+    var isOpen = window._catExpanded.has(eid);
+    var hasMore = role.fullDescription && role.fullDescription.length > 10;
+    var isSelected = selected === (role.slug || role.name);
+    var usedBy = role.usedBy && role.usedBy.length ? role.usedBy : null;
+    var linked = role.linkedSkills && role.linkedSkills.length ? role.linkedSkills : [];
+
+    var cardStyle = 'cursor:pointer;border-radius:5px;padding:2px 4px;margin:-2px -4px;transition:background .1s;';
+    if (isSelected) cardStyle += 'background:rgba(156,106,247,.1);outline:1px solid rgba(156,106,247,.35);';
+
+    var row = '<div class="ci" style="'+cardStyle+'" data-role-select="'+esc(role.slug||role.name)+'" data-role-name="'+esc(role.name)+'" data-cat-toggle="'+eid+'">';
+    row += '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">';
+    row += '<span class="ci-name">'+esc(role.name)+'</span>';
+    if (hasMore) row += '<span style="font-size:9px;opacity:.25">'+(isOpen?'▾':'▸')+'</span>';
+    if (usedBy) row += usedBy.map(function(n){return '<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:'+accentColor+'22;color:'+accentColor+';white-space:nowrap">'+esc(n)+'</span>';}).join('');
+    row += '</div>';
+    if (role.description) row += '<span class="ci-desc">'+esc(role.description.slice(0,120))+'</span>';
+    if (hasMore) row += '<div id="'+eid+'-body" style="display:'+(isOpen?'block':'none')+';font-size:11px;opacity:.55;line-height:1.6;margin-top:4px;white-space:pre-wrap;border-left:2px solid '+accentColor+'44;padding-left:8px">'+esc(role.fullDescription||'')+'</div>';
+    // Launch panel — only when selected
+    if (isSelected) {
+      row += '<div style="margin-top:8px;padding:8px;background:rgba(156,106,247,.06);border-radius:4px;border:1px solid rgba(156,106,247,.18)">';
+      if (linked.length) {
+        row += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px">';
+        row += linked.map(function(sk){return '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:#4a9eff18;color:#4a9eff;border:1px solid #4a9eff33">'+esc(sk)+'</span>';}).join('');
+        row += '</div>';
+      }
+      row += '<button data-launch-role="'+esc(role.slug||role.name)+'" data-launch-role-name="'+esc(role.name)+'" style="width:100%;background:#9c6af7;color:#fff;border:none;border-radius:4px;padding:6px 10px;font-size:12px;cursor:pointer;font-family:inherit">▶  Launch Claude as '+esc(role.name)+'</button>';
+      row += '</div>';
+    }
+    row += '</div>';
+    return row;
+  }).join('');
+  html(listId, h);
+}
+
 function renderCatalogCol(listId, items, accentColor) {
   const MAX = 200;
   window._catExpanded = window._catExpanded || new Set();
@@ -153,13 +196,9 @@ function applyUpdate(d){
     txt('now-stats',summaryParts.join(' · '));
   } else if(d.hasLive){
     nowEl.classList.remove('idle');dot.classList.remove('idle');
-    const isCompact=d.isInLongOp&&ctxNow>=75;
     if(isWorkflow){
       stateEl.textContent='WORKFLOW';stateEl.style.color='#4a9eff';
       dot.style.background='#4a9eff';dot.style.animation='pulse 0.6s ease-in-out infinite';
-    } else if(isCompact){
-      stateEl.textContent='COMPACTING';stateEl.style.color='#9c6af7';
-      dot.style.background='#9c6af7';dot.style.animation='pulse 0.6s ease-in-out infinite';
     } else {
       stateEl.textContent='LIVE';stateEl.style.color='#4caf50';
       dot.style.background='#4caf50';dot.style.animation='pulse 1.5s ease-in-out infinite';
@@ -200,42 +239,74 @@ function applyUpdate(d){
       }
     }
     txt('now-desc',d.streamDesc||'');
-    const ctxUsed=d.ctxPct!==null&&d.ctxPct!==undefined?Math.round(100-d.ctxPct):0;
-    const isCompacting=d.isInLongOp&&ctxUsed>=75;
     if(lopEl){
       lopEl.className='now-longop'+(d.isInLongOp?' on':'');
-      lopEl.textContent=isCompacting
-        ?'⟳ Context at '+ctxUsed+'% — compaction in progress (will update when complete)'
-        :'⟳ Running long operation — last tool call completed >90s ago';
-      lopEl.style.color=isCompacting?'#9c6af7':'#ff9800';
+      lopEl.textContent='⟳ Running long operation — last tool call completed >90s ago';
+      lopEl.style.color='#ff9800';
     }
   }
 
-  // file activity
-  var _totalFiles = d.totalUniqueFiles || (d.fileActivity && d.fileActivity.length) || 0;
-  var _shownFiles = d.fileActivity && d.fileActivity.length || 0;
+  // file activity — use rich session data (with isNew/isDeleted/added/deleted) when available
+  var _singleSess = (d.activeSessions && d.activeSessions.length === 1) ? d.activeSessions[0] : null;
+  var _richActivity = _singleSess ? (_singleSess.activity || null) : null;
+  var _singleRoot = _singleSess ? (_singleSess.root || '') : '';
+  var _actFiles = _richActivity || d.fileActivity || [];
+  var _totalFiles = d.totalUniqueFiles || _actFiles.length || 0;
+  var _shownFiles = _actFiles.length || 0;
   var _actLabel = 'Activity this session';
   if (_totalFiles > 0) {
     _actLabel += ' · ' + _totalFiles + ' file' + (_totalFiles !== 1 ? 's' : '');
     if (_shownFiles < _totalFiles) _actLabel += ' (showing ' + _shownFiles + ')';
   }
   txt('fa-ttl', _actLabel);
-  html('fa-list', d.fileActivity&&d.fileActivity.length ? d.fileActivity.map(function(f){
-    const isSkillEntry=f.tool==='Skill';
-    const isBash=f.tool==='Bash';
-    const icon=TOOL_ICON[f.tool]||'·';
-    let fname;
-    if(isSkillEntry) fname='/'+f.file;
-    else fname=f.file; // full path/command — let .fa-file word-break handle layout
-    const color=isSkillEntry?'color:#4caf84;font-weight:600':isBash?'color:#ff9800':'';
-    return '<div class="fa">'
-      +'<span class="fa-icon" style="'+(isSkillEntry?'color:#4caf84':'')+'">'+icon+'</span>'
-      +'<div class="fa-body">'
-      +'<span class="fa-file" style="'+color+'">'+esc(fname)+'</span>'
-      +(f.count>1?'<span class="fa-cnt">×'+f.count+'</span>':'')
-      +'<span class="fa-t">'+relTime(f.lastTs)+'</span>'
-      +'</div>'
-      +'</div>';
+  html('fa-list', _actFiles.length ? _actFiles.map(function(f){
+    const TOOL_ICON_SS={Edit:'✏',Write:'✏',Bash:'$',Read:'👁',WebSearch:'⌕',WebFetch:'⌕',Agent:'◈',Skill:'⚡'};
+    const icon = TOOL_ICON_SS[f.tool] || TOOL_ICON[f.tool] || '·';
+    const isCmd = f.file.startsWith('$ ');
+    const isEdited = (f.tool === 'Edit' || f.tool === 'Write' || f.tool === 'MultiEdit') && !isCmd;
+    const ago = relTime(f.lastTs);
+    var totalChanged = (f.added || 0) + (f.deleted || 0);
+    var editWarn = '';
+    if (isEdited && totalChanged >= 50) {
+      var warnColor = totalChanged >= 150 ? '#ff7043' : '#f0b429';
+      editWarn = '<span title="'+totalChanged+' lines changed" style="color:'+warnColor+';font-size:11px;flex-shrink:0;margin-right:2px">⚠</span>';
+    }
+    var sizeBadge = '';
+    if (f.lineCount) {
+      var lc = f.lineCount;
+      var sizeColor = lc >= 1000 ? '#ef5350' : lc >= 800 ? '#ff7043' : lc >= 500 ? '#f0b429' : '';
+      if (sizeColor) {
+        var sizeLabel = lc >= 1000 ? (Math.round(lc/100)/10)+'k' : lc+'';
+        sizeBadge = '<span title="'+lc+' lines" style="font-size:9px;padding:1px 5px;border-radius:8px;background:'+sizeColor+'22;color:'+sizeColor+';border:1px solid '+sizeColor+'44;flex-shrink:0;cursor:default">'+sizeLabel+'L</span>';
+      }
+    }
+    var rowBg = f.isNew ? 'background:rgba(40,200,80,.07);border-left:2px solid rgba(40,200,80,.35);padding-left:4px;' : f.isDeleted ? 'background:rgba(220,60,60,.07);border-left:2px solid rgba(220,60,60,.35);padding-left:4px;' : '';
+    var diffAttrs = isEdited
+      ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(_singleRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')
+        +' data-line-count="'+(f.lineCount||0)+'"'
+        +' data-added="'+(f.added||0)+'" data-deleted="'+(f.deleted||0)+'" data-total-changed="'+totalChanged+'"'
+        +' data-session-id="'+esc((_singleSess&&_singleSess.sessionId)||'')+'"'
+        +' data-shell-pid="'+((_singleSess&&_singleSess.shellPid)||0)+'"'
+        +' data-session-nick="'+esc((_singleSess&&_singleSess.nick)||'')+'"'
+        +' title="Click for options" style="cursor:pointer;'+rowBg+'"'
+      : (rowBg ? ' style="'+rowBg+'"' : '');
+    return '<div class="fa"'+diffAttrs+'>'
+      + '<span class="fa-icon">'+icon+'</span>'
+      + '<div class="fa-body">'
+      + '<span class="fa-file"'+(isEdited?' onmouseover="this.style.color=\'#7cbfff\'" onmouseout="this.style.color=\'\'"':'')+' style="color:'+(isCmd?'#f0b429':'inherit')+'">'+esc(f.file)+'</span>'
+      + (isEdited && (f.added != null || f.deleted != null)
+        ? '<span style="font-size:10px;white-space:nowrap;flex-shrink:0">'
+          + (f.added  ? '<span style="color:#4caf50">+'+f.added+'</span>' : '')
+          + (f.added && f.deleted ? '<span style="opacity:.3"> / </span>' : '')
+          + (f.deleted ? '<span style="color:#f44336">-'+f.deleted+'</span>' : '')
+          + '</span>'
+        : '')
+      + (f.count > 1 ? '<span class="fa-cnt">×'+f.count+'</span>' : '')
+      + '<span class="fa-t">'+ago+'</span>'
+      + sizeBadge + editWarn
+      + (f.committed && f.added == null && f.deleted == null ? '<span title="Committed to branch" style="color:#4caf50;font-size:11px;flex-shrink:0;margin-left:2px">✓</span>' : '')
+      + '</div>'
+      + '</div>';
   }).join('') : '<div class="em">No edits or commands yet this session</div>');
 
   // agents / workflow panel
@@ -374,7 +445,8 @@ function applyUpdate(d){
         + '<span style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:' + dotColor + (isLive ? ';box-shadow:0 0 5px ' + dotColor + ';animation:pulse 1.5s ease-in-out infinite' : '') + '"></span>'
         + '<span style="font-size:12px;font-weight:' + (isLive ? '600' : '400') + ';color:' + (isLive ? '#e8e8e8' : '#aaa') + ';flex:1">' + esc(displayName) + '</span>'
         + '<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:' + modelColor + '22;color:' + modelColor + '">' + esc(s.model) + '</span>'
-        + '<button data-focus-terminal="1" data-session-root="' + esc(s.root||'') + '" data-session-nick="' + esc(nick) + '" data-shell-pid="' + (s.shellPid||0) + '" data-session-started-at="' + esc(s.startedAt||'') + '" title="Open terminal for ' + esc(nick) + '" style="background:#ffffff0d;border:1px solid #ffffff18;cursor:pointer;padding:2px 8px;border-radius:4px;color:#aaa;font-size:10px;line-height:1.6;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap" onmouseover="this.style.background=\'#ffffff1a\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'#ffffff0d\';this.style.color=\'#aaa\'">⌨ terminal</button>'
+        + '<button data-focus-terminal="1" data-session-root="' + esc(s.root||'') + '" data-session-nick="' + esc(nick) + '" data-shell-pid="' + (s.shellPid||0) + '" data-session-started-at="' + esc(s.startedAt||'') + '" title="Open chat for ' + esc(nick) + '" style="background:#ffffff0d;border:1px solid #ffffff18;cursor:pointer;padding:2px 8px;border-radius:4px;color:#aaa;font-size:10px;line-height:1.6;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap" onmouseover="this.style.background=\'#ffffff1a\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'#ffffff0d\';this.style.color=\'#aaa\'">⌨ chat</button>'
+        + '<button data-close-session="' + esc(s.sessionId||'') + '" title="Dismiss session from dashboard" style="background:transparent;border:none;cursor:pointer;color:#ff453a;font-size:13px;line-height:1;padding:2px 4px;opacity:.5;flex-shrink:0" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'.5\'">×</button>'
         + '</div>'
         + '<div class="sess-col-grid">'
         + (s.stream ? '<span style="opacity:.4">Stream</span><span style="color:#4a9eff">' + esc(s.stream) + '</span>' : '')
@@ -594,9 +666,16 @@ function applyUpdate(d){
           }
         }
 
+        var rowBg = f.isNew ? 'background:rgba(40,200,80,.07);border-left:2px solid rgba(40,200,80,.35);padding-left:4px;' : f.isDeleted ? 'background:rgba(220,60,60,.07);border-left:2px solid rgba(220,60,60,.35);padding-left:4px;' : '';
         const diffAttrs = isEdited
-          ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'" title="Click for options" style="cursor:pointer"'
-          : '';
+          ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')
+            +' data-line-count="'+(f.lineCount||0)+'"'
+            +' data-added="'+(f.added||0)+'" data-deleted="'+(f.deleted||0)+'" data-total-changed="'+totalChanged+'"'
+            +' data-session-id="'+esc(s.sessionId||'')+'"'
+            +' data-shell-pid="'+(s.shellPid||0)+'"'
+            +' data-session-nick="'+esc(s.nick||'')+'"'
+            +' title="Click for options" style="cursor:pointer;'+rowBg+'"'
+          : (rowBg ? ' style="'+rowBg+'"' : '');
         return '<div class="fa"'+diffAttrs+'>'
           + '<span class="fa-icon">' + icon + '</span>'
           + '<div class="fa-body">'
@@ -612,6 +691,7 @@ function applyUpdate(d){
           + '<span class="fa-t">' + ago + '</span>'
           + sizeBadge
           + editWarn
+          + (f.committed && f.added == null && f.deleted == null ? '<span title="Committed to branch" style="color:#4caf50;font-size:11px;flex-shrink:0;margin-left:2px">✓</span>' : '')
           + '</div>'
           + '</div>';
       }).join('') || '<div class="em" style="padding:8px 14px">No activity yet</div>';
@@ -695,7 +775,8 @@ function applyUpdate(d){
   txt('cnt-roles',String(d.roleCount));
   txt('cnt-cmds',String(d.commands.length));
   renderCatalogCol('list-skills',d.skills,'#4a9eff');
-  renderCatalogCol('list-roles',d.roles,'#9c6af7');
+  window._rolesData = d.roles;
+  renderRolesCol('list-roles',d.roles,'#9c6af7');
   renderCatalogCol('list-cmds',d.commands,'#888');
 
   // footer — global counts only (session-specific data is shown on each session card)
@@ -720,6 +801,8 @@ document.addEventListener('click',function(e){
   const t=e.target;
   // Refresh button
   if(t.id==='refresh-btn'||t.closest('#refresh-btn')){
+    var rbtn=document.getElementById('refresh-btn');
+    if(rbtn){rbtn.textContent='↻ Refreshing…';rbtn.disabled=true;setTimeout(function(){rbtn.textContent='↻ Refresh';rbtn.disabled=false;},1200);}
     vscode.postMessage({command:'refresh'});return;
   }
   // File options menu (diff / copy path)
@@ -729,9 +812,15 @@ document.addEventListener('click',function(e){
       const menu=document.getElementById('_file-menu');
       const fp=menu._filePath||''; const sr=menu._sessionRoot||'';
       if(fm.dataset.fm==='diff'){
-        vscode.postMessage({command:'openDiff',filePath:fp,sessionRoot:sr});
+        vscode.postMessage({command:'openDiff',filePath:fp,sessionRoot:sr,isNew:menu._isNew||false});
       } else if(fm.dataset.fm==='copy'){
         vscode.postMessage({command:'copyPath',filePath:fp,sessionRoot:sr});
+      } else if(fm.dataset.fm==='explain-change'){
+        vscode.postMessage({command:'explainChange',filePath:fp,sessionRoot:sr,added:menu._added||0,deleted:menu._deleted||0,totalChanged:menu._totalChanged||0,shellPid:menu._shellPid||0,sessionNick:menu._sessionNick||'',sessionId:menu._sessionId||''});
+      } else if(fm.dataset.fm==='refactor-here'){
+        vscode.postMessage({command:'refactorInSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0,shellPid:menu._shellPid||0,sessionNick:menu._sessionNick||'',sessionId:menu._sessionId||''});
+      } else if(fm.dataset.fm==='refactor-new'){
+        vscode.postMessage({command:'refactorNewSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0});
       }
       menu.style.display='none';
     }
@@ -750,16 +839,58 @@ document.addEventListener('click',function(e){
     if(!menu){
       menu=document.createElement('div');
       menu.id='_file-menu';
-      menu.style.cssText='position:fixed;z-index:9999;background:#252526;border:1px solid rgba(255,255,255,.12);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,.6);display:none;flex-direction:column;min-width:170px;overflow:hidden;padding:3px 0';
-      menu.innerHTML='<div data-fm="diff" style="padding:7px 14px;cursor:pointer;font-size:12px;color:#d4d4d4;display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="opacity:.5;font-size:11px">⇄</span>Open diff</div>'
-        +'<div data-fm="copy" style="padding:7px 14px;cursor:pointer;font-size:12px;color:#d4d4d4;display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="opacity:.5;font-size:11px">⧉</span>Copy path</div>';
+      menu.style.cssText='position:fixed;z-index:9999;background:#252526;border:1px solid rgba(255,255,255,.12);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,.6);display:none;flex-direction:column;min-width:200px;overflow:hidden;padding:3px 0';
       document.body.appendChild(menu);
     }
     menu._filePath=diffEl.dataset.openDiff||'';
     menu._sessionRoot=diffEl.dataset.sessionRoot||'';
+    menu._isNew=diffEl.dataset.isNew==='1';
+    menu._isDeleted=diffEl.dataset.isDeleted==='1';
+    menu._lineCount=parseInt(diffEl.dataset.lineCount||'0',10);
+    menu._added=parseInt(diffEl.dataset.added||'0',10);
+    menu._deleted=parseInt(diffEl.dataset.deleted||'0',10);
+    menu._totalChanged=parseInt(diffEl.dataset.totalChanged||'0',10);
+    menu._sessionId=diffEl.dataset.sessionId||'';
+    menu._shellPid=parseInt(diffEl.dataset.shellPid||'0',10);
+    menu._sessionNick=diffEl.dataset.sessionNick||'';
+    var _sep='<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
+    var _fmItem=function(fm,icon,label,color,hint){
+      var c=color||'#d4d4d4';
+      var base='padding:7px 14px;cursor:pointer;font-size:12px;color:'+c+';display:flex;align-items:center;gap:8px;transition:background .12s,border-color .12s;border-left:2px solid transparent;box-sizing:border-box';
+      var over='this.style.background=\'rgba(255,255,255,.1)\';this.style.borderLeftColor=\''+c+'\'';
+      var out='this.style.background=\'\';this.style.borderLeftColor=\'transparent\'';
+      return '<div data-fm="'+fm+'" style="'+base+'" onmouseenter="'+over+'" onmouseleave="'+out+'">'
+        +'<span style="font-size:13px;width:18px;text-align:center;flex-shrink:0;display:inline-block;transition:transform .12s" onmouseenter="this.style.transform=\'scale(1.25)\'" onmouseleave="this.style.transform=\'\'">'+icon+'</span>'
+        +'<span style="flex:1">'+label+'</span>'
+        +(hint?'<span style="font-size:9px;white-space:nowrap">'+hint+'</span>':'')
+        +'</div>';
+    };
+    var _diffHint='';
+    if(menu._added||menu._deleted){
+      _diffHint=(menu._added?'<span style="color:#4caf50">+'+menu._added+'</span>':'')
+        +(menu._added&&menu._deleted?'<span style="opacity:.3"> / </span>':'')
+        +(menu._deleted?'<span style="color:#f44336">-'+menu._deleted+'</span>':'');
+    }
+    var _mHtml = _fmItem('diff', menu._isNew||menu._isDeleted?'↗️':'↔️', menu._isNew||menu._isDeleted?'Open file':'Open diff','#d4d4d4',_diffHint);
+    _mHtml += _fmItem('copy','📋','Copy path');
+    if(menu._totalChanged>=50){
+      var _wHint=(menu._added?'<span style="color:#4caf50">+'+menu._added+'</span>':'')
+        +(menu._added&&menu._deleted?'<span style="opacity:.3"> / </span>':'')
+        +(menu._deleted?'<span style="color:#f44336">-'+menu._deleted+'</span>':'');
+      _mHtml += _sep;
+      _mHtml += _fmItem('explain-change','🔍','Explain this change','#89ddff',_wHint);
+    }
+    if(menu._lineCount>=500){
+      var _lcTier=menu._lineCount>=1000?'🔴':menu._lineCount>=800?'🟠':'🟡';
+      var _lcHint='<span style="opacity:.45">'+_lcTier+' '+menu._lineCount+'L</span>';
+      if(menu._totalChanged<50) _mHtml += _sep;
+      _mHtml += _fmItem('refactor-here','⚡','Refactor in this session','#c792ea',_lcHint);
+      _mHtml += _fmItem('refactor-new','✨','Refactor in new session','#82aaff');
+    }
+    menu.innerHTML=_mHtml;
     var rect=diffEl.getBoundingClientRect();
     menu.style.display='flex';
-    menu.style.left=Math.min(e.clientX, window.innerWidth-180)+'px';
+    menu.style.left=Math.min(e.clientX, window.innerWidth-220)+'px';
     menu.style.top=(rect.bottom+2)+'px';
     return;
   }
@@ -776,6 +907,13 @@ document.addEventListener('click',function(e){
       window._wfAgentExpanded.add(agKey2);
       if(labelEl){ labelEl.style.whiteSpace='normal'; labelEl.style.overflow='visible'; labelEl.style.textOverflow='clip'; labelEl.style.wordBreak='break-word'; }
     }
+    return;
+  }
+  // Close session button
+  const closeSessBtn = t.closest('[data-close-session]');
+  if(closeSessBtn){
+    e.stopPropagation();
+    vscode.postMessage({command:'closeSession',sessionId:closeSessBtn.dataset.closeSession||''});
     return;
   }
   // Focus terminal button
@@ -838,6 +976,21 @@ document.addEventListener('click',function(e){
       }
     }
     return;
+  }
+  // Role launch button
+  const launchBtn = t.closest('[data-launch-role]');
+  if (launchBtn) {
+    e.stopPropagation();
+    vscode.postMessage({command:'launchRole',slug:launchBtn.dataset.launchRole||'',name:launchBtn.dataset.launchRoleName||''});
+    return;
+  }
+  // Role card selection (toggle)
+  const roleCard = t.closest('[data-role-select]');
+  if (roleCard && !t.closest('[data-launch-role]')) {
+    var slug2 = roleCard.dataset.roleSelect;
+    window._selectedRole = window._selectedRole === slug2 ? null : slug2;
+    renderRolesCol('list-roles', window._rolesData || [], '#9c6af7');
+    // Don't return — still allow data-cat-toggle to fire for expand
   }
   // Catalog item expand/collapse
   const catToggle = t.closest('[data-cat-toggle]');

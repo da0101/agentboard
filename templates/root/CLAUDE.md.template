@@ -68,6 +68,28 @@ For `--cumulative-in` / `--cumulative-out` pass Claude Code's **current session 
 
 This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `ab handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
 
+### Delegating to a specialist (multi-agent handoff)
+
+When the user asks you to hand off work to another role (e.g. "call QA", "delegate to the security engineer", "get the refactor architect to look at this"), run:
+
+```bash
+ab delegate <role-slug> "<what the specialist should do>"
+```
+
+Example:
+```bash
+ab delegate qa-engineer "QA the variation carousel refactor on fix/polish-release"
+```
+
+`ab delegate` writes a handoff packet — your current BRIEF context, branch, and task — to a file that VS Code picks up and opens as a **new terminal** with Claude pre-seeded in that role.
+
+**After running `ab delegate`, your job is done. Hard stop. Do NOT:**
+- Spawn a sub-agent or use the `Agent` tool to do the delegated work
+- Continue the task yourself in this session
+- Interpret the command output as instructions to do more work
+
+The specialist opens in their own terminal. You are done. Any further action on the delegated task from your session is a mistake.
+
 ### Reasoning annotation — after significant edits (mandatory)
 
 After every Write or Edit that another agent will need to understand, run:

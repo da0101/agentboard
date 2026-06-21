@@ -142,6 +142,20 @@ function readSkills(root) {
 function readRoles(root) {
     const dir = path.join(root, ".platform", "roles");
     try {
+        // Parse explicit pairs from INDEX.md: `role-slug`+ab-skill
+        const indexPairs = new Map();
+        try {
+            const indexContent = fs.readFileSync(path.join(dir, "INDEX.md"), "utf8");
+            const pairRe = /`([a-z][a-z-]+)`\+([a-z][a-z-]+)/g;
+            let m;
+            while ((m = pairRe.exec(indexContent)) !== null) {
+                const [, roleSlug, skillSlug] = m;
+                if (!indexPairs.has(roleSlug))
+                    indexPairs.set(roleSlug, []);
+                indexPairs.get(roleSlug).push(skillSlug);
+            }
+        }
+        catch { /* no INDEX.md */ }
         return fs.readdirSync(dir).filter(f => f.endsWith(".md") && f !== "INDEX.md").flatMap(f => {
             try {
                 const content = fs.readFileSync(path.join(dir, f), "utf8");
@@ -149,7 +163,13 @@ function readRoles(root) {
                 const slug = path.basename(f, ".md");
                 const afterFm = content.replace(/^---[\s\S]*?---\n?/, '').trim();
                 const fullDescription = extractProse(afterFm);
-                return [{ name: fm.name ?? fm.slug ?? slug, slug, description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription }];
+                // Merge INDEX.md pairs with ab-* mentions found in the role file body
+                const linked = new Set(indexPairs.get(slug) ?? []);
+                const bodyMatches = afterFm.match(/\bab-[a-z][a-z-]+/g) ?? [];
+                for (const s of bodyMatches)
+                    linked.add(s);
+                const linkedSkills = [...linked];
+                return [{ name: fm.name ?? fm.slug ?? slug, slug, description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription, linkedSkills }];
             }
             catch {
                 return [];
@@ -367,10 +387,13 @@ function readWorkflowPlan(root) {
 }
 function lastSkillFromEvents(events) {
     for (const e of events) {
-        if (e.tool === "Skill" && e.skill)
-            return e.skill;
+        if (e.tool !== "Skill")
+            continue;
+        const sk = e.skill || e.file || "";
+        if (sk)
+            return { skill: sk, sessionId: e.session_id ?? "" };
     }
-    return "";
+    return { skill: "", sessionId: "" };
 }
 function relTime(iso) {
     const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -442,8 +465,15 @@ class DashboardPanel {
         this._branchCache = { value: "", ts: 0 };
         // Numstat cache: avoid blocking the extension host on every tick (30 s TTL per root)
         this._numstatCache = new Map();
+        this._lineCountCache = new Map();
+        // Branch-committed cache: files changed vs merge-base with develop/main (30 s TTL per root)
+        this._branchCommittedCache = new Map();
         // HTTP backoff: slow down if server consistently absent
         this._httpFailStreak = 0;
+        this._lastDelegateKey = ""; // "<role>|<task>" dedup
+        this._lastDelegateTs = 0; // epoch ms of last handled delegate
+        // nick → terminal name cache so focusTerminal can match by session nick
+        this._sessionTerminalMap = new Map(); // nick → terminal.name
         this._workspaceRoot = workspaceRoot;
         this._panel = panel;
         const initialData = this._buildDataSync();
@@ -469,8 +499,398 @@ class DashboardPanel {
                 }
                 return;
             }
+            if (msg.command === "openDiff") {
+                const relPath = msg.filePath ?? "";
+                const sessRoot = msg.sessionRoot ?? this._workspaceRoot;
+                const isNewFile = msg.isNew ?? false;
+                if (!relPath)
+                    return;
+                // Resolve absolute path — try sessRoot first, then workspaceRoot
+                let absPath = path.isAbsolute(relPath) ? relPath : path.join(sessRoot, relPath);
+                if (!fs.existsSync(absPath)) {
+                    const alt = path.join(this._workspaceRoot, relPath);
+                    if (fs.existsSync(alt))
+                        absPath = alt;
+                }
+                const rightUri = vscode.Uri.file(absPath);
+                // New/untracked files have no HEAD version — open the file directly
+                if (isNewFile || !fs.existsSync(absPath)) {
+                    if (fs.existsSync(absPath)) {
+                        void vscode.window.showTextDocument(rightUri);
+                    }
+                    else {
+                        void vscode.window.showWarningMessage(`File not found: ${relPath}`);
+                    }
+                    return;
+                }
+                // Check if file is tracked by git before attempting diff
+                try {
+                    const { execSync: _ex } = require("child_process");
+                    const status = _ex(`git -C "${sessRoot}" status --porcelain -- "${relPath}" 2>/dev/null`).toString().trim();
+                    if (status.startsWith("??")) {
+                        // Untracked — no HEAD version, just open the file
+                        void vscode.window.showTextDocument(rightUri);
+                        return;
+                    }
+                }
+                catch { /* fall through to diff attempt */ }
+                const gitUri = rightUri.with({
+                    scheme: "git",
+                    query: JSON.stringify({ path: absPath, ref: "HEAD" }),
+                });
+                const fileName = path.basename(absPath);
+                void vscode.commands.executeCommand("vscode.diff", gitUri, rightUri, `${fileName}: HEAD ↔ Working Tree`).then(undefined, () => {
+                    void vscode.window.showTextDocument(rightUri);
+                });
+                return;
+            }
+            if (msg.command === "closeSession") {
+                const sessionId = msg.sessionId ?? "";
+                if (!sessionId)
+                    return;
+                this._deleteSessionFile(sessionId);
+                void this._update();
+                return;
+            }
+            if (msg.command === "launchRole") {
+                const slug = msg.slug ?? "";
+                const name = msg.name ?? slug;
+                if (!slug)
+                    return;
+                const terminal = vscode.window.createTerminal({ name: `Claude · ${name}`, cwd: this._workspaceRoot });
+                terminal.show();
+                const prompt = `Adopt the ${name} role for this session. Read .platform/roles/${slug}.md for your full protocol, mission, and responsibilities. Ask me 2–3 focused intake questions to understand what I need, then begin working.`;
+                const escaped = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`");
+                terminal.sendText(`claude "${escaped}"`, true);
+                return;
+            }
+            if (msg.command === "explainChange") {
+                const filePath = msg.filePath ?? "";
+                const sessRoot = msg.sessionRoot ?? this._workspaceRoot;
+                const added = msg.added ?? 0;
+                const deleted = msg.deleted ?? 0;
+                const totalChanged = msg.totalChanged ?? 0;
+                const claudePid = msg.shellPid ?? 0;
+                const sessionNick = msg.sessionNick ?? "";
+                if (!filePath)
+                    return;
+                const absPath = path.isAbsolute(filePath) ? filePath : path.join(sessRoot, filePath);
+                const diffStat = (added ? `+${added}` : "") + (added && deleted ? " / " : "") + (deleted ? `-${deleted}` : "");
+                const explainPrompt = `/ab-review
+
+A reviewer is auditing \`${absPath}\` and sees ⚠ **${totalChanged} lines changed** (${diffStat}).
+
+You made these changes — walk through your decisions clearly and directly. No preamble. Assume the reviewer is a senior engineer.
+
+═══ 1. PROBLEM & APPROACH
+What problem were you solving in this file specifically, and why did you choose this approach over the alternatives you considered?
+
+═══ 2. KEY CHANGES — section by section
+For each significant block you added or rewrote:
+• What was there before (brief)
+• What you changed it to
+• Why this is strictly better
+
+═══ 3. WHAT WAS REMOVED AND WHY
+For every significant deletion: what did you remove, why was it wrong/redundant/dead, and what (if anything) replaces it?
+
+═══ 4. DESIGN DECISIONS
+Any non-obvious architectural choices — naming, structure, data flow, abstraction boundaries, dependency direction. State the reasoning and the tradeoff you accepted.
+
+═══ 5. RISK SURFACE
+What is the most fragile thing about these changes? Any edge cases, regressions, or coupling risks introduced? What guards did you put in place?
+
+═══ 6. WHAT TO WATCH NEXT
+Anything in this file that is still wrong, incomplete, or will need follow-up attention?`;
+                const terminals = [...vscode.window.terminals];
+                void (async () => {
+                    try {
+                        const { execSync: _ex } = require("child_process");
+                        const termPids = await Promise.all(terminals.map(t => t.processId));
+                        let target;
+                        if (claudePid > 0) {
+                            try {
+                                const ppidStr = _ex(`ps -p ${claudePid} -o ppid= 2>/dev/null`).toString().trim();
+                                const parentPid = parseInt(ppidStr, 10);
+                                if (parentPid > 0)
+                                    target = terminals.find((_, i) => termPids[i] === parentPid);
+                            }
+                            catch { /* fall through */ }
+                            if (!target)
+                                target = terminals.find((_, i) => termPids[i] === claudePid);
+                        }
+                        if (!target && sessionNick && this._sessionTerminalMap.has(sessionNick)) {
+                            const cachedName = this._sessionTerminalMap.get(sessionNick);
+                            target = terminals.find(t2 => t2.name === cachedName);
+                        }
+                        if (!target && sessionNick) {
+                            const nickLower = sessionNick.toLowerCase();
+                            target = terminals.find(t2 => t2.name.toLowerCase().includes(nickLower));
+                        }
+                        if (!target && sessRoot) {
+                            const sameCwd = [];
+                            for (const term of terminals) {
+                                try {
+                                    const wd = term.shellIntegration?.cwd?.fsPath ?? "";
+                                    if (wd && (wd === sessRoot || wd.startsWith(sessRoot + "/")))
+                                        sameCwd.push(term);
+                                }
+                                catch { /* */ }
+                            }
+                            if (sameCwd.length === 1)
+                                target = sameCwd[0];
+                        }
+                        if (target) {
+                            target.show(false);
+                            target.sendText(explainPrompt, true);
+                        }
+                        else {
+                            const picked = await vscode.window.showQuickPick(terminals.map(t2 => ({ label: t2.name, terminal: t2 })), { placeHolder: "Pick the Claude terminal to send the explanation request to" });
+                            if (picked) {
+                                picked.terminal.show(false);
+                                picked.terminal.sendText(explainPrompt, true);
+                            }
+                        }
+                    }
+                    catch (err) {
+                        void vscode.window.showErrorMessage(`Explain change error: ${err instanceof Error ? err.message : String(err)}`);
+                    }
+                })();
+                return;
+            }
+            if (msg.command === "refactorInSession" || msg.command === "refactorNewSession") {
+                const filePath = msg.filePath ?? "";
+                const sessRoot = msg.sessionRoot ?? this._workspaceRoot;
+                const lineCount = msg.lineCount ?? 0;
+                if (!filePath)
+                    return;
+                const absPath = path.isAbsolute(filePath) ? filePath : path.join(sessRoot, filePath);
+                const tier = lineCount >= 1000 ? "CRITICAL — extreme monolith (1000+ lines)"
+                    : lineCount >= 800 ? "HIGH — large file (800–999 lines)"
+                        : "MODERATE — growing file (500–799 lines)";
+                const refactorPrompt = `/ab-cleanup
+
+Refactor this file — ${lineCount} lines flagged ${tier}:
+  ${absPath}
+
+Follow every phase of the ab-cleanup protocol. This is a production-grade refactor — Silicon Valley standard.
+
+═══ PHASE 0 — SAFETY NET (before reading a single line of code)
+• Run the existing test suite → record baseline: X passing / Y failing / Z skipped
+• grep / find every file that imports or references this module
+• List every public export — these are the sacred API contract, do NOT rename without full grep verification of zero callers
+• Note any runtime-critical paths (called on startup, hot path, etc.)
+
+═══ PHASE 1 — AUDIT (read the ENTIRE file, then classify)
+• Map every class, function, and responsibility line-by-line
+• Identify: God class/component, >3-level nesting, copy-paste blocks, mixed concerns (UI+logic, IO+transform), side effects inside pure functions, magic numbers/strings
+• Classify each violation by type: DRY / SRP / coupling / testability / readability / complexity
+
+═══ PHASE 2 — PLAN  ← STOP HERE AND PRESENT BEFORE ANY CODE CHANGES
+For every planned extraction, state:
+  • New filename and target directory
+  • Lines extracted (source range)
+  • Why this is safe (callers unaffected, contract unchanged)
+  • Resulting line count for source file + new file (both must be <300 lines)
+  • New test(s) required to cover the extracted module
+
+Murphy's Law check: what is the most fragile thing about this refactor? How will you guard against it?
+
+DO NOT proceed to Phase 3 until the plan is approved.
+
+═══ PHASE 3 — EXECUTE (only after plan approval)
+• One extraction at a time — tests must pass green after EVERY extraction
+• Leave the original file as a thin orchestrator/re-export barrel during transition
+• Apply: Single Responsibility, Open/Closed, DRY, Law of Demeter, immutability-first
+• Zero magic numbers — extract to named constants with intent-revealing names
+• Zero copy-paste — extract to shared utils or helpers
+• Every new function: pure where possible, side-effect-free, single responsibility
+
+═══ PHASE 4 — REGRESSION
+• Run the FULL test suite — zero new failures allowed
+• For every new module created: write minimum 1 happy-path test + 1 edge/error-case test
+• Pre-existing failures: flag as pre-existing, never hide, do NOT count as regressions from this refactor
+• Explicitly test the path most likely to break under Murphy's Law
+
+═══ PHASE 5 — REPORT
+• Before/after line counts for every file touched (table format)
+• Complete list of new files created
+• Any refactors intentionally skipped — reason required (public API contract, legitimate complexity, etc.)
+• Public API contract status: UNCHANGED / EXTENDED (never broken)`;
+                if (msg.command === "refactorInSession") {
+                    // _shell_pid is Claude's PID; terminal.processId is the SHELL's PID (Claude's parent)
+                    const claudePid = msg.shellPid ?? 0;
+                    const sessionNick = msg.sessionNick ?? "";
+                    const sessRootForTerm = sessRoot;
+                    const terminals = [...vscode.window.terminals];
+                    void (async () => {
+                        try {
+                            const { execSync: _ex } = require("child_process");
+                            const termPids = await Promise.all(terminals.map(t => t.processId));
+                            let target;
+                            // Strategy 1: _shell_pid is Claude's PID → find its parent (the shell terminal)
+                            if (claudePid > 0) {
+                                try {
+                                    const ppidStr = _ex(`ps -p ${claudePid} -o ppid= 2>/dev/null`).toString().trim();
+                                    const parentPid = parseInt(ppidStr, 10);
+                                    if (parentPid > 0)
+                                        target = terminals.find((_, i) => termPids[i] === parentPid);
+                                }
+                                catch { /* fall through */ }
+                                // Also try direct match in case shellPid IS the terminal PID in some setups
+                                if (!target)
+                                    target = terminals.find((_, i) => termPids[i] === claudePid);
+                            }
+                            // Strategy 2: cached terminal map from previous focusTerminal calls
+                            if (!target && sessionNick && this._sessionTerminalMap.has(sessionNick)) {
+                                const cachedName = this._sessionTerminalMap.get(sessionNick);
+                                target = terminals.find(t2 => t2.name === cachedName);
+                            }
+                            // Strategy 3: nick in terminal name
+                            if (!target && sessionNick) {
+                                const nickLower = sessionNick.toLowerCase();
+                                target = terminals.find(t2 => t2.name.toLowerCase().includes(nickLower));
+                            }
+                            // Strategy 4: CWD match (same as focusTerminal strategy 3)
+                            if (!target && sessRootForTerm) {
+                                const sameCwd = [];
+                                for (const term of terminals) {
+                                    try {
+                                        const wd = term.shellIntegration?.cwd?.fsPath ?? "";
+                                        if (wd && (wd === sessRootForTerm || wd.startsWith(sessRootForTerm + "/")))
+                                            sameCwd.push(term);
+                                    }
+                                    catch { /* */ }
+                                }
+                                if (sameCwd.length === 1)
+                                    target = sameCwd[0];
+                            }
+                            if (target) {
+                                target.show(false);
+                                target.sendText(refactorPrompt, true);
+                            }
+                            else {
+                                // Offer a quick-pick as final fallback
+                                const picked = await vscode.window.showQuickPick(terminals.map(t2 => ({ label: t2.name, terminal: t2 })), { placeHolder: "Pick the Claude terminal to send the refactor prompt to" });
+                                if (picked) {
+                                    picked.terminal.show(false);
+                                    picked.terminal.sendText(refactorPrompt, true);
+                                }
+                            }
+                        }
+                        catch (err) {
+                            void vscode.window.showErrorMessage(`Refactor error: ${err instanceof Error ? err.message : String(err)}`);
+                        }
+                    })();
+                }
+                else {
+                    // Spawn new Claude terminal with Code Cleanup role
+                    const cwd = sessRoot || this._workspaceRoot;
+                    const terminal = vscode.window.createTerminal({ name: "Claude · Code Cleanup", cwd });
+                    terminal.show();
+                    const escaped = refactorPrompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`");
+                    terminal.sendText(`claude "${escaped}"`, true);
+                }
+                return;
+            }
+            if (msg.command === "copyPath") {
+                const relPath = msg.filePath ?? "";
+                const sessRoot = msg.sessionRoot ?? this._workspaceRoot;
+                if (!relPath)
+                    return;
+                const absPath = path.isAbsolute(relPath) ? relPath : path.join(sessRoot, relPath);
+                void vscode.env.clipboard.writeText(absPath).then(() => {
+                    void vscode.window.setStatusBarMessage(`Copied: ${absPath}`, 3000);
+                });
+                return;
+            }
+            if (msg.command === "focusTerminal") {
+                const root = msg.sessionRoot ?? "";
+                const nick = msg.sessionNick ?? "";
+                const shellPid = msg.shellPid ?? 0;
+                const terminals = [...vscode.window.terminals]; // snapshot — terminals list can change async
+                void (async () => {
+                    try {
+                        const termPids = await Promise.all(terminals.map(t => t.processId));
+                        // 1. Exact shell PID match (written by status-bridge hook on every tool call)
+                        if (shellPid > 0) {
+                            const byPid = terminals.find((_, i) => termPids[i] === shellPid);
+                            if (byPid) {
+                                byPid.show(true);
+                                return;
+                            }
+                            // PID no longer matches a live terminal — check if it's a child of any terminal
+                            // (handles cases where claude wraps inside an extra shell layer)
+                            try {
+                                const { execSync: _ex } = await Promise.resolve().then(() => require("child_process"));
+                                for (let i = 0; i < termPids.length; i++) {
+                                    const tpid = termPids[i];
+                                    if (!tpid)
+                                        continue;
+                                    // Get all descendants of this terminal's shell
+                                    const children = _ex(`/usr/bin/pgrep -P ${tpid} 2>/dev/null || true`).toString().trim().split("\n").filter(Boolean).map(Number);
+                                    if (children.includes(shellPid)) {
+                                        terminals[i].show(true);
+                                        return;
+                                    }
+                                }
+                            }
+                            catch { /* fall through */ }
+                        }
+                        // 2. Nick-based name match — delegate terminals are named "Claude · <role-name>"
+                        //    Regular sessions: try matching nick suffix in terminal name
+                        const nickLower = nick.toLowerCase();
+                        const byName = terminals.find(t => {
+                            const n = t.name.toLowerCase();
+                            return n.includes(nickLower) || n.endsWith(nick) || n === `claude · ${nickLower}`;
+                        });
+                        if (byName) {
+                            byName.show(true);
+                            return;
+                        }
+                        // 3. shellIntegration CWD match — only when exactly one terminal is in this root
+                        if (root) {
+                            const cwdMatches = terminals.filter(t => {
+                                const cwd = t.shellIntegration?.cwd?.fsPath ?? "";
+                                return cwd && cwd.startsWith(root);
+                            });
+                            if (cwdMatches.length === 1) {
+                                cwdMatches[0].show(true);
+                                return;
+                            }
+                        }
+                        void vscode.window.showInformationMessage(`⌨ Chat not found for "${nick}". Wait for Claude's next tool call then try again.`);
+                    }
+                    catch (err) {
+                        void vscode.window.showErrorMessage(`focusTerminal error: ${err instanceof Error ? err.message : String(err)}`);
+                    }
+                })();
+                return;
+            }
         }, null, this._disposables);
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+        vscode.window.onDidCloseTerminal(async (closed) => {
+            const pid = await closed.processId;
+            if (!pid)
+                return;
+            const sessDir = path.join(os.homedir(), ".agentboard", "sessions");
+            try {
+                for (const fname of fs.readdirSync(sessDir)) {
+                    if (!fname.endsWith(".json"))
+                        continue;
+                    try {
+                        const raw = fs.readFileSync(path.join(sessDir, fname), "utf8");
+                        const d = JSON.parse(raw);
+                        if (d._shell_pid === pid) {
+                            fs.unlinkSync(path.join(sessDir, fname));
+                            void this._update();
+                        }
+                    }
+                    catch { /* skip */ }
+                }
+            }
+            catch { /* dir missing */ }
+        }, null, this._disposables);
     }
     _buildDataSync() {
         // Always try live.json first — works regardless of which VS Code window is open
@@ -558,7 +978,7 @@ class DashboardPanel {
             return evs;
         };
         const allEvents = getEventsForRoot(this._workspaceRoot);
-        const lastSkill = lastSkillFromEvents(allEvents);
+        // lastSkill computed after activeSessions is built so we can filter to active sessions only
         // Filter events to current session only (prevents stale events from previous /clear sessions bleeding through)
         const hasSessionIds = allEvents.some(e => e.session_id);
         const sessionEvents = (hasSessionIds && currentSessionId)
@@ -651,8 +1071,8 @@ class DashboardPanel {
                         done: false,
                     });
             }
-            else if (ev.tool === "Agent" && ev.agent) {
-                const key = ev.agent ?? "";
+            else if (ev.tool === "AgentDone") {
+                const key = ev.label ?? "";
                 const existing = agentMap.get(key);
                 if (existing)
                     agentMap.set(key, { ...existing, done: true });
@@ -696,9 +1116,11 @@ class DashboardPanel {
                             : allSEvents;
                         const sFileMap = new Map();
                         for (const ev of [...sEvents].reverse()) {
-                            if (!ev.file && !ev.cmd)
+                            // Skill events may only have ev.skill (not ev.file) — normalize to displayable key
+                            const skillName = ev.tool === 'Skill' ? (ev.skill || ev.file || "") : "";
+                            if (!ev.file && !ev.cmd && !skillName)
                                 continue;
-                            const k = ev.file ?? `$ ${(ev.cmd ?? "").slice(0, 60)}`;
+                            const k = skillName ? `/${skillName}` : (ev.file ?? `$ ${(ev.cmd ?? "").slice(0, 60)}`);
                             const ex = sFileMap.get(k);
                             if (!ex || ev.ts > ex.lastTs)
                                 sFileMap.set(k, { tool: ev.tool, count: (ex?.count ?? 0) + 1, lastTs: ev.ts });
@@ -738,6 +1160,85 @@ class DashboardPanel {
                             }
                         }
                         catch { /* git unavailable or repo not found — skip diff stats */ }
+                        // Enrich file entries with current line count (cached, 60 s TTL)
+                        const LINE_COUNT_TTL = 60000;
+                        for (const entry of sActivity) {
+                            if (entry.file.startsWith("$ ") || !sRoot)
+                                continue;
+                            const absFile = path.join(sRoot, entry.file);
+                            try {
+                                const cached = this._lineCountCache.get(absFile);
+                                if (cached && (Date.now() - cached.ts) < LINE_COUNT_TTL) {
+                                    entry.lineCount = cached.count;
+                                }
+                                else {
+                                    const lines = fs.readFileSync(absFile, "utf8").split("\n").length;
+                                    this._lineCountCache.set(absFile, { ts: Date.now(), count: lines });
+                                    entry.lineCount = lines;
+                                }
+                            }
+                            catch { /* file may not exist yet */ }
+                        }
+                        // Mark files that have committed changes on this branch vs develop/main merge-base
+                        try {
+                            const COMMITTED_TTL = 30000;
+                            const cacheKey = sRoot;
+                            const cachedC = this._branchCommittedCache.get(cacheKey);
+                            let committedFiles;
+                            if (cachedC && (Date.now() - cachedC.ts) < COMMITTED_TTL) {
+                                committedFiles = cachedC.files;
+                            }
+                            else {
+                                committedFiles = new Set();
+                                // Find merge-base with develop, then main, then fall back to HEAD~1
+                                let mergeBase = "";
+                                for (const base of ["origin/develop", "origin/main", "HEAD~1"]) {
+                                    try {
+                                        mergeBase = (0, child_process_1.execSync)(`git merge-base HEAD ${base}`, { cwd: sRoot, timeout: 3000, encoding: "utf8" }).trim();
+                                        if (mergeBase)
+                                            break;
+                                    }
+                                    catch { /* try next */ }
+                                }
+                                if (mergeBase) {
+                                    const nameOnly = (0, child_process_1.execSync)(`git diff --name-only ${mergeBase}..HEAD`, { cwd: sRoot, timeout: 3000, encoding: "utf8" });
+                                    for (const line of nameOnly.split("\n")) {
+                                        const f2 = line.trim();
+                                        if (f2)
+                                            committedFiles.add(f2);
+                                    }
+                                }
+                                this._branchCommittedCache.set(cacheKey, { ts: Date.now(), files: committedFiles });
+                            }
+                            for (const entry of sActivity) {
+                                if (entry.tool === "Edit" || entry.tool === "Write" || entry.tool === "MultiEdit") {
+                                    entry.committed = committedFiles.has(entry.file);
+                                }
+                            }
+                        }
+                        catch { /* git unavailable */ }
+                    }
+                    // Detect new/deleted files via git status --porcelain
+                    if (sRoot) {
+                        try {
+                            const statusOut = (0, child_process_1.execSync)(`git -C "${sRoot}" status --porcelain 2>/dev/null`, { timeout: 3000, encoding: "utf8" });
+                            const statusMap = new Map();
+                            for (const line of statusOut.split("\n")) {
+                                if (line.length < 4)
+                                    continue;
+                                const xy = line.slice(0, 2);
+                                const fpath = line.slice(3).trim().replace(/^"(.*)"$/, "$1"); // git quotes paths with spaces
+                                statusMap.set(fpath, xy);
+                            }
+                            for (const entry of sActivity) {
+                                const xy = statusMap.get(entry.file) ?? statusMap.get(entry.file.replace(/\\/g, "/")) ?? "";
+                                if (xy === "??" || xy[0] === "A" || xy[1] === "A")
+                                    entry.isNew = true;
+                                else if (xy[0] === "D" || xy[1] === "D")
+                                    entry.isDeleted = true;
+                            }
+                        }
+                        catch { /* git unavailable */ }
                     }
                     // Skip ghost sessions: no tool events AND session started >15 min ago
                     // Use startedAt age (not lastUpdated) so status-bridge pings don't keep ghosts alive
@@ -760,8 +1261,8 @@ class DashboardPanel {
                                     ts: ev.ts, done: false,
                                 });
                             }
-                            else if (ev.tool === "Agent" && ev.agent) {
-                                const k = ev.agent ?? "";
+                            else if (ev.tool === "AgentDone") {
+                                const k = ev.label ?? "";
                                 const ex = sAgentMap.get(k);
                                 if (ex)
                                     sAgentMap.set(k, { ...ex, done: true });
@@ -838,7 +1339,9 @@ class DashboardPanel {
                         cost: costUsd > 0 ? `$${costUsd.toFixed(3)}` : "",
                         branch: ctx.branch || "",
                         root: sRoot,
+                        shellPid: s._shell_pid || 0,
                         projectName: sRoot ? path.basename(sRoot) : "",
+                        sessionLastSkill: "", sessionLastRole: "",
                         startedAt: sStartedAt,
                         lastUpdated,
                         ageSeconds: Math.floor(ageMs / 1000),
@@ -889,29 +1392,38 @@ class DashboardPanel {
             activeSessions.push(...Array.from(slotMap.values()).sort((a, b) => a.startedAt.localeCompare(b.startedAt)));
         }
         catch { /* sessions dir doesn't exist yet */ }
-        // Build skill/role usage map from session events
+        // lastSkill: only from currently active sessions (avoids stale closed-session data in footer)
+        const activeSessionIds = new Set(activeSessions.map(s => s.sessionId));
         function sessionNick(id) {
-            const ADJ = ['bold', 'calm', 'swift', 'bright', 'deep', 'sharp', 'keen', 'dark', 'wild', 'quiet', 'brave', 'cool', 'warm', 'soft', 'fast', 'wise', 'pure', 'deft', 'lean', 'teal', 'grey', 'sage'];
-            const NON = ['falcon', 'tiger', 'wolf', 'eagle', 'raven', 'fox', 'bear', 'hawk', 'lynx', 'crane', 'otter', 'pike', 'heron', 'wren', 'viper', 'bison', 'moose', 'ibis', 'kite', 'wasp', 'colt', 'finch'];
+            const ADJ = ['bold', 'calm', 'swift', 'bright', 'sharp', 'keen', 'wild', 'quiet', 'brave', 'cool', 'warm', 'soft', 'fast', 'wise', 'pure', 'deft', 'lean', 'sage', 'red', 'blue', 'gold', 'jade', 'iron', 'amber', 'violet', 'azure', 'coral', 'frost', 'storm', 'sand', 'ember', 'cedar', 'steel', 'nova', 'oak', 'ivy', 'clay', 'moss', 'dawn', 'rust'];
+            const NON = ['falcon', 'tiger', 'wolf', 'eagle', 'raven', 'fox', 'bear', 'hawk', 'lynx', 'crane', 'otter', 'pike', 'heron', 'wren', 'viper', 'bison', 'moose', 'ibis', 'kite', 'wasp', 'colt', 'finch', 'puma', 'cobra', 'gecko', 'quail', 'trout', 'mink', 'stork', 'stoat', 'dingo', 'snipe', 'marten', 'condor', 'osprey', 'ferret', 'oriole', 'magpie', 'jaguar', 'marlin'];
             let h = 0;
             for (let i = 0; i < id.length; i++)
                 h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0;
             return ADJ[h % ADJ.length] + '-' + NON[(h >>> 8) % NON.length];
         }
+        const activeEventsForSkill = allEvents.filter(e => !e.session_id || activeSessionIds.has(e.session_id));
+        const { skill: lastSkill, sessionId: lastSkillSessionId } = lastSkillFromEvents(activeEventsForSkill);
+        const lastSkillSession = (lastSkillSessionId && activeSessionIds.has(lastSkillSessionId)) ? sessionNick(lastSkillSessionId) : "";
         const skillUsage = new Map();
         const roleUsage = new Map();
+        const sessionLastSkillMap = new Map();
+        const sessionLastRoleMap = new Map();
         for (const sess of activeSessions) {
             if (!sess.root)
                 continue;
             const evs = getEventsForRoot(sess.root).filter(e => e.session_id === sess.sessionId);
             const nick = sessionNick(sess.sessionId);
             for (const ev of evs) {
-                if (ev.tool === 'Skill' && ev.skill) {
-                    const sk = ev.skill;
-                    if (!skillUsage.has(sk))
-                        skillUsage.set(sk, []);
-                    if (!skillUsage.get(sk).includes(nick))
-                        skillUsage.get(sk).push(nick);
+                if (ev.tool === 'Skill') {
+                    const sk = ev.skill || ev.file || "";
+                    if (sk) {
+                        if (!skillUsage.has(sk))
+                            skillUsage.set(sk, []);
+                        if (!skillUsage.get(sk).includes(nick))
+                            skillUsage.get(sk).push(nick);
+                        sessionLastSkillMap.set(sess.sessionId, sk); // last wins = most recent
+                    }
                 }
                 // RoleAdopt: main session read a role file — slug-keyed
                 if (ev.tool === 'RoleAdopt' && ev.role) {
@@ -920,6 +1432,7 @@ class DashboardPanel {
                         roleUsage.set(ro, []);
                     if (!roleUsage.get(ro).includes(nick))
                         roleUsage.get(ro).push(nick);
+                    sessionLastRoleMap.set(sess.sessionId, ro);
                 }
                 // AgentStart with role label (sub-agents dispatched with role:<name>)
                 if (ev.tool === 'AgentStart' && ev.role) {
@@ -928,8 +1441,12 @@ class DashboardPanel {
                         roleUsage.set(ro, []);
                     if (!roleUsage.get(ro).includes(nick))
                         roleUsage.get(ro).push(nick);
+                    if (!sessionLastRoleMap.has(sess.sessionId))
+                        sessionLastRoleMap.set(sess.sessionId, ro);
                 }
             }
+            sess.sessionLastSkill = sessionLastSkillMap.get(sess.sessionId) ?? "";
+            sess.sessionLastRole = sessionLastRoleMap.get(sess.sessionId) ?? "";
         }
         const skillsWithUsage = skills.map(s => ({ ...s, usedBy: skillUsage.get(s.name) ?? skillUsage.get(s.slug ?? '') ?? [] }));
         // Match roles by slug first (RoleAdopt events use slug), then display name (AgentStart labels)
@@ -941,7 +1458,7 @@ class DashboardPanel {
         });
         return {
             type: "update",
-            hasLive, model, cost, sessionTime, activeStream, streamDesc, activeRole, lastSkill,
+            hasLive, model, cost, sessionTime, activeStream, streamDesc, activeRole, lastSkill, lastSkillSession,
             ctxPct, branch, cpRunning: false, sessions: 0, totalUniqueFiles,
             activeSessions,
             activeWorkflow,
@@ -955,9 +1472,66 @@ class DashboardPanel {
             projectName: path.basename(this._workspaceRoot),
         };
     }
+    _handleDelegateFile() {
+        const delegateFile = path.join(os.homedir(), ".agentboard", "delegate.json");
+        if (!fs.existsSync(delegateFile))
+            return;
+        let raw;
+        try {
+            raw = fs.readFileSync(delegateFile, "utf8");
+            fs.unlinkSync(delegateFile); // delete first — prevent duplicate opens on next tick
+        }
+        catch {
+            return;
+        }
+        try {
+            const d = JSON.parse(raw);
+            if (!d.role || !d.task)
+                return;
+            // Dedup: ignore if same role+task was already handled within 60 seconds
+            const dedupeKey = `${d.role}|${d.task}`;
+            if (dedupeKey === this._lastDelegateKey && (Date.now() - this._lastDelegateTs) < 60000)
+                return;
+            this._lastDelegateKey = dedupeKey;
+            this._lastDelegateTs = Date.now();
+            const roles = readRoles(d.root ?? this._workspaceRoot);
+            const roleItem = roles.find(r => r.slug === d.role);
+            const roleName = roleItem?.name ?? d.role;
+            const lines = [
+                `Adopt the ${roleName} role for this session.`,
+                `Read .platform/roles/${d.role}.md for your full protocol, mission, and responsibilities.`,
+            ];
+            if (d.project || d.branch) {
+                const from = [d.project, d.branch ? `branch: ${d.branch}` : ""].filter(Boolean).join(" — ");
+                lines.push(`\nHandoff from: ${from}`);
+            }
+            if (d.context)
+                lines.push(d.context);
+            lines.push(`\nYour task: ${d.task}`);
+            lines.push(`\nAsk me 2–3 focused intake questions if anything needs clarification, then begin.`);
+            const prompt = lines.join("\n");
+            const escaped = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`");
+            const cwd = d.root && fs.existsSync(d.root) ? d.root : this._workspaceRoot;
+            const termName = `Claude · ${roleName}`;
+            const terminal = vscode.window.createTerminal({ name: termName, cwd });
+            terminal.show();
+            terminal.sendText(`claude "${escaped}"`, true);
+            this._sessionTerminalMap.set(d.role, termName);
+        }
+        catch { /* malformed delegate.json — silently ignore */ }
+    }
+    _deleteSessionFile(sessionId) {
+        const sessDir = path.join(os.homedir(), ".agentboard", "sessions");
+        const f = path.join(sessDir, `${sessionId}.json`);
+        try {
+            fs.unlinkSync(f);
+        }
+        catch { /* already gone */ }
+    }
     async _update() {
         if (!this._initialized)
             return;
+        this._handleDelegateFile();
         const data = this._buildDataSync();
         // HTTP calls for sessions/worktrees: skip entirely when server is consistently absent (backoff)
         let sessions = [];
@@ -1008,8 +1582,9 @@ class DashboardPanel {
 body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
 #hdr{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
 .logo{color:#4a9eff;font-weight:700;letter-spacing:.08em;font-size:11px}.sep{opacity:.25}.proj{opacity:.65;font-size:12px}.br{opacity:.4;font-size:11px}
-.rbtn{margin-left:auto;background:transparent;border:1px solid var(--vscode-panel-border);color:inherit;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px}
+.rbtn{margin-left:auto;background:transparent;border:1px solid var(--vscode-panel-border);color:inherit;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;transition:opacity .1s}
 .rbtn:hover{background:var(--vscode-list-hoverBackground)}
+.rbtn:active{opacity:.5}
 .tabs{display:flex;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0;padding:0 14px}
 .tab{padding:5px 12px;font-size:12px;cursor:pointer;border:none;border-bottom:2px solid transparent;opacity:.45;transition:all .15s;background:none;color:inherit}
 .tab.on{opacity:1;border-bottom-color:#4a9eff;color:#4a9eff}
@@ -1053,8 +1628,8 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 .fa{display:grid;grid-template-columns:auto 1fr;gap:0 10px;padding:4px 0;border-bottom:1px solid rgba(128,128,128,.07);font-size:12px}
 .fa:last-child{border-bottom:none}
 .fa-icon{opacity:.45;font-size:11px;text-align:center;width:14px;padding-top:2px}
-.fa-body{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;min-width:0}
-.fa-file{font-family:var(--vscode-editor-font-family,'monospace');word-break:break-all;line-height:1.5}
+.fa-body{display:flex;flex-wrap:nowrap;align-items:baseline;gap:0 6px;min-width:0;overflow:hidden}
+.fa-file{font-family:var(--vscode-editor-font-family,'monospace');overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
 .fa-cnt{font-size:10px;opacity:.3;white-space:nowrap;flex-shrink:0}
 .fa-t{font-size:10px;opacity:.35;white-space:nowrap;flex-shrink:0}
 /* streams */
