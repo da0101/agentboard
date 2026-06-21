@@ -853,21 +853,23 @@ document.addEventListener('click',function(e){
     menu._sessionId=diffEl.dataset.sessionId||'';
     menu._shellPid=parseInt(diffEl.dataset.shellPid||'0',10);
     menu._sessionNick=diffEl.dataset.sessionNick||'';
-    var _fmItem=function(fm,icon,label,color){
-      return '<div data-fm="'+fm+'" style="padding:7px 14px;cursor:pointer;font-size:12px;color:'+(color||'#d4d4d4')+';display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="opacity:.5;font-size:11px">'+icon+'</span>'+label+'</div>';
+    var _sep='<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
+    var _fmItem=function(fm,icon,label,color,hint){
+      return '<div data-fm="'+fm+'" style="padding:7px 14px;cursor:pointer;font-size:12px;color:'+(color||'#d4d4d4')+';display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="opacity:.45;font-size:11px;width:14px;text-align:center;flex-shrink:0">'+icon+'</span><span style="flex:1">'+label+'</span>'+(hint?'<span style="font-size:9px;opacity:.35;white-space:nowrap">'+hint+'</span>':'')+'</div>';
     };
-    var _mHtml = _fmItem('diff', menu._isNew||menu._isDeleted?'↗':'⇄', menu._isNew||menu._isDeleted?'Open file':'Open diff');
-    _mHtml += _fmItem('copy','⧉','Copy path');
+    var _mHtml = _fmItem('diff','⇄', menu._isNew||menu._isDeleted?'Open file':'Open diff');
+    if(menu._isNew||menu._isDeleted) _mHtml = _fmItem('diff','↗','Open file');
+    _mHtml += _fmItem('copy','⊹','Copy path');
     if(menu._totalChanged>=50){
-      var _warnTier=menu._totalChanged>=150?'🔴':'⚠';
-      _mHtml += '<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
-      _mHtml += _fmItem('explain-change','🔍',_warnTier+' Explain this change','#89ddff');
+      var _tc=menu._totalChanged; var _wHint='+'+menu._added+' / -'+menu._deleted;
+      _mHtml += _sep;
+      _mHtml += _fmItem('explain-change','⊙','Explain this change','#89ddff',_wHint);
     }
     if(menu._lineCount>=500){
-      var _lTier=menu._lineCount>=1000?'🔴':menu._lineCount>=800?'🟠':'🟡';
-      if(menu._totalChanged<50) _mHtml += '<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
-      _mHtml += _fmItem('refactor-here','⚡',_lTier+' Refactor in this session','#c792ea');
-      _mHtml += _fmItem('refactor-new','◈','Refactor in new session','#82aaff');
+      var _lcHint=menu._lineCount+'L';
+      if(menu._totalChanged<50) _mHtml += _sep;
+      _mHtml += _fmItem('refactor-here','↺','Refactor in this session','#c792ea',_lcHint);
+      _mHtml += _fmItem('refactor-new','⊕','Refactor in new session','#82aaff');
     }
     menu.innerHTML=_mHtml;
     var rect=diffEl.getBoundingClientRect();
