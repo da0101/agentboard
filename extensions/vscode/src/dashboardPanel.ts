@@ -358,6 +358,7 @@ const MODEL_NAMES = new Set(["claude", "sonnet", "opus", "haiku", "fable", "gpt"
 
 export class DashboardPanel {
   static currentPanel: DashboardPanel | undefined;
+  static sessionPanels: Map<string, DashboardPanel> = new Map();
   static extensionUri: vscode.Uri | undefined;
   private readonly _panel: vscode.WebviewPanel;
   private _disposables: vscode.Disposable[] = [];
@@ -379,6 +380,7 @@ export class DashboardPanel {
   private _branchCommittedCache = new Map<string, { ts: number; files: Set<string> }>();
   // HTTP backoff: slow down if server consistently absent
   private _httpFailStreak = 0;
+  private _boundSessionId: string | null = null;
   private _lastDelegateKey = ""; // "<role>|<task>" dedup
   private _lastDelegateTs = 0;   // epoch ms of last handled delegate
   // nick → terminal name cache so focusTerminal can match by session nick
@@ -415,22 +417,85 @@ export class DashboardPanel {
     if (DashboardPanel.currentPanel) void DashboardPanel.currentPanel._update();
   }
 
+  // Open (or reveal) a per-session tab for the given session.
+  static openSession(sessionId: string, nick: string, workspaceRoot: string): void {
+    if (this.sessionPanels.has(sessionId)) {
+      try { this.sessionPanels.get(sessionId)!._panel.reveal(undefined, true); } catch { /* disposed */ }
+      return;
+    }
+    if (!this.extensionUri) return;
+    const panel = vscode.window.createWebviewPanel(
+      "agentboardSession",
+      nick || sessionId.slice(0, 8),
+      { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "media")],
+      }
+    );
+    try {
+      const instance = new DashboardPanel(panel, workspaceRoot, sessionId);
+      this.sessionPanels.set(sessionId, instance);
+    } catch (err) {
+      panel.dispose();
+      console.error("[agentboard] SessionPanel constructor failed:", err);
+    }
+  }
+
+  // Called by the main panel on each update cycle to sync session tabs.
+  private static _syncSessionPanels(payload: Record<string, unknown>, workspaceRoot: string): void {
+    const sessions = (payload.activeSessions as Array<{ sessionId: string; nick: string }> | undefined) ?? [];
+    const activeIds = new Set(sessions.map(s => s.sessionId));
+
+    // Open new tabs for newly detected sessions
+    for (const sess of sessions) {
+      if (!this.sessionPanels.has(sess.sessionId)) {
+        this.openSession(sess.sessionId, sess.nick || sess.sessionId.slice(0, 8), workspaceRoot);
+      } else {
+        // Update title if nick changed and session still active
+        const p = this.sessionPanels.get(sess.sessionId)!;
+        const title = sess.nick || sess.sessionId.slice(0, 8);
+        if (!p._panel.title.endsWith(" ✓") && p._panel.title !== title) p._panel.title = title;
+      }
+    }
+
+    // Mark panels whose sessions are no longer active
+    for (const [id, p] of this.sessionPanels) {
+      if (!activeIds.has(id) && !p._panel.title.endsWith(" ✓")) {
+        p._panel.title = p._panel.title + " ✓";
+      }
+    }
+  }
+
   private _workspaceRoot: string;
 
-  private constructor(panel: vscode.WebviewPanel, workspaceRoot: string) {
+  private constructor(panel: vscode.WebviewPanel, workspaceRoot: string, boundSessionId?: string) {
+    this._boundSessionId = boundSessionId ?? null;
     this._workspaceRoot = workspaceRoot;
     this._panel = panel;
-    const initialData = this._buildDataSync();
-    this._panel.webview.html = this._getShell(initialData, panel.webview);
+    const initialData = this._buildDataSync() as Record<string, unknown>;
+    let initialDisplay: object = initialData;
+    if (this._boundSessionId) {
+      const sessions = (initialData.activeSessions as Array<{ sessionId: string }> | undefined) ?? [];
+      const my = sessions.find(s => s.sessionId === this._boundSessionId);
+      initialDisplay = { ...initialData, activeSessions: my ? [my] : [] };
+    }
+    this._panel.webview.html = this._getShell(initialDisplay, panel.webview);
     this._initialized = true;
-    // Use broad globs that work regardless of which folder VS Code has open
-    try {
-      const hudWatcher = vscode.workspace.createFileSystemWatcher("**/agentboard.hud-status.json");
-      hudWatcher.onDidChange(() => void this._update(), null, this._disposables);
-      hudWatcher.onDidCreate(() => void this._update(), null, this._disposables);
-      this._disposables.push(hudWatcher);
-    } catch { /* watcher failed — poll interval covers it */ }
-    this._interval = setInterval(() => void this._update(), 5_000);
+    if (!this._boundSessionId) {
+      // Main panel: file system watcher + fast poll
+      try {
+        const hudWatcher = vscode.workspace.createFileSystemWatcher("**/agentboard.hud-status.json");
+        hudWatcher.onDidChange(() => void this._update(), null, this._disposables);
+        hudWatcher.onDidCreate(() => void this._update(), null, this._disposables);
+        this._disposables.push(hudWatcher);
+      } catch { /* watcher failed — poll interval covers it */ }
+      this._interval = setInterval(() => void this._update(), 5_000);
+    } else {
+      // Session panel: 60 s fallback self-refresh (main panel drives it at 5 s via _syncSessionPanels)
+      this._interval = setInterval(() => void this._update(), 60_000);
+    }
     this._panel.webview.onDidReceiveMessage(
       (msg: { command: string; filePath?: string; sessionRoot?: string; sessionNick?: string }) => {
         if (msg.command === "refresh") void this._update();
@@ -965,6 +1030,7 @@ DO NOT proceed to Phase 3 until the plan is approved.
       hasWorkflow: boolean; workflowAgentCount: number; workflowLabel: string;
       workflowTranscriptAgents: TranscriptAgent[];
       workflowPlan: WorkflowPlan | null;
+      nick: string;
     }
     const sessionsDir = path.join(os.homedir(), ".agentboard", "sessions");
     const activeSessions: SessionEntry[] = [];
@@ -1207,6 +1273,7 @@ DO NOT proceed to Phase 3 until the plan is approved.
             workflowLabel: sWorkflowLabel,
             workflowTranscriptAgents: transcriptAgents,
             workflowPlan: sRoot ? readWorkflowPlan(sRoot) : null,
+            nick: "", // filled in after dedup by sessionNick()
           });
         } catch { /* skip malformed file */ }
       }
@@ -1250,6 +1317,8 @@ DO NOT proceed to Phase 3 until the plan is approved.
       for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0;
       return ADJ[h % ADJ.length] + '-' + NON[(h >>> 8) % NON.length];
     }
+    // Stamp nick onto each session entry so the frontend and tab titles can use it
+    for (const sess of activeSessions) sess.nick = sessionNick(sess.sessionId);
     const activeEventsForSkill = allEvents.filter(e => !e.session_id || activeSessionIds.has(e.session_id));
     const { skill: lastSkill, sessionId: lastSkillSessionId } = lastSkillFromEvents(activeEventsForSkill);
     const lastSkillSession = (lastSkillSessionId && activeSessionIds.has(lastSkillSessionId)) ? sessionNick(lastSkillSessionId) : "";
@@ -1383,9 +1452,30 @@ DO NOT proceed to Phase 3 until the plan is approved.
 
     const payload = { ...data, cpRunning, sessions: sessions.length, worktrees };
 
-    const delivered = await this._panel.webview.postMessage(payload);
+    // Main panel: sync per-session tabs, then push full data to its own webview.
+    // Session-bound panels: push filtered data (only their session) to their webview.
+    const payloadRec = payload as Record<string, unknown>;
+    if (!this._boundSessionId) {
+      DashboardPanel._syncSessionPanels(payloadRec, this._workspaceRoot);
+      // Push filtered data to each open session panel
+      for (const [sid, sp] of DashboardPanel.sessionPanels) {
+        const activeSess = (payloadRec.activeSessions as Array<{ sessionId: string }> | undefined) ?? [];
+        const mySession = activeSess.find(s => s.sessionId === sid);
+        const spPayload = { ...payloadRec, activeSessions: mySession ? [mySession] : [] };
+        void sp._panel.webview.postMessage(spPayload);
+      }
+    }
+
+    let postPayload: object = payload;
+    if (this._boundSessionId) {
+      const activeSess = (payloadRec.activeSessions as Array<{ sessionId: string }> | undefined) ?? [];
+      const mySession = activeSess.find(s => s.sessionId === this._boundSessionId);
+      postPayload = { ...payloadRec, activeSessions: mySession ? [mySession] : [] };
+    }
+
+    const delivered = await this._panel.webview.postMessage(postPayload);
     if (!delivered) {
-      this._panel.webview.html = this._getShell(payload, this._panel.webview);
+      this._panel.webview.html = this._getShell(postPayload, this._panel.webview);
     }
   }
 
@@ -1600,7 +1690,11 @@ ${scriptTag}
 
   dispose(): void {
     if (this._interval) clearInterval(this._interval);
-    DashboardPanel.currentPanel = undefined;
+    if (this._boundSessionId) {
+      DashboardPanel.sessionPanels.delete(this._boundSessionId);
+    } else {
+      DashboardPanel.currentPanel = undefined;
+    }
     this._panel.dispose();
     for (const d of this._disposables) d.dispose();
     this._disposables = [];
