@@ -257,7 +257,8 @@ function applyUpdate(d){
   const stateEl=document.getElementById('now-state');
   const ctxNow=d.ctxPct!==null&&d.ctxPct!==undefined?Math.round(100-d.ctxPct):0;
   const isWorkflow=!!(d.activeWorkflow);
-  const isMultiNow = d.activeSessions && d.activeSessions.length > 1;
+  // Main hub always shows global summary (even with 1 session); session tabs show per-session detail
+  const isMultiNow = !d.isSessionTab && d.activeSessions && d.activeSessions.length > 0;
   if(isMultiNow){
     // Multi-session summary banner
     nowEl.classList.remove('idle');dot.classList.remove('idle');
@@ -473,8 +474,8 @@ function applyUpdate(d){
     agentsEl.innerHTML='<div class="em">No sub-agents — Claude is working solo</div>';
   }
 
-  // Layout mode: multi-session columns vs single-session split
-  const multiSession = d.activeSessions && d.activeSessions.length > 1;
+  // Layout mode: main hub = always global session-card view; session tabs = single-session detail
+  const multiSession = !d.isSessionTab;
   const liveBody = document.getElementById('live-body');
   const sessionColsEl = document.getElementById('session-cols');
   const streamsRowEl = document.getElementById('streams-row');
@@ -496,7 +497,11 @@ function applyUpdate(d){
     sessionColsEl.querySelectorAll('[id^="act-body-"],[id^="wf-body-"],[id^="agents-body-"]').forEach(function(el){
       if(el.scrollTop > 0) _scrollState[el.id] = el.scrollTop;
     });
-    sessionColsEl.innerHTML = d.activeSessions.map(function(s) { try {
+    var _activeSessions = d.activeSessions || [];
+    if (!_activeSessions.length) {
+      sessionColsEl.innerHTML = '<div style="padding:32px 20px;opacity:.3;font-size:12px;text-align:center;width:100%">No active sessions</div>';
+    } else
+    sessionColsEl.innerHTML = _activeSessions.map(function(s) { try {
       // Green dot = this session received a status update within the last 90s (status-bridge fires every turn)
       var lastUpdatedMs = s.lastUpdated ? new Date(s.lastUpdated).getTime() : 0;
       var isLive = lastUpdatedMs > 0 && (Date.now() - lastUpdatedMs < 180000);
@@ -522,6 +527,7 @@ function applyUpdate(d){
         + '<span style="font-size:12px;font-weight:' + (isLive ? '600' : '400') + ';color:' + (isLive ? '#e8e8e8' : '#aaa') + ';flex:1">' + esc(displayName) + '</span>'
         + '<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:' + modelColor + '22;color:' + modelColor + '">' + esc(s.model) + '</span>'
         + '<button data-focus-terminal="1" data-session-root="' + esc(s.root||'') + '" data-session-nick="' + esc(nick) + '" data-shell-pid="' + (s.shellPid||0) + '" data-session-started-at="' + esc(s.startedAt||'') + '" title="Open chat for ' + esc(nick) + '" style="background:#ffffff0d;border:1px solid #ffffff18;cursor:pointer;padding:2px 8px;border-radius:4px;color:#aaa;font-size:10px;line-height:1.6;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap" onmouseover="this.style.background=\'#ffffff1a\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'#ffffff0d\';this.style.color=\'#aaa\'">⌨ chat</button>'
+        + '<button data-open-session-tab="' + esc(s.sessionId||'') + '" title="Open session tab for ' + esc(nick) + '" style="background:#4a9eff0d;border:1px solid #4a9eff33;cursor:pointer;padding:2px 8px;border-radius:4px;color:#4a9eff;font-size:10px;line-height:1.6;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap" onmouseover="this.style.background=\'#4a9eff22\'" onmouseout="this.style.background=\'#4a9eff0d\'">↗ tab</button>'
         + '<button data-close-session="' + esc(s.sessionId||'') + '" title="Dismiss session from dashboard" style="background:transparent;border:none;cursor:pointer;color:#ff453a;font-size:13px;line-height:1;padding:2px 4px;opacity:.5;flex-shrink:0" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'.5\'">×</button>'
         + '</div>'
         + '<div class="sess-col-grid">'
@@ -921,6 +927,12 @@ document.addEventListener('click',function(e){
   var sibBtn = t.closest('[data-focus-sibling]');
   if (sibBtn) {
     vscode.postMessage({command:'focusSessionTab', targetSessionId:sibBtn.dataset.focusSibling||''});
+    return;
+  }
+  // Main hub: "↗ tab" button on session card
+  var openTabBtn = t.closest('[data-open-session-tab]');
+  if (openTabBtn) {
+    vscode.postMessage({command:'focusSessionTab', targetSessionId:openTabBtn.dataset.openSessionTab||''});
     return;
   }
   // Session tab: refresh button (inside session-hdr)
