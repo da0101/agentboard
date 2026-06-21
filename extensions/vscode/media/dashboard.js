@@ -856,11 +856,11 @@ document.addEventListener('click',function(e){
     var _sep='<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
     var _fmItem=function(fm,icon,label,color,hint){
       var c=color||'#d4d4d4';
-      var base='padding:7px 14px;cursor:pointer;font-size:12px;color:'+c+';display:flex;align-items:center;gap:8px;transition:background .1s,border-color .1s;border-left:2px solid transparent;box-sizing:border-box';
-      var over='this.style.background=\'rgba(255,255,255,.09)\';this.style.borderLeftColor=\''+c+'\'';
+      var base='padding:7px 14px;cursor:pointer;font-size:12px;color:'+c+';display:flex;align-items:center;gap:8px;transition:background .12s,border-color .12s;border-left:2px solid transparent;box-sizing:border-box';
+      var over='this.style.background=\'rgba(255,255,255,.1)\';this.style.borderLeftColor=\''+c+'\'';
       var out='this.style.background=\'\';this.style.borderLeftColor=\'transparent\'';
-      return '<div data-fm="'+fm+'" style="'+base+'" onmouseover="'+over+'" onmouseout="'+out+'">'
-        +'<span style="font-size:13px;width:18px;text-align:center;flex-shrink:0;transition:transform .1s" onmouseover="this.style.transform=\'scale(1.2)\'" onmouseout="this.style.transform=\'\'">'+icon+'</span>'
+      return '<div data-fm="'+fm+'" style="'+base+'" onmouseenter="'+over+'" onmouseleave="'+out+'">'
+        +'<span style="font-size:13px;width:18px;text-align:center;flex-shrink:0;display:inline-block;transition:transform .12s" onmouseenter="this.style.transform=\'scale(1.25)\'" onmouseleave="this.style.transform=\'\'">'+icon+'</span>'
         +'<span style="flex:1">'+label+'</span>'
         +(hint?'<span style="font-size:9px;white-space:nowrap">'+hint+'</span>':'')
         +'</div>';
