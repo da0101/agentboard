@@ -282,7 +282,12 @@ function applyUpdate(d){
     }
     var rowBg = f.isNew ? 'background:rgba(40,200,80,.07);border-left:2px solid rgba(40,200,80,.35);padding-left:4px;' : f.isDeleted ? 'background:rgba(220,60,60,.07);border-left:2px solid rgba(220,60,60,.35);padding-left:4px;' : '';
     var diffAttrs = isEdited
-      ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(_singleRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')+' title="Click for options" style="cursor:pointer;'+rowBg+'"'
+      ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(_singleRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')
+        +' data-line-count="'+(f.lineCount||0)+'"'
+        +' data-session-id="'+esc((_singleSess&&_singleSess.sessionId)||'')+'"'
+        +' data-shell-pid="'+((_singleSess&&_singleSess.shellPid)||0)+'"'
+        +' data-session-nick="'+esc((_singleSess&&_singleSess.nick)||'')+'"'
+        +' title="Click for options" style="cursor:pointer;'+rowBg+'"'
       : (rowBg ? ' style="'+rowBg+'"' : '');
     return '<div class="fa"'+diffAttrs+'>'
       + '<span class="fa-icon">'+icon+'</span>'
@@ -662,7 +667,12 @@ function applyUpdate(d){
 
         var rowBg = f.isNew ? 'background:rgba(40,200,80,.07);border-left:2px solid rgba(40,200,80,.35);padding-left:4px;' : f.isDeleted ? 'background:rgba(220,60,60,.07);border-left:2px solid rgba(220,60,60,.35);padding-left:4px;' : '';
         const diffAttrs = isEdited
-          ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')+' title="Click for options" style="cursor:pointer;'+rowBg+'"'
+          ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')
+            +' data-line-count="'+(f.lineCount||0)+'"'
+            +' data-session-id="'+esc(s.sessionId||'')+'"'
+            +' data-shell-pid="'+(s.shellPid||0)+'"'
+            +' data-session-nick="'+esc(s.nick||'')+'"'
+            +' title="Click for options" style="cursor:pointer;'+rowBg+'"'
           : (rowBg ? ' style="'+rowBg+'"' : '');
         return '<div class="fa"'+diffAttrs+'>'
           + '<span class="fa-icon">' + icon + '</span>'
@@ -803,6 +813,10 @@ document.addEventListener('click',function(e){
         vscode.postMessage({command:'openDiff',filePath:fp,sessionRoot:sr,isNew:menu._isNew||false});
       } else if(fm.dataset.fm==='copy'){
         vscode.postMessage({command:'copyPath',filePath:fp,sessionRoot:sr});
+      } else if(fm.dataset.fm==='refactor-here'){
+        vscode.postMessage({command:'refactorInSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0,shellPid:menu._shellPid||0,sessionNick:menu._sessionNick||'',sessionId:menu._sessionId||''});
+      } else if(fm.dataset.fm==='refactor-new'){
+        vscode.postMessage({command:'refactorNewSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0});
       }
       menu.style.display='none';
     }
@@ -821,20 +835,32 @@ document.addEventListener('click',function(e){
     if(!menu){
       menu=document.createElement('div');
       menu.id='_file-menu';
-      menu.style.cssText='position:fixed;z-index:9999;background:#252526;border:1px solid rgba(255,255,255,.12);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,.6);display:none;flex-direction:column;min-width:170px;overflow:hidden;padding:3px 0';
-      menu.innerHTML='<div data-fm="diff" style="padding:7px 14px;cursor:pointer;font-size:12px;color:#d4d4d4;display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="opacity:.5;font-size:11px">⇄</span>Open diff</div>'
-        +'<div data-fm="copy" style="padding:7px 14px;cursor:pointer;font-size:12px;color:#d4d4d4;display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="opacity:.5;font-size:11px">⧉</span>Copy path</div>';
+      menu.style.cssText='position:fixed;z-index:9999;background:#252526;border:1px solid rgba(255,255,255,.12);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,.6);display:none;flex-direction:column;min-width:200px;overflow:hidden;padding:3px 0';
       document.body.appendChild(menu);
     }
     menu._filePath=diffEl.dataset.openDiff||'';
     menu._sessionRoot=diffEl.dataset.sessionRoot||'';
     menu._isNew=diffEl.dataset.isNew==='1';
     menu._isDeleted=diffEl.dataset.isDeleted==='1';
-    var diffItem=menu.querySelector('[data-fm="diff"]');
-    if(diffItem) diffItem.innerHTML=(menu._isNew||menu._isDeleted)?'<span style="opacity:.5;font-size:11px">↗</span>Open file':'<span style="opacity:.5;font-size:11px">⇄</span>Open diff';
+    menu._lineCount=parseInt(diffEl.dataset.lineCount||'0',10);
+    menu._sessionId=diffEl.dataset.sessionId||'';
+    menu._shellPid=parseInt(diffEl.dataset.shellPid||'0',10);
+    menu._sessionNick=diffEl.dataset.sessionNick||'';
+    var _fmItem=function(fm,icon,label,color){
+      return '<div data-fm="'+fm+'" style="padding:7px 14px;cursor:pointer;font-size:12px;color:'+(color||'#d4d4d4')+';display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="opacity:.5;font-size:11px">'+icon+'</span>'+label+'</div>';
+    };
+    var _mHtml = _fmItem('diff', menu._isNew||menu._isDeleted?'↗':'⇄', menu._isNew||menu._isDeleted?'Open file':'Open diff');
+    _mHtml += _fmItem('copy','⧉','Copy path');
+    if(menu._lineCount>=500){
+      var _lTier=menu._lineCount>=1000?'🔴':menu._lineCount>=800?'🟠':'🟡';
+      _mHtml += '<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
+      _mHtml += _fmItem('refactor-here','⚡',_lTier+' Refactor in this session','#c792ea');
+      _mHtml += _fmItem('refactor-new','◈','Refactor in new session','#82aaff');
+    }
+    menu.innerHTML=_mHtml;
     var rect=diffEl.getBoundingClientRect();
     menu.style.display='flex';
-    menu.style.left=Math.min(e.clientX, window.innerWidth-180)+'px';
+    menu.style.left=Math.min(e.clientX, window.innerWidth-220)+'px';
     menu.style.top=(rect.bottom+2)+'px';
     return;
   }

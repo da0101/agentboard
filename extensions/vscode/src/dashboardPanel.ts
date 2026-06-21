@@ -501,6 +501,111 @@ export class DashboardPanel {
           terminal.sendText(`claude "${escaped}"`, true);
           return;
         }
+        if (msg.command === "refactorInSession" || msg.command === "refactorNewSession") {
+          const filePath = (msg as {filePath?: string}).filePath ?? "";
+          const sessRoot = (msg as {sessionRoot?: string}).sessionRoot ?? this._workspaceRoot;
+          const lineCount = (msg as {lineCount?: number}).lineCount ?? 0;
+          if (!filePath) return;
+          const absPath = path.isAbsolute(filePath) ? filePath : path.join(sessRoot, filePath);
+          const tier = lineCount >= 1000 ? "CRITICAL — extreme monolith (1000+ lines)"
+                     : lineCount >= 800  ? "HIGH — large file (800–999 lines)"
+                     :                     "MODERATE — growing file (500–799 lines)";
+          const refactorPrompt = `/ab-cleanup
+
+Refactor this file — ${lineCount} lines flagged ${tier}:
+  ${absPath}
+
+Follow every phase of the ab-cleanup protocol. This is a production-grade refactor — Silicon Valley standard.
+
+═══ PHASE 0 — SAFETY NET (before reading a single line of code)
+• Run the existing test suite → record baseline: X passing / Y failing / Z skipped
+• grep / find every file that imports or references this module
+• List every public export — these are the sacred API contract, do NOT rename without full grep verification of zero callers
+• Note any runtime-critical paths (called on startup, hot path, etc.)
+
+═══ PHASE 1 — AUDIT (read the ENTIRE file, then classify)
+• Map every class, function, and responsibility line-by-line
+• Identify: God class/component, >3-level nesting, copy-paste blocks, mixed concerns (UI+logic, IO+transform), side effects inside pure functions, magic numbers/strings
+• Classify each violation by type: DRY / SRP / coupling / testability / readability / complexity
+
+═══ PHASE 2 — PLAN  ← STOP HERE AND PRESENT BEFORE ANY CODE CHANGES
+For every planned extraction, state:
+  • New filename and target directory
+  • Lines extracted (source range)
+  • Why this is safe (callers unaffected, contract unchanged)
+  • Resulting line count for source file + new file (both must be <300 lines)
+  • New test(s) required to cover the extracted module
+
+Murphy's Law check: what is the most fragile thing about this refactor? How will you guard against it?
+
+DO NOT proceed to Phase 3 until the plan is approved.
+
+═══ PHASE 3 — EXECUTE (only after plan approval)
+• One extraction at a time — tests must pass green after EVERY extraction
+• Leave the original file as a thin orchestrator/re-export barrel during transition
+• Apply: Single Responsibility, Open/Closed, DRY, Law of Demeter, immutability-first
+• Zero magic numbers — extract to named constants with intent-revealing names
+• Zero copy-paste — extract to shared utils or helpers
+• Every new function: pure where possible, side-effect-free, single responsibility
+
+═══ PHASE 4 — REGRESSION
+• Run the FULL test suite — zero new failures allowed
+• For every new module created: write minimum 1 happy-path test + 1 edge/error-case test
+• Pre-existing failures: flag as pre-existing, never hide, do NOT count as regressions from this refactor
+• Explicitly test the path most likely to break under Murphy's Law
+
+═══ PHASE 5 — REPORT
+• Before/after line counts for every file touched (table format)
+• Complete list of new files created
+• Any refactors intentionally skipped — reason required (public API contract, legitimate complexity, etc.)
+• Public API contract status: UNCHANGED / EXTENDED (never broken)`;
+
+          if (msg.command === "refactorInSession") {
+            // Send prompt to existing session terminal
+            const shellPid = (msg as {shellPid?: number}).shellPid ?? 0;
+            const sessionNick = (msg as {sessionNick?: string}).sessionNick ?? "";
+            const terminals = [...vscode.window.terminals];
+            void (async () => { try {
+              const termPids = await Promise.all(terminals.map(t => t.processId));
+              let target: vscode.Terminal | undefined;
+              if (shellPid > 0) {
+                const byPid = terminals.find((_, i) => termPids[i] === shellPid);
+                if (byPid) {
+                  try {
+                    const { execSync: _ex } = require("child_process") as typeof import("child_process");
+                    const children = _ex(`pgrep -P ${shellPid} 2>/dev/null`).toString().trim().split("\n");
+                    for (const childPid of children) {
+                      if (!childPid) continue;
+                      const found = terminals.find((_, i) => String(termPids[i]) === childPid);
+                      if (found) { target = found; break; }
+                    }
+                  } catch { /* fall through */ }
+                }
+              }
+              if (!target && sessionNick) {
+                const nickLower = sessionNick.toLowerCase();
+                target = terminals.find(t2 => t2.name.toLowerCase().includes(nickLower));
+              }
+              if (!target && terminals.length === 1) target = terminals[0];
+              if (target) {
+                target.show(false);
+                target.sendText(refactorPrompt, true);
+              } else {
+                void vscode.window.showErrorMessage("Could not find the session terminal — use 'chat' button first to open it, then retry.");
+              }
+            } catch (err) {
+              void vscode.window.showErrorMessage(`Refactor error: ${err instanceof Error ? err.message : String(err)}`);
+            } })();
+          } else {
+            // Spawn new Claude terminal with Code Cleanup role
+            const cwd = sessRoot || this._workspaceRoot;
+            const terminal = vscode.window.createTerminal({ name: "Claude · Code Cleanup", cwd });
+            terminal.show();
+            const escaped = refactorPrompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`");
+            terminal.sendText(`claude "${escaped}"`, true);
+          }
+          return;
+        }
         if (msg.command === "copyPath") {
           const relPath = (msg as {filePath?: string; sessionRoot?: string}).filePath ?? "";
           const sessRoot = (msg as {filePath?: string; sessionRoot?: string}).sessionRoot ?? this._workspaceRoot;
