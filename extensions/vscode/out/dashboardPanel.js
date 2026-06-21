@@ -624,50 +624,64 @@ DO NOT proceed to Phase 3 until the plan is approved.
 • Any refactors intentionally skipped — reason required (public API contract, legitimate complexity, etc.)
 • Public API contract status: UNCHANGED / EXTENDED (never broken)`;
                 if (msg.command === "refactorInSession") {
-                    // Send prompt to existing session terminal
-                    const shellPid = msg.shellPid ?? 0;
+                    // _shell_pid is Claude's PID; terminal.processId is the SHELL's PID (Claude's parent)
+                    const claudePid = msg.shellPid ?? 0;
                     const sessionNick = msg.sessionNick ?? "";
+                    const sessRootForTerm = sessRoot;
                     const terminals = [...vscode.window.terminals];
                     void (async () => {
                         try {
+                            const { execSync: _ex } = require("child_process");
                             const termPids = await Promise.all(terminals.map(t => t.processId));
                             let target;
-                            // Strategy 1: terminal whose shell PID matches — Claude runs INSIDE this terminal
-                            if (shellPid > 0) {
-                                target = terminals.find((_, i) => termPids[i] === shellPid);
-                                // Also check children (handles when status-bridge logs shell's parent PID)
-                                if (!target) {
-                                    try {
-                                        const { execSync: _ex } = require("child_process");
-                                        const children = _ex(`pgrep -P ${shellPid} 2>/dev/null`).toString().trim().split("\n");
-                                        for (const childPid of children) {
-                                            if (!childPid)
-                                                continue;
-                                            const found = terminals.find((_, i) => String(termPids[i]) === childPid);
-                                            if (found) {
-                                                target = found;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    catch { /* fall through */ }
+                            // Strategy 1: _shell_pid is Claude's PID → find its parent (the shell terminal)
+                            if (claudePid > 0) {
+                                try {
+                                    const ppidStr = _ex(`ps -p ${claudePid} -o ppid= 2>/dev/null`).toString().trim();
+                                    const parentPid = parseInt(ppidStr, 10);
+                                    if (parentPid > 0)
+                                        target = terminals.find((_, i) => termPids[i] === parentPid);
                                 }
+                                catch { /* fall through */ }
+                                // Also try direct match in case shellPid IS the terminal PID in some setups
+                                if (!target)
+                                    target = terminals.find((_, i) => termPids[i] === claudePid);
                             }
-                            // Strategy 2: nick name in terminal name
+                            // Strategy 2: cached terminal map from previous focusTerminal calls
+                            if (!target && sessionNick && this._sessionTerminalMap.has(sessionNick)) {
+                                const cachedName = this._sessionTerminalMap.get(sessionNick);
+                                target = terminals.find(t2 => t2.name === cachedName);
+                            }
+                            // Strategy 3: nick in terminal name
                             if (!target && sessionNick) {
                                 const nickLower = sessionNick.toLowerCase();
                                 target = terminals.find(t2 => t2.name.toLowerCase().includes(nickLower));
                             }
-                            // Strategy 3: any terminal named "claude" or "Claude ·"
-                            if (!target) {
-                                target = terminals.find(t2 => /claude/i.test(t2.name));
+                            // Strategy 4: CWD match (same as focusTerminal strategy 3)
+                            if (!target && sessRootForTerm) {
+                                const sameCwd = [];
+                                for (const term of terminals) {
+                                    try {
+                                        const wd = term.shellIntegration?.cwd?.fsPath ?? "";
+                                        if (wd && (wd === sessRootForTerm || wd.startsWith(sessRootForTerm + "/")))
+                                            sameCwd.push(term);
+                                    }
+                                    catch { /* */ }
+                                }
+                                if (sameCwd.length === 1)
+                                    target = sameCwd[0];
                             }
                             if (target) {
                                 target.show(false);
                                 target.sendText(refactorPrompt, true);
                             }
                             else {
-                                void vscode.window.showErrorMessage("Could not find the session terminal — use 'chat' button first to open it, then retry.");
+                                // Offer a quick-pick as final fallback
+                                const picked = await vscode.window.showQuickPick(terminals.map(t2 => ({ label: t2.name, terminal: t2 })), { placeHolder: "Pick the Claude terminal to send the refactor prompt to" });
+                                if (picked) {
+                                    picked.terminal.show(false);
+                                    picked.terminal.sendText(refactorPrompt, true);
+                                }
                             }
                         }
                         catch (err) {
