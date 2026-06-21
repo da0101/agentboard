@@ -378,6 +378,8 @@ export class DashboardPanel {
   private _branchCommittedCache = new Map<string, { ts: number; files: Set<string> }>();
   // HTTP backoff: slow down if server consistently absent
   private _httpFailStreak = 0;
+  private _lastDelegateKey = ""; // "<role>|<task>" dedup
+  private _lastDelegateTs = 0;   // epoch ms of last handled delegate
 
   static createOrShow(workspaceRoot: string, extensionUri?: vscode.Uri): void {
     if (extensionUri) DashboardPanel.extensionUri = extensionUri;
@@ -1079,6 +1081,11 @@ export class DashboardPanel {
     try {
       const d = JSON.parse(raw) as { role?: string; task?: string; context?: string; branch?: string; root?: string; project?: string };
       if (!d.role || !d.task) return;
+      // Dedup: ignore if same role+task was already handled within 60 seconds
+      const dedupeKey = `${d.role}|${d.task}`;
+      if (dedupeKey === this._lastDelegateKey && (Date.now() - this._lastDelegateTs) < 60_000) return;
+      this._lastDelegateKey = dedupeKey;
+      this._lastDelegateTs = Date.now();
       const roles = readRoles(d.root ?? this._workspaceRoot);
       const roleItem = roles.find(r => r.slug === d.role);
       const roleName = roleItem?.name ?? d.role;

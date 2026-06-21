@@ -467,6 +467,8 @@ class DashboardPanel {
         this._branchCommittedCache = new Map();
         // HTTP backoff: slow down if server consistently absent
         this._httpFailStreak = 0;
+        this._lastDelegateKey = ""; // "<role>|<task>" dedup
+        this._lastDelegateTs = 0; // epoch ms of last handled delegate
         this._workspaceRoot = workspaceRoot;
         this._panel = panel;
         const initialData = this._buildDataSync();
@@ -1211,6 +1213,12 @@ class DashboardPanel {
             const d = JSON.parse(raw);
             if (!d.role || !d.task)
                 return;
+            // Dedup: ignore if same role+task was already handled within 60 seconds
+            const dedupeKey = `${d.role}|${d.task}`;
+            if (dedupeKey === this._lastDelegateKey && (Date.now() - this._lastDelegateTs) < 60000)
+                return;
+            this._lastDelegateKey = dedupeKey;
+            this._lastDelegateTs = Date.now();
             const roles = readRoles(d.root ?? this._workspaceRoot);
             const roleItem = roles.find(r => r.slug === d.role);
             const roleName = roleItem?.name ?? d.role;
