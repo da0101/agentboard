@@ -356,6 +356,8 @@ export class DashboardPanel {
   // Numstat cache: avoid blocking the extension host on every tick (30 s TTL per root)
   private _numstatCache = new Map<string, { ts: number; diffMap: Map<string, { added: number; deleted: number }> }>();
   private _lineCountCache = new Map<string, { ts: number; count: number }>();
+  // Branch-committed cache: files changed vs merge-base with develop/main (30 s TTL per root)
+  private _branchCommittedCache = new Map<string, { ts: number; files: Set<string> }>();
   // HTTP backoff: slow down if server consistently absent
   private _httpFailStreak = 0;
 
@@ -704,7 +706,7 @@ export class DashboardPanel {
       sessionLastSkill: string; sessionLastRole: string;
       startedAt: string; lastUpdated: string; ageSeconds: number;
       ctxPct: number | null; stream: string; sessionTime: string;
-      activity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number; lineCount?: number }[];
+      activity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number; lineCount?: number; committed?: boolean }[];
       agents: { label: string; role: string; skill: string; ts: string; done: boolean }[];
       hasWorkflow: boolean; workflowAgentCount: number; workflowLabel: string;
       workflowTranscriptAgents: TranscriptAgent[];
@@ -732,7 +734,7 @@ export class DashboardPanel {
             return sec < 3600 ? `${Math.floor(sec / 60)}m ${sec % 60}s` : `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
           })() : "";
           // Per-session activity feed (deduplicated, most recent first)
-          const sActivity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number; lineCount?: number }[] = [];
+          const sActivity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number; lineCount?: number; committed?: boolean }[] = [];
           const sId = (s._session_id as string) || (ctx.session_id as string) || f.replace(".json", "");
           if (sRoot) {
             const allSEvents = getEventsForRoot(sRoot); // cached — no extra file read
@@ -792,6 +794,39 @@ export class DashboardPanel {
                 }
               } catch { /* file may not exist yet */ }
             }
+            // Mark files that have committed changes on this branch vs develop/main merge-base
+            try {
+              const COMMITTED_TTL = 30_000;
+              const cacheKey = sRoot;
+              const cachedC = this._branchCommittedCache.get(cacheKey);
+              let committedFiles: Set<string>;
+              if (cachedC && (Date.now() - cachedC.ts) < COMMITTED_TTL) {
+                committedFiles = cachedC.files;
+              } else {
+                committedFiles = new Set<string>();
+                // Find merge-base with develop, then main, then fall back to HEAD~1
+                let mergeBase = "";
+                for (const base of ["origin/develop", "origin/main", "HEAD~1"]) {
+                  try {
+                    mergeBase = execSync(`git merge-base HEAD ${base}`, { cwd: sRoot, timeout: 3000, encoding: "utf8" }).trim();
+                    if (mergeBase) break;
+                  } catch { /* try next */ }
+                }
+                if (mergeBase) {
+                  const nameOnly = execSync(`git diff --name-only ${mergeBase}..HEAD`, { cwd: sRoot, timeout: 3000, encoding: "utf8" });
+                  for (const line of nameOnly.split("\n")) {
+                    const f2 = line.trim();
+                    if (f2) committedFiles.add(f2);
+                  }
+                }
+                this._branchCommittedCache.set(cacheKey, { ts: Date.now(), files: committedFiles });
+              }
+              for (const entry of sActivity) {
+                if (entry.tool === "Edit" || entry.tool === "Write" || entry.tool === "MultiEdit") {
+                  entry.committed = committedFiles.has(entry.file);
+                }
+              }
+            } catch { /* git unavailable */ }
           }
           // Skip ghost sessions: no tool events AND session started >15 min ago
           // Use startedAt age (not lastUpdated) so status-bridge pings don't keep ghosts alive

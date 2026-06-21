@@ -443,6 +443,8 @@ class DashboardPanel {
         // Numstat cache: avoid blocking the extension host on every tick (30 s TTL per root)
         this._numstatCache = new Map();
         this._lineCountCache = new Map();
+        // Branch-committed cache: files changed vs merge-base with develop/main (30 s TTL per root)
+        this._branchCommittedCache = new Map();
         // HTTP backoff: slow down if server consistently absent
         this._httpFailStreak = 0;
         this._workspaceRoot = workspaceRoot;
@@ -892,6 +894,44 @@ class DashboardPanel {
                             }
                             catch { /* file may not exist yet */ }
                         }
+                        // Mark files that have committed changes on this branch vs develop/main merge-base
+                        try {
+                            const COMMITTED_TTL = 30000;
+                            const cacheKey = sRoot;
+                            const cachedC = this._branchCommittedCache.get(cacheKey);
+                            let committedFiles;
+                            if (cachedC && (Date.now() - cachedC.ts) < COMMITTED_TTL) {
+                                committedFiles = cachedC.files;
+                            }
+                            else {
+                                committedFiles = new Set();
+                                // Find merge-base with develop, then main, then fall back to HEAD~1
+                                let mergeBase = "";
+                                for (const base of ["origin/develop", "origin/main", "HEAD~1"]) {
+                                    try {
+                                        mergeBase = (0, child_process_1.execSync)(`git merge-base HEAD ${base}`, { cwd: sRoot, timeout: 3000, encoding: "utf8" }).trim();
+                                        if (mergeBase)
+                                            break;
+                                    }
+                                    catch { /* try next */ }
+                                }
+                                if (mergeBase) {
+                                    const nameOnly = (0, child_process_1.execSync)(`git diff --name-only ${mergeBase}..HEAD`, { cwd: sRoot, timeout: 3000, encoding: "utf8" });
+                                    for (const line of nameOnly.split("\n")) {
+                                        const f2 = line.trim();
+                                        if (f2)
+                                            committedFiles.add(f2);
+                                    }
+                                }
+                                this._branchCommittedCache.set(cacheKey, { ts: Date.now(), files: committedFiles });
+                            }
+                            for (const entry of sActivity) {
+                                if (entry.tool === "Edit" || entry.tool === "Write" || entry.tool === "MultiEdit") {
+                                    entry.committed = committedFiles.has(entry.file);
+                                }
+                            }
+                        }
+                        catch { /* git unavailable */ }
                     }
                     // Skip ghost sessions: no tool events AND session started >15 min ago
                     // Use startedAt age (not lastUpdated) so status-bridge pings don't keep ghosts alive
