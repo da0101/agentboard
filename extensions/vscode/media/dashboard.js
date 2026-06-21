@@ -855,7 +855,15 @@ document.addEventListener('click',function(e){
     menu._sessionNick=diffEl.dataset.sessionNick||'';
     var _sep='<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
     var _fmItem=function(fm,icon,label,color,hint){
-      return '<div data-fm="'+fm+'" style="padding:7px 14px;cursor:pointer;font-size:12px;color:'+(color||'#d4d4d4')+';display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'\'"><span style="font-size:13px;width:18px;text-align:center;flex-shrink:0">'+icon+'</span><span style="flex:1">'+label+'</span>'+(hint?'<span style="font-size:9px;white-space:nowrap">'+hint+'</span>':'')+'</div>';
+      var c=color||'#d4d4d4';
+      var base='padding:7px 14px;cursor:pointer;font-size:12px;color:'+c+';display:flex;align-items:center;gap:8px;transition:background .1s,border-color .1s;border-left:2px solid transparent;box-sizing:border-box';
+      var over='this.style.background=\'rgba(255,255,255,.09)\';this.style.borderLeftColor=\''+c+'\'';
+      var out='this.style.background=\'\';this.style.borderLeftColor=\'transparent\'';
+      return '<div data-fm="'+fm+'" style="'+base+'" onmouseover="'+over+'" onmouseout="'+out+'">'
+        +'<span style="font-size:13px;width:18px;text-align:center;flex-shrink:0;transition:transform .1s" onmouseover="this.style.transform=\'scale(1.2)\'" onmouseout="this.style.transform=\'\'">'+icon+'</span>'
+        +'<span style="flex:1">'+label+'</span>'
+        +(hint?'<span style="font-size:9px;white-space:nowrap">'+hint+'</span>':'')
+        +'</div>';
     };
     var _diffHint='';
     if(menu._added||menu._deleted){
