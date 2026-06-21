@@ -43,6 +43,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/stream_resolve.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/handoff.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/handoff_render.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/delegate.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/progress.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/checkpoint.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/recover.sh"
@@ -151,6 +152,7 @@ main() {
     current-stream) cmd_current_stream "$@" ;;
     next-action) cmd_next_action "$@" ;;
     handoff)     cmd_handoff "$@" ;;
+    delegate)    cmd_delegate "$@" ;;
     progress)    cmd_progress "$@" ;;
     checkpoint)  cmd_checkpoint "$@" ;;
     recover)     cmd_recover "$@" ;;

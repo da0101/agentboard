@@ -1068,9 +1068,44 @@ export class DashboardPanel {
     };
   }
 
+  private _handleDelegateFile(): void {
+    const delegateFile = path.join(os.homedir(), ".agentboard", "delegate.json");
+    if (!fs.existsSync(delegateFile)) return;
+    let raw: string;
+    try {
+      raw = fs.readFileSync(delegateFile, "utf8");
+      fs.unlinkSync(delegateFile); // delete first — prevent duplicate opens on next tick
+    } catch { return; }
+    try {
+      const d = JSON.parse(raw) as { role?: string; task?: string; context?: string; branch?: string; root?: string; project?: string };
+      if (!d.role || !d.task) return;
+      const roles = readRoles(d.root ?? this._workspaceRoot);
+      const roleItem = roles.find(r => r.slug === d.role);
+      const roleName = roleItem?.name ?? d.role;
+      const lines: string[] = [
+        `Adopt the ${roleName} role for this session.`,
+        `Read .platform/roles/${d.role}.md for your full protocol, mission, and responsibilities.`,
+      ];
+      if (d.project || d.branch) {
+        const from = [d.project, d.branch ? `branch: ${d.branch}` : ""].filter(Boolean).join(" — ");
+        lines.push(`\nHandoff from: ${from}`);
+      }
+      if (d.context) lines.push(d.context);
+      lines.push(`\nYour task: ${d.task}`);
+      lines.push(`\nAsk me 2–3 focused intake questions if anything needs clarification, then begin.`);
+      const prompt = lines.join("\n");
+      const escaped = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`");
+      const cwd = d.root && fs.existsSync(d.root) ? d.root : this._workspaceRoot;
+      const terminal = vscode.window.createTerminal({ name: `Claude · ${roleName}`, cwd });
+      terminal.show();
+      terminal.sendText(`claude "${escaped}"`, true);
+    } catch { /* malformed delegate.json — silently ignore */ }
+  }
+
   private async _update(): Promise<void> {
     if (!this._initialized) return;
 
+    this._handleDelegateFile();
     const data = this._buildDataSync() as Record<string, unknown>;
 
     // HTTP calls for sessions/worktrees: skip entirely when server is consistently absent (backoff)
