@@ -90,10 +90,10 @@ _session_stream_lookup() {
 _remember_session_stream() {
   local session_id="$1" stream_slug="$2" tmp
   [[ -n "$session_id" && -n "$stream_slug" ]] || return 0
+  # First-write-wins: don't overwrite existing mapping (prevents cross-session contamination)
+  if _session_stream_lookup "$session_id" 2>/dev/null; then return 0; fi
   tmp="$(mktemp 2>/dev/null)" || return 0
-  if [[ -f "$_stream_map_file" ]]; then
-    awk -F'\t' -v session_id="$session_id" '$1 != session_id { print }' "$_stream_map_file" > "$tmp"
-  fi
+  [[ -f "$_stream_map_file" ]] && cat "$_stream_map_file" > "$tmp"
   printf '%s\t%s\n' "$session_id" "$stream_slug" >> "$tmp"
   mv "$tmp" "$_stream_map_file" 2>/dev/null || rm -f "$tmp"
 }
@@ -196,6 +196,14 @@ case "$hook_event" in
             fi
             exit 0
             ;;
+          */.platform/roles/*.md)
+            _role_slug="$(printf '%s' "$_fp" | sed 's|.*\.platform/roles/\([^/]*\)\.md|\1|')"
+            if [[ -n "$_role_slug" ]]; then
+              printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"RoleAdopt","role":"%s","session_id":"%s"}\n' \
+                "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_role_slug")" "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+            fi
+            exit 0
+            ;;
           *)
             exit 0  # other reads — not useful activity
             ;;
@@ -226,6 +234,15 @@ case "$hook_event" in
           detail_val="${_cmd:0:120}"
         fi
         ;;
+      Skill)
+        _sk_type="$(_json_string_field "subagent_type")"
+        _sk_name="${_sk_type:-$(_json_string_field "type")}"
+        if [[ -n "$_sk_name" ]]; then
+          printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
+            "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_sk_name")" "$(_jsesc "${session_id:-}")" >> "$log_file" 2>/dev/null
+        fi
+        exit 0
+        ;;
       Agent)
         _label="$(_json_string_field "label")"
         _subtype="$(_json_string_field "subagent_type")"
@@ -237,11 +254,12 @@ case "$hook_event" in
         exit 0  # internal research — not "what I changed"
         ;;
     esac
+    _sid_e="$(_jsesc "${session_id:-}")"
     if [[ -n "$detail_key" && -n "$detail_val" ]]; then
       detail_e="$(_jsesc "$detail_val")"
-      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\",\"$detail_key\":\"$detail_e\"}"
+      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\",\"$detail_key\":\"$detail_e\",\"session_id\":\"$_sid_e\"}"
     else
-      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\"}"
+      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\",\"session_id\":\"$_sid_e\"}"
     fi
     ;;
 esac

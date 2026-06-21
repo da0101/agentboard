@@ -75,11 +75,15 @@ process.stdin.on('end', () => {
     // cost — Claude Code passes this directly to statusLine
     const costUsd = data.cost?.total_cost_usd ?? data.total_cost_usd ?? null;
 
-    // session start time — stored in HUD from first call
+    // session start time — read from per-session file first (survives multi-session HUD overwrites)
     const existing = readHud(hudPath);
-    const sessionStartedAt = (existing.context?.session_id === sessionId && existing.context?.started_at)
-      ? existing.context.started_at
-      : new Date().toISOString();
+    const sessionFilePath = path.join(os.homedir(), '.agentboard', 'sessions', sessionId + '.json');
+    const existingSession = readHud(sessionFilePath);
+    const sessionStartedAt = (existingSession.context?.session_id === sessionId && existingSession.context?.started_at)
+      ? existingSession.context.started_at
+      : (existing.context?.session_id === sessionId && existing.context?.started_at)
+        ? existing.context.started_at
+        : new Date().toISOString();
 
     const hud = {
       ...existing,
@@ -119,8 +123,49 @@ process.stdin.on('end', () => {
       writeHudAtomic(path.join(globalDir, 'live.json'), { ...hud, _root: root });
     } catch {}
 
+    // Write per-session file for multi-session dashboard support
+    try {
+      const globalDir = path.join(os.homedir(), '.agentboard');
+      const sessionsDir = path.join(globalDir, 'sessions');
+      fs.mkdirSync(sessionsDir, { recursive: true });
+      // Detect the shell PID so VS Code extension can focus the right terminal.
+      // Chain: VS Code terminal shell → claude → node(this script)
+      // process.ppid = claude's PID; grandparent = shell's PID = terminal.processId
+      let _shell_pid = 0;
+      try {
+        const { execSync: _ex } = require('child_process');
+        const claudePid = process.ppid;
+        const grandPid = parseInt(_ex(`ps -o ppid= -p ${claudePid} 2>/dev/null`).toString().trim(), 10);
+        if (grandPid > 0) _shell_pid = grandPid;
+      } catch {}
+      writeHudAtomic(path.join(sessionsDir, sessionId + '.json'), {
+        ...hud,
+        _root: root,
+        _session_id: sessionId,
+        _last_updated: new Date().toISOString(),
+        _shell_pid,
+      });
+      // Clean up session files older than 8 hours
+      try {
+        const cutoff = Date.now() - 8 * 60 * 60 * 1000;
+        fs.readdirSync(sessionsDir).forEach(function(f) {
+          if (!f.endsWith('.json')) return;
+          try {
+            const fp = path.join(sessionsDir, f);
+            if (fs.statSync(fp).mtimeMs < cutoff) fs.unlinkSync(fp);
+          } catch {}
+        });
+      } catch {}
+    } catch {}
+
     // Terminal statusLine output
+    const ADJ = ['bold','calm','swift','bright','sharp','keen','wild','quiet','brave','cool','warm','soft','fast','wise','pure','deft','lean','sage','red','blue','gold','jade','iron','amber','violet','azure','coral','frost','storm','sand','ember','cedar','steel','nova','oak','ivy','clay','moss','dawn','rust'];
+    const NON = ['falcon','tiger','wolf','eagle','raven','fox','bear','hawk','lynx','crane','otter','pike','heron','wren','viper','bison','moose','ibis','kite','wasp','colt','finch','puma','cobra','gecko','quail','trout','mink','stork','stoat','dingo','snipe','marten','condor','osprey','ferret','oriole','magpie','jaguar','marlin'];
+    let _h = 0;
+    for (let _i = 0; _i < sessionId.length; _i++) _h = (Math.imul(_h, 31) + sessionId.charCodeAt(_i)) >>> 0;
+    const nick = ADJ[_h % ADJ.length] + '-' + NON[(_h >>> 8) % NON.length];
     const parts = [];
+    parts.push(nick);
     parts.push(model);
     if (costUsd !== null && costUsd > 0) parts.push(`$${costUsd.toFixed(3)}`);
     if (sessionStartedAt) parts.push(formatElapsed(sessionStartedAt));
