@@ -904,6 +904,13 @@ document.addEventListener('keydown',function(e){
 // Event delegation — handles tabs, stream toggles, open-stream, refresh, agents toggle
 document.addEventListener('click',function(e){
   const t=e.target;
+  // Foldable section toggle
+  var foldHdr = t.closest('.sec-ttl.foldable');
+  if (foldHdr && !t.closest('[data-toggle-id]') && !t.closest('[data-view]')) {
+    var foldSec = foldHdr.closest('.sec');
+    if (foldSec) { foldSec.classList.toggle('folded'); }
+    return;
+  }
   // Session tab: Open Chat button
   var chatBtn = t.closest('[data-chat-btn]');
   if (chatBtn) {

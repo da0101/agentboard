@@ -1615,6 +1615,17 @@ body.session-tab #live-body{flex-direction:column;overflow:visible}
 body.session-tab .col-l{flex:none;width:100%;overflow-y:visible;border-right:none;border-bottom:1px solid var(--vscode-panel-border)}
 body.session-tab .col-r{flex:none;width:100%;overflow-y:visible}
 body.session-tab #footer{display:none}
+/* Session tab section ordering: 1-Session 2-Agents 3-Activity */
+body.session-tab .col-r{order:1!important}
+body.session-tab .col-l{order:2!important}
+body.session-tab #sec-session-single,body.session-tab #sec-role{order:-1}
+/* Hide streams completely in session tabs — they belong in the main hub */
+body.session-tab #sec-streams{display:none!important}
+/* Foldable sections */
+.sec-ttl.foldable{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
+.sec-ttl.foldable::after{content:'▾';font-size:10px;opacity:.28;flex-shrink:0;margin-left:6px}
+.sec.folded>.sec-ttl.foldable::after{content:'▸'}
+.sec.folded>:not(.sec-ttl){display:none!important}
 .sib-pill{cursor:pointer;padding:2px 8px;border-radius:10px;border:1px solid rgba(255,255,255,.18);font-size:10px;font-family:monospace;opacity:.65;display:inline-block;transition:opacity .15s}
 .sib-pill:hover{opacity:1}
 </style></head><body>
@@ -1655,25 +1666,25 @@ body.session-tab #footer{display:none}
     <div id="session-cols" style="display:none"></div>
     <div class="streams-row" id="streams-row" style="display:none">
       <div class="sec">
-        <div class="sec-ttl" id="sr-ttl2">Active streams</div>
+        <div class="sec-ttl foldable" id="sr-ttl2">Active streams</div>
         <div id="sr-list2"></div>
       </div>
     </div>
     <!-- Single-session: Left: files touched + streams -->
     <div class="col-l">
-      <div class="sec">
-        <div class="sec-ttl" id="fa-ttl">Files touched this session</div>
+      <div class="sec" id="sec-activity">
+        <div class="sec-ttl foldable" id="fa-ttl">Activity this session</div>
         <div id="fa-list"><div class="em">No activity yet</div></div>
       </div>
-      <div class="sec">
-        <div class="sec-ttl" id="sr-ttl">Active streams</div>
+      <div class="sec" id="sec-streams">
+        <div class="sec-ttl foldable" id="sr-ttl">Active streams</div>
         <div id="sr-list"></div>
       </div>
     </div>
     <!-- Right: agents + session stats -->
     <div class="col-r">
       <div class="sec" id="sec-agents">
-        <div class="sec-ttl" id="agents-ttl">Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· last 5 min</span></div>
+        <div class="sec-ttl foldable" id="agents-ttl">Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· last 5 min</span></div>
         <div id="agents-list"><div class="em">No sub-agents dispatched — Claude is working solo</div></div>
       </div>
       <div class="sec" id="sec-sessions" style="display:none">
@@ -1681,7 +1692,7 @@ body.session-tab #footer{display:none}
         <div id="sessions-list"></div>
       </div>
       <div class="sec" id="sec-session-single">
-        <div class="sec-ttl">Session</div>
+        <div class="sec-ttl foldable">Session</div>
         <div class="stat-grid">
           <span class="sk">Model</span><span class="sv" id="sv-model">—</span>
           <span class="sk">Stream</span><span class="sv sv-stream" id="sv-stream">—</span>
