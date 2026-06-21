@@ -515,6 +515,14 @@ class DashboardPanel {
                 });
                 return;
             }
+            if (msg.command === "closeSession") {
+                const sessionId = msg.sessionId ?? "";
+                if (!sessionId)
+                    return;
+                this._deleteSessionFile(sessionId);
+                void this._update();
+                return;
+            }
             if (msg.command === "launchRole") {
                 const slug = msg.slug ?? "";
                 const name = msg.name ?? slug;
@@ -603,6 +611,28 @@ class DashboardPanel {
             }
         }, null, this._disposables);
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+        vscode.window.onDidCloseTerminal(async (closed) => {
+            const pid = await closed.processId;
+            if (!pid)
+                return;
+            const sessDir = path.join(os.homedir(), ".agentboard", "sessions");
+            try {
+                for (const fname of fs.readdirSync(sessDir)) {
+                    if (!fname.endsWith(".json"))
+                        continue;
+                    try {
+                        const raw = fs.readFileSync(path.join(sessDir, fname), "utf8");
+                        const d = JSON.parse(raw);
+                        if (d._shell_pid === pid) {
+                            fs.unlinkSync(path.join(sessDir, fname));
+                            void this._update();
+                        }
+                    }
+                    catch { /* skip */ }
+                }
+            }
+            catch { /* dir missing */ }
+        }, null, this._disposables);
     }
     _buildDataSync() {
         // Always try live.json first — works regardless of which VS Code window is open
@@ -1205,6 +1235,14 @@ class DashboardPanel {
             this._sessionTerminalMap.set(d.role, termName);
         }
         catch { /* malformed delegate.json — silently ignore */ }
+    }
+    _deleteSessionFile(sessionId) {
+        const sessDir = path.join(os.homedir(), ".agentboard", "sessions");
+        const f = path.join(sessDir, `${sessionId}.json`);
+        try {
+            fs.unlinkSync(f);
+        }
+        catch { /* already gone */ }
     }
     async _update() {
         if (!this._initialized)

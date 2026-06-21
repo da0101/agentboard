@@ -459,6 +459,13 @@ export class DashboardPanel {
           });
           return;
         }
+        if (msg.command === "closeSession") {
+          const sessionId = (msg as {sessionId?: string}).sessionId ?? "";
+          if (!sessionId) return;
+          this._deleteSessionFile(sessionId);
+          void this._update();
+          return;
+        }
         if (msg.command === "launchRole") {
           const slug = (msg as {slug?: string; name?: string}).slug ?? "";
           const name = (msg as {slug?: string; name?: string}).name ?? slug;
@@ -534,6 +541,21 @@ export class DashboardPanel {
       null, this._disposables
     );
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+    vscode.window.onDidCloseTerminal(async (closed) => {
+      const pid = await closed.processId;
+      if (!pid) return;
+      const sessDir = path.join(os.homedir(), ".agentboard", "sessions");
+      try {
+        for (const fname of fs.readdirSync(sessDir)) {
+          if (!fname.endsWith(".json")) continue;
+          try {
+            const raw = fs.readFileSync(path.join(sessDir, fname), "utf8");
+            const d = JSON.parse(raw) as { _shell_pid?: number };
+            if (d._shell_pid === pid) { fs.unlinkSync(path.join(sessDir, fname)); void this._update(); }
+          } catch { /* skip */ }
+        }
+      } catch { /* dir missing */ }
+    }, null, this._disposables);
   }
 
   private _buildDataSync(): object {
@@ -1077,6 +1099,12 @@ export class DashboardPanel {
       terminal.sendText(`claude "${escaped}"`, true);
       this._sessionTerminalMap.set(d.role, termName);
     } catch { /* malformed delegate.json — silently ignore */ }
+  }
+
+  private _deleteSessionFile(sessionId: string): void {
+    const sessDir = path.join(os.homedir(), ".agentboard", "sessions");
+    const f = path.join(sessDir, `${sessionId}.json`);
+    try { fs.unlinkSync(f); } catch { /* already gone */ }
   }
 
   private async _update(): Promise<void> {
