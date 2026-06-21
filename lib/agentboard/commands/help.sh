@@ -55,6 +55,11 @@ COMMANDS
   next-action [slug]         Print the canonical next action for a stream
                              --session-id <id> resolve stream from session
                              --quiet           print only the action text
+  delegate <role-slug> "<task>"
+                             Open a new VS Code terminal with Claude pre-seeded
+                             as the given role. Passes current branch + BRIEF
+                             context automatically. HARD STOP after running —
+                             do not spawn sub-agents or continue the task.
   handoff [stream-slug]      Print a low-token provider handoff packet.
                              Shows Resume state (from stream file), warns if
                              stale, appends a "for the agent reading this"

@@ -174,7 +174,6 @@ main() {
     start)      cmd_cp_start "$@" ;;
     stop)       cmd_cp_stop "$@" ;;
     sessions)   cmd_sessions "$@" ;;
-    delegate)   cmd_delegate "$@" ;;
     worktree)   cmd_worktree "$@" ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help) cmd_help ;;
