@@ -524,22 +524,42 @@ function applyUpdate(d){
         // Agents: transcript (journal-derived) > workflowPlan > AgentStart events
         var txAgents = (s.workflowTranscriptAgents && s.workflowTranscriptAgents.length) ? s.workflowTranscriptAgents : null;
         var wfAgents = txAgents || ((wp2 && wp2.agents && wp2.agents.length) ? wp2.agents : null);
-        var wfAgentCount = wfAgents ? wfAgents.length : (s.workflowAgentCount || 0);
-        var wfRunningCount = txAgents ? txAgents.filter(function(a){return a.status!=='done';}).length
-          : wfAgents ? wfAgents.filter(function(a){return a.status!=='done';}).length
-          : (s.agents ? s.agents.filter(function(a){return !a.done;}).length : 0);
-        var wfDoneCount = wfAgentCount - wfRunningCount;
+
+        // Accurate 3-state counts: running (journal started, no result) | standby (dispatched, not yet in journal) | done
+        var txRunning = txAgents ? txAgents.filter(function(a){return a.status!=='done';}).length : 0;
+        var txDone    = txAgents ? txAgents.filter(function(a){return a.status==='done';}).length  : 0;
+        var evNotDone = s.agents  ? s.agents.filter(function(a){return !a.done;}).length : 0;
+        // standby = dispatched by harness (AgentStart in events) but not yet started in journal
+        var standbyCount = txAgents ? Math.max(0, evNotDone - txRunning) : 0;
+
+        var wfRunningCount, wfDoneCount, wfAgentCount;
+        if (txAgents) {
+          wfRunningCount = txRunning;
+          wfDoneCount    = txDone;
+          wfAgentCount   = txRunning + txDone + standbyCount;
+        } else if (wfAgents) {
+          wfRunningCount = wfAgents.filter(function(a){return a.status!=='done';}).length;
+          wfDoneCount    = wfAgents.filter(function(a){return a.status==='done';}).length;
+          wfAgentCount   = wfAgents.length;
+          standbyCount   = 0;
+        } else {
+          wfRunningCount = evNotDone;
+          wfDoneCount    = s.agents ? s.agents.filter(function(a){return a.done;}).length : 0;
+          wfAgentCount   = s.agents ? s.agents.length : (s.workflowAgentCount || 0);
+          standbyCount   = 0;
+        }
 
         // Header badges
-        var wfRunBadge = wfRunningCount ? '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:'+wfColor+'22;color:'+wfColor+';font-weight:700">'+wfRunningCount+' running</span>' : '';
-        var wfDoneBadge = wfDoneCount ? '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,.06);color:#888">'+wfDoneCount+' done</span>' : '';
+        var wfRunBadge     = wfRunningCount ? '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:'+wfColor+'22;color:'+wfColor+';font-weight:700">'+wfRunningCount+' running</span>' : '';
+        var wfStandbyBadge = standbyCount   ? '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:#ff980022;color:#ff9800;font-weight:700">'+standbyCount+' standby</span>' : '';
+        var wfDoneBadge    = wfDoneCount    ? '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,.06);color:#888">'+wfDoneCount+' done</span>' : '';
         var wfChevron = wfExpanded ? '▾' : '▸';
 
         workflowHtml = '<div style="border-bottom:1px solid rgba(128,128,128,.1)">'
           + '<div data-workflow-toggle="'+esc(wfSid)+'" style="display:flex;align-items:center;gap:6px;padding:8px 14px;cursor:pointer;user-select:none">'
           + '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:'+wfColor+'">'+wfIcon+' WORKFLOW</span>'
           + (wfAgentCount ? '<span style="font-size:10px;color:'+wfColor+';opacity:.6">· '+wfAgentCount+'</span>' : '')
-          + wfRunBadge + wfDoneBadge
+          + wfRunBadge + wfStandbyBadge + wfDoneBadge
           + (wfLabel ? '<span style="font-size:10px;opacity:.25;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(wfLabel)+'</span>' : '<span style="flex:1"></span>')
           + '<span style="font-size:11px;opacity:.4">'+wfChevron+'</span>'
           + '</div>';
@@ -589,6 +609,14 @@ function applyUpdate(d){
               +(subDetail?'<div style="font-size:9px;opacity:.3;padding-left:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(subDetail)+'</div>':'')
               +'</div>';
           }).join('');
+          // Standby row — agents dispatched by harness but not yet started in journal
+          if(standbyCount > 0) {
+            workflowHtml += '<div style="display:flex;align-items:center;gap:5px;padding:4px 0;border-top:1px solid rgba(255,255,255,.04)">'
+              +'<span style="width:6px;height:6px;border-radius:50%;background:#ff9800;flex-shrink:0;display:inline-block;opacity:.6"></span>'
+              +'<span style="flex:1;font-size:10px;color:#ff9800;opacity:.7">'+standbyCount+' agent'+(standbyCount!==1?'s':'')+' on standby</span>'
+              +'<span style="font-size:9px;color:#ff9800;opacity:.5;font-weight:600">standby</span>'
+              +'</div>';
+          }
           if(doneWfAgents.length) {
             var doneModels=[];
             doneWfAgents.forEach(function(a){var m=(a.model||'').trim();if(m&&doneModels.indexOf(m)<0)doneModels.push(m);});
@@ -608,6 +636,7 @@ function applyUpdate(d){
               +'<span style="width:5px;height:5px;border-radius:50%;background:'+wfColor+';flex-shrink:0;display:inline-block;animation:pulse 1.2s ease-in-out infinite"></span>'
               +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(label)+'</span>'
               +(a.role?'<span style="font-size:9px;padding:1px 5px;border-radius:6px;background:'+roleColor+'22;color:'+roleColor+'">'+esc(a.role)+'</span>':'')
+              +'<span style="font-size:9px;color:'+wfColor+';opacity:.7;font-weight:600">running</span>'
               +'</div>';
           }).join('');
           if(doneEvAgents.length) {
