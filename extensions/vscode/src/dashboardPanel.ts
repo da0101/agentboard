@@ -25,7 +25,7 @@ const AB_CLI_COMMANDS: CatalogItem[] = [
 
 
 interface ActivityEvent { ts: string; tool: string; stream: string; file?: string; cmd?: string; agent?: string; skill?: string; hook_event_name?: string; session_id?: string; }
-interface CatalogItem { name: string; slug?: string; description: string; fullDescription?: string; usedBy?: string[] }
+interface CatalogItem { name: string; slug?: string; description: string; fullDescription?: string; usedBy?: string[]; linkedSkills?: string[] }
 interface StreamEntry {
   slug: string; type: string; status: string; role: string;
   objective: string; nextAction: string; branch: string;
@@ -132,6 +132,19 @@ function readSkills(root: string): CatalogItem[] {
 function readRoles(root: string): CatalogItem[] {
   const dir = path.join(root, ".platform", "roles");
   try {
+    // Parse explicit pairs from INDEX.md: `role-slug`+ab-skill
+    const indexPairs = new Map<string, string[]>();
+    try {
+      const indexContent = fs.readFileSync(path.join(dir, "INDEX.md"), "utf8");
+      const pairRe = /`([a-z][a-z-]+)`\+([a-z][a-z-]+)/g;
+      let m;
+      while ((m = pairRe.exec(indexContent)) !== null) {
+        const [, roleSlug, skillSlug] = m;
+        if (!indexPairs.has(roleSlug)) indexPairs.set(roleSlug, []);
+        indexPairs.get(roleSlug)!.push(skillSlug);
+      }
+    } catch { /* no INDEX.md */ }
+
     return fs.readdirSync(dir).filter(f => f.endsWith(".md") && f !== "INDEX.md").flatMap(f => {
       try {
         const content = fs.readFileSync(path.join(dir, f), "utf8");
@@ -139,7 +152,12 @@ function readRoles(root: string): CatalogItem[] {
         const slug = path.basename(f, ".md");
         const afterFm = content.replace(/^---[\s\S]*?---\n?/, '').trim();
         const fullDescription = extractProse(afterFm);
-        return [{ name: fm.name ?? fm.slug ?? slug, slug, description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription }];
+        // Merge INDEX.md pairs with ab-* mentions found in the role file body
+        const linked = new Set<string>(indexPairs.get(slug) ?? []);
+        const bodyMatches = afterFm.match(/\bab-[a-z][a-z-]+/g) ?? [];
+        for (const s of bodyMatches) linked.add(s);
+        const linkedSkills = [...linked];
+        return [{ name: fm.name ?? fm.slug ?? slug, slug, description: fm.mission ?? fm.description ?? fm.objective ?? '', fullDescription, linkedSkills }];
       } catch { return []; }
     });
   } catch { return []; }
@@ -435,6 +453,17 @@ export class DashboardPanel {
             // Fallback if file is new (not in HEAD) — just open the file
             void vscode.window.showTextDocument(rightUri);
           });
+          return;
+        }
+        if (msg.command === "launchRole") {
+          const slug = (msg as {slug?: string; name?: string}).slug ?? "";
+          const name = (msg as {slug?: string; name?: string}).name ?? slug;
+          if (!slug) return;
+          const terminal = vscode.window.createTerminal({ name: `Claude · ${name}`, cwd: this._workspaceRoot });
+          terminal.show();
+          const prompt = `Adopt the ${name} role for this session. Read .platform/roles/${slug}.md for your full protocol, mission, and responsibilities. Ask me 2–3 focused intake questions to understand what I need, then begin working.`;
+          const escaped = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`");
+          terminal.sendText(`claude "${escaped}"`, true);
           return;
         }
         if (msg.command === "copyPath") {

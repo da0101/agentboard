@@ -93,6 +93,49 @@ function ctxBar(pct){
   const c=used<50?'#4caf50':used<75?'#ff9800':'#f44336';
   return '<span class="ctx" style="color:'+c+'">'+'█'.repeat(fill)+'░'.repeat(10-fill)+'</span><span style="color:'+c+';font-size:11px"> '+used+'%</span>';
 }
+// Role launcher — selectable role cards with linked skills + launch button
+window._selectedRole = window._selectedRole || null;
+window._rolesData   = window._rolesData   || [];
+
+function renderRolesCol(listId, roles, accentColor) {
+  window._catExpanded = window._catExpanded || new Set();
+  var selected = window._selectedRole;
+  var h = roles.slice(0, 200).map(function(role, idx) {
+    var eid = listId + '-' + idx;
+    var isOpen = window._catExpanded.has(eid);
+    var hasMore = role.fullDescription && role.fullDescription.length > 10;
+    var isSelected = selected === (role.slug || role.name);
+    var usedBy = role.usedBy && role.usedBy.length ? role.usedBy : null;
+    var linked = role.linkedSkills && role.linkedSkills.length ? role.linkedSkills : [];
+
+    var cardStyle = 'cursor:pointer;border-radius:5px;padding:2px 4px;margin:-2px -4px;transition:background .1s;';
+    if (isSelected) cardStyle += 'background:rgba(156,106,247,.1);outline:1px solid rgba(156,106,247,.35);';
+
+    var row = '<div class="ci" style="'+cardStyle+'" data-role-select="'+esc(role.slug||role.name)+'" data-role-name="'+esc(role.name)+'" data-cat-toggle="'+eid+'">';
+    row += '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">';
+    row += '<span class="ci-name">'+esc(role.name)+'</span>';
+    if (hasMore) row += '<span style="font-size:9px;opacity:.25">'+(isOpen?'▾':'▸')+'</span>';
+    if (usedBy) row += usedBy.map(function(n){return '<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:'+accentColor+'22;color:'+accentColor+';white-space:nowrap">'+esc(n)+'</span>';}).join('');
+    row += '</div>';
+    if (role.description) row += '<span class="ci-desc">'+esc(role.description.slice(0,120))+'</span>';
+    if (hasMore) row += '<div id="'+eid+'-body" style="display:'+(isOpen?'block':'none')+';font-size:11px;opacity:.55;line-height:1.6;margin-top:4px;white-space:pre-wrap;border-left:2px solid '+accentColor+'44;padding-left:8px">'+esc(role.fullDescription||'')+'</div>';
+    // Launch panel — only when selected
+    if (isSelected) {
+      row += '<div style="margin-top:8px;padding:8px;background:rgba(156,106,247,.06);border-radius:4px;border:1px solid rgba(156,106,247,.18)">';
+      if (linked.length) {
+        row += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px">';
+        row += linked.map(function(sk){return '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:#4a9eff18;color:#4a9eff;border:1px solid #4a9eff33">'+esc(sk)+'</span>';}).join('');
+        row += '</div>';
+      }
+      row += '<button data-launch-role="'+esc(role.slug||role.name)+'" data-launch-role-name="'+esc(role.name)+'" style="width:100%;background:#9c6af7;color:#fff;border:none;border-radius:4px;padding:6px 10px;font-size:12px;cursor:pointer;font-family:inherit">▶  Launch Claude as '+esc(role.name)+'</button>';
+      row += '</div>';
+    }
+    row += '</div>';
+    return row;
+  }).join('');
+  html(listId, h);
+}
+
 function renderCatalogCol(listId, items, accentColor) {
   const MAX = 200;
   window._catExpanded = window._catExpanded || new Set();
@@ -696,7 +739,8 @@ function applyUpdate(d){
   txt('cnt-roles',String(d.roleCount));
   txt('cnt-cmds',String(d.commands.length));
   renderCatalogCol('list-skills',d.skills,'#4a9eff');
-  renderCatalogCol('list-roles',d.roles,'#9c6af7');
+  window._rolesData = d.roles;
+  renderRolesCol('list-roles',d.roles,'#9c6af7');
   renderCatalogCol('list-cmds',d.commands,'#888');
 
   // footer — global counts only (session-specific data is shown on each session card)
@@ -839,6 +883,21 @@ document.addEventListener('click',function(e){
       }
     }
     return;
+  }
+  // Role launch button
+  const launchBtn = t.closest('[data-launch-role]');
+  if (launchBtn) {
+    e.stopPropagation();
+    vscode.postMessage({command:'launchRole',slug:launchBtn.dataset.launchRole||'',name:launchBtn.dataset.launchRoleName||''});
+    return;
+  }
+  // Role card selection (toggle)
+  const roleCard = t.closest('[data-role-select]');
+  if (roleCard && !t.closest('[data-launch-role]')) {
+    var slug2 = roleCard.dataset.roleSelect;
+    window._selectedRole = window._selectedRole === slug2 ? null : slug2;
+    renderRolesCol('list-roles', window._rolesData || [], '#9c6af7');
+    // Don't return — still allow data-cat-toggle to fire for expand
   }
   // Catalog item expand/collapse
   const catToggle = t.closest('[data-cat-toggle]');
