@@ -640,7 +640,7 @@ function applyUpdate(d){
 
         var rowBg = f.isNew ? 'background:rgba(40,200,80,.07);border-left:2px solid rgba(40,200,80,.35);padding-left:4px;' : f.isDeleted ? 'background:rgba(220,60,60,.07);border-left:2px solid rgba(220,60,60,.35);padding-left:4px;' : '';
         const diffAttrs = isEdited
-          ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'" title="Click for options" style="cursor:pointer;'+rowBg+'"'
+          ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')+' title="Click for options" style="cursor:pointer;'+rowBg+'"'
           : (rowBg ? ' style="'+rowBg+'"' : '');
         return '<div class="fa"'+diffAttrs+'>'
           + '<span class="fa-icon">' + icon + '</span>'
@@ -778,7 +778,7 @@ document.addEventListener('click',function(e){
       const menu=document.getElementById('_file-menu');
       const fp=menu._filePath||''; const sr=menu._sessionRoot||'';
       if(fm.dataset.fm==='diff'){
-        vscode.postMessage({command:'openDiff',filePath:fp,sessionRoot:sr});
+        vscode.postMessage({command:'openDiff',filePath:fp,sessionRoot:sr,isNew:menu._isNew||false});
       } else if(fm.dataset.fm==='copy'){
         vscode.postMessage({command:'copyPath',filePath:fp,sessionRoot:sr});
       }
@@ -806,6 +806,10 @@ document.addEventListener('click',function(e){
     }
     menu._filePath=diffEl.dataset.openDiff||'';
     menu._sessionRoot=diffEl.dataset.sessionRoot||'';
+    menu._isNew=diffEl.dataset.isNew==='1';
+    menu._isDeleted=diffEl.dataset.isDeleted==='1';
+    var diffItem=menu.querySelector('[data-fm="diff"]');
+    if(diffItem) diffItem.innerHTML=(menu._isNew||menu._isDeleted)?'<span style="opacity:.5;font-size:11px">↗</span>Open file':'<span style="opacity:.5;font-size:11px">⇄</span>Open diff';
     var rect=diffEl.getBoundingClientRect();
     menu.style.display='flex';
     menu.style.left=Math.min(e.clientX, window.innerWidth-180)+'px';

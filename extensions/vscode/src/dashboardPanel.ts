@@ -442,19 +442,42 @@ export class DashboardPanel {
           return;
         }
         if (msg.command === "openDiff") {
-          const relPath = (msg as {filePath?: string; sessionRoot?: string}).filePath ?? "";
+          const relPath = (msg as {filePath?: string; sessionRoot?: string; isNew?: boolean}).filePath ?? "";
           const sessRoot = (msg as {filePath?: string; sessionRoot?: string}).sessionRoot ?? this._workspaceRoot;
+          const isNewFile = (msg as {isNew?: boolean}).isNew ?? false;
           if (!relPath) return;
-          const absPath = path.isAbsolute(relPath) ? relPath : path.join(sessRoot, relPath);
+          // Resolve absolute path — try sessRoot first, then workspaceRoot
+          let absPath = path.isAbsolute(relPath) ? relPath : path.join(sessRoot, relPath);
+          if (!fs.existsSync(absPath)) {
+            const alt = path.join(this._workspaceRoot, relPath);
+            if (fs.existsSync(alt)) absPath = alt;
+          }
           const rightUri = vscode.Uri.file(absPath);
-          // Use VS Code git extension's URI scheme to show HEAD version on the left
+          // New/untracked files have no HEAD version — open the file directly
+          if (isNewFile || !fs.existsSync(absPath)) {
+            if (fs.existsSync(absPath)) {
+              void vscode.window.showTextDocument(rightUri);
+            } else {
+              void vscode.window.showWarningMessage(`File not found: ${relPath}`);
+            }
+            return;
+          }
+          // Check if file is tracked by git before attempting diff
+          try {
+            const { execSync: _ex } = require("child_process") as typeof import("child_process");
+            const status = _ex(`git -C "${sessRoot}" status --porcelain -- "${relPath}" 2>/dev/null`).toString().trim();
+            if (status.startsWith("??")) {
+              // Untracked — no HEAD version, just open the file
+              void vscode.window.showTextDocument(rightUri);
+              return;
+            }
+          } catch { /* fall through to diff attempt */ }
           const gitUri = rightUri.with({
             scheme: "git",
             query: JSON.stringify({ path: absPath, ref: "HEAD" }),
           });
           const fileName = path.basename(absPath);
           void vscode.commands.executeCommand("vscode.diff", gitUri, rightUri, `${fileName}: HEAD ↔ Working Tree`).then(undefined, () => {
-            // Fallback if file is new (not in HEAD) — just open the file
             void vscode.window.showTextDocument(rightUri);
           });
           return;
