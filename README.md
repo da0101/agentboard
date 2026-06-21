@@ -387,18 +387,41 @@ agentboard help
 
 ## VS Code extension
 
-A webview dashboard extension ships in `extensions/vscode/`. It gives you a live multi-session panel without leaving your editor:
+A webview dashboard extension ships in `extensions/vscode/`. It gives you a live multi-session panel without leaving your editor.
 
-- **Live tab** — real-time session grid (one column per active Claude Code session) showing cost, context %, branch, current stream, file/bash activity feed, workflow agent status, and sub-agent tracking. An active-streams row lists all non-closed streams from `.platform/work/`.
-- **Catalog tab** — three columns: Skills (`~40`), Roles (`~26`), and CLI Commands (`14`). Each card shows a description and "used by" badges; clicking expands the full protocol.
+### Live tab
 
-**Install:**
+Real-time session grid — one column per active Claude Code session:
+
+- **Session header** — deterministic pet name (e.g. `frost-condor`), model, cost, runtime, context bar, git branch, last-active time, current role and skill
+- **`⌨ terminal` button** — focuses the VS Code terminal that belongs to that session; works across multiple concurrent sessions in the same project by matching process tree + elapsed time
+- **Activity feed** — every file edited or command run, with:
+  - `+N / -N` line deltas
+  - **⚠ warning** when ≥ 50 lines changed (amber) or ≥ 150 lines changed (orange)
+  - **Size badge** — `500L` amber · `800L` orange · `1kL` red — showing how monolithic the file is
+  - **Click → options menu** — "Open diff" (HEAD ↔ working tree via VS Code diff viewer) or "Copy path" (absolute path to clipboard)
+- **Workflow agents** — running sub-agents listed with label; click to expand/collapse long labels; done agents older than 5 min collapse to `✓ N done earlier`
+- **Active streams** — all non-closed streams from `.platform/work/ACTIVE.md`
+
+### Catalog tab
+
+Three columns: Skills (`~40`), Roles (`~26`), and CLI Commands (`14`). Each card shows a description and "used by" badges; clicking expands the full protocol.
+
+### Status line integration
+
+The `status-bridge.js` hook writes a deterministic session nickname to the Claude Code status line (e.g. `frost-condor · Opus 4.8 · $1.20 · …`). Names are stable — the same session ID always produces the same name. The word pool has 40 adjectives × 40 animals (1 600 combinations) with no visually similar words in the same pool, so concurrent sessions stay clearly distinct.
+
+### File size thresholds
+
+The same 500 / 800 / 1 000-line thresholds that power the activity badges are written into `workflow.md` as hard rules, so agents see the same signals and proactively flag or refuse to grow large files without a refactor plan.
+
+### Install
 
 ```bash
 cd extensions/vscode
 npm install && npm run compile
 npx @vscode/vsce package
-code --install-extension agentboard-2.1.0.vsix
+code --install-extension agentboard-2.2.1.vsix
 ```
 
 Open the dashboard via **Agentboard: Open Dashboard** in the command palette (`Cmd+Shift+P`). Lightweight sidebar tree views (Session Status, Streams, Catalog, Sessions, Worktrees) remain available as an alternative.
