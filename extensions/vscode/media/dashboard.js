@@ -612,6 +612,7 @@ function applyUpdate(d){
           + '<span class="fa-t">' + ago + '</span>'
           + sizeBadge
           + editWarn
+          + (isEdited && f.added == null && f.deleted == null ? '<span title="Committed" style="color:#4caf50;font-size:11px;flex-shrink:0;margin-left:2px">✓</span>' : '')
           + '</div>'
           + '</div>';
       }).join('') || '<div class="em" style="padding:8px 14px">No activity yet</div>';
