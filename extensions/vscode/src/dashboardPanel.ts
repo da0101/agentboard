@@ -328,8 +328,9 @@ function readWorkflowPlan(root: string): WorkflowPlan | null {
 
 function lastSkillFromEvents(events: ActivityEvent[]): { skill: string; sessionId: string } {
   for (const e of events) {
-    if (e.tool === "Skill" && (e as {skill?: string}).skill)
-      return { skill: (e as {skill?: string}).skill!, sessionId: e.session_id ?? "" };
+    if (e.tool !== "Skill") continue;
+    const sk = (e as {skill?: string}).skill || e.file || "";
+    if (sk) return { skill: sk, sessionId: e.session_id ?? "" };
   }
   return { skill: "", sessionId: "" };
 }
@@ -789,8 +790,10 @@ export class DashboardPanel {
               : allSEvents;
             const sFileMap = new Map<string, { tool: string; count: number; lastTs: string }>();
             for (const ev of [...sEvents].reverse()) {
-              if (!ev.file && !ev.cmd) continue;
-              const k = ev.file ?? `$ ${(ev.cmd ?? "").slice(0, 60)}`;
+              // Skill events may only have ev.skill (not ev.file) — normalize to displayable key
+              const skillName = ev.tool === 'Skill' ? ((ev as {skill?: string}).skill || ev.file || "") : "";
+              if (!ev.file && !ev.cmd && !skillName) continue;
+              const k = skillName ? `/${skillName}` : (ev.file ?? `$ ${(ev.cmd ?? "").slice(0, 60)}`);
               const ex = sFileMap.get(k);
               if (!ex || ev.ts > ex.lastTs) sFileMap.set(k, { tool: ev.tool, count: (ex?.count ?? 0) + 1, lastTs: ev.ts });
               else sFileMap.set(k, { ...ex, count: ex.count + 1 });
@@ -1051,11 +1054,13 @@ export class DashboardPanel {
       const evs = getEventsForRoot(sess.root).filter(e => e.session_id === sess.sessionId);
       const nick = sessionNick(sess.sessionId);
       for (const ev of evs) {
-        if (ev.tool === 'Skill' && (ev as {skill?: string}).skill) {
-          const sk = (ev as {skill?: string}).skill!;
-          if (!skillUsage.has(sk)) skillUsage.set(sk, []);
-          if (!skillUsage.get(sk)!.includes(nick)) skillUsage.get(sk)!.push(nick);
-          sessionLastSkillMap.set(sess.sessionId, sk); // last wins = most recent
+        if (ev.tool === 'Skill') {
+          const sk = (ev as {skill?: string}).skill || ev.file || "";
+          if (sk) {
+            if (!skillUsage.has(sk)) skillUsage.set(sk, []);
+            if (!skillUsage.get(sk)!.includes(nick)) skillUsage.get(sk)!.push(nick);
+            sessionLastSkillMap.set(sess.sessionId, sk); // last wins = most recent
+          }
         }
         // RoleAdopt: main session read a role file — slug-keyed
         if (ev.tool === 'RoleAdopt' && (ev as {role?: string}).role) {

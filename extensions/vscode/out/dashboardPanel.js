@@ -387,8 +387,11 @@ function readWorkflowPlan(root) {
 }
 function lastSkillFromEvents(events) {
     for (const e of events) {
-        if (e.tool === "Skill" && e.skill)
-            return { skill: e.skill, sessionId: e.session_id ?? "" };
+        if (e.tool !== "Skill")
+            continue;
+        const sk = e.skill || e.file || "";
+        if (sk)
+            return { skill: sk, sessionId: e.session_id ?? "" };
     }
     return { skill: "", sessionId: "" };
 }
@@ -884,9 +887,11 @@ class DashboardPanel {
                             : allSEvents;
                         const sFileMap = new Map();
                         for (const ev of [...sEvents].reverse()) {
-                            if (!ev.file && !ev.cmd)
+                            // Skill events may only have ev.skill (not ev.file) — normalize to displayable key
+                            const skillName = ev.tool === 'Skill' ? (ev.skill || ev.file || "") : "";
+                            if (!ev.file && !ev.cmd && !skillName)
                                 continue;
-                            const k = ev.file ?? `$ ${(ev.cmd ?? "").slice(0, 60)}`;
+                            const k = skillName ? `/${skillName}` : (ev.file ?? `$ ${(ev.cmd ?? "").slice(0, 60)}`);
                             const ex = sFileMap.get(k);
                             if (!ex || ev.ts > ex.lastTs)
                                 sFileMap.set(k, { tool: ev.tool, count: (ex?.count ?? 0) + 1, lastTs: ev.ts });
@@ -1181,13 +1186,15 @@ class DashboardPanel {
             const evs = getEventsForRoot(sess.root).filter(e => e.session_id === sess.sessionId);
             const nick = sessionNick(sess.sessionId);
             for (const ev of evs) {
-                if (ev.tool === 'Skill' && ev.skill) {
-                    const sk = ev.skill;
-                    if (!skillUsage.has(sk))
-                        skillUsage.set(sk, []);
-                    if (!skillUsage.get(sk).includes(nick))
-                        skillUsage.get(sk).push(nick);
-                    sessionLastSkillMap.set(sess.sessionId, sk); // last wins = most recent
+                if (ev.tool === 'Skill') {
+                    const sk = ev.skill || ev.file || "";
+                    if (sk) {
+                        if (!skillUsage.has(sk))
+                            skillUsage.set(sk, []);
+                        if (!skillUsage.get(sk).includes(nick))
+                            skillUsage.get(sk).push(nick);
+                        sessionLastSkillMap.set(sess.sessionId, sk); // last wins = most recent
+                    }
                 }
                 // RoleAdopt: main session read a role file — slug-keyed
                 if (ev.tool === 'RoleAdopt' && ev.role) {
