@@ -196,13 +196,9 @@ function applyUpdate(d){
     txt('now-stats',summaryParts.join(' · '));
   } else if(d.hasLive){
     nowEl.classList.remove('idle');dot.classList.remove('idle');
-    const isCompact=d.isInLongOp&&ctxNow>=75;
     if(isWorkflow){
       stateEl.textContent='WORKFLOW';stateEl.style.color='#4a9eff';
       dot.style.background='#4a9eff';dot.style.animation='pulse 0.6s ease-in-out infinite';
-    } else if(isCompact){
-      stateEl.textContent='COMPACTING';stateEl.style.color='#9c6af7';
-      dot.style.background='#9c6af7';dot.style.animation='pulse 0.6s ease-in-out infinite';
     } else {
       stateEl.textContent='LIVE';stateEl.style.color='#4caf50';
       dot.style.background='#4caf50';dot.style.animation='pulse 1.5s ease-in-out infinite';
@@ -243,14 +239,10 @@ function applyUpdate(d){
       }
     }
     txt('now-desc',d.streamDesc||'');
-    const ctxUsed=d.ctxPct!==null&&d.ctxPct!==undefined?Math.round(100-d.ctxPct):0;
-    const isCompacting=d.isInLongOp&&ctxUsed>=75;
     if(lopEl){
       lopEl.className='now-longop'+(d.isInLongOp?' on':'');
-      lopEl.textContent=isCompacting
-        ?'⟳ Context at '+ctxUsed+'% — compaction in progress (will update when complete)'
-        :'⟳ Running long operation — last tool call completed >90s ago';
-      lopEl.style.color=isCompacting?'#9c6af7':'#ff9800';
+      lopEl.textContent='⟳ Running long operation — last tool call completed >90s ago';
+      lopEl.style.color='#ff9800';
     }
   }
 
