@@ -75,13 +75,6 @@ function relTime(iso){
 function toggleStream(id){
   const el=document.getElementById(id);
   if(!el)return;
-  if(id==='sr-list2-body'){
-    const open=el.style.display!=='none';
-    el.style.display=open?'none':'block';
-    const arrow=document.getElementById('sr-toggle-arrow');
-    if(arrow)arrow.textContent=open?'▸':'▾';
-    return;
-  }
   const open=el.style.display==='block';
   document.querySelectorAll('[id^="sr-detail-"]').forEach(function(e){e.style.display='none';});
   if(!open)el.style.display='block';
@@ -225,12 +218,18 @@ function renderKPIGrid(kpi) {
       + '<div class="kpi-lbl">' + lbl + '</div>'
       + '</div>';
   }
-  function group(lbl, tiles) {
-    return '<div class="kpi-group"><div class="kpi-group-lbl">' + lbl + '</div><div class="kpi-row">' + tiles + '</div></div>';
+  function group(lbl, tiles, scope) {
+    var key = lbl.toLowerCase().replace(/[^a-z]/g,'-').replace(/-+$/,'');
+    var folded = window._kpiFolded && window._kpiFolded.has(key);
+    var scopeHtml = scope ? '<span style="font-size:9px;opacity:.3;font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px">' + scope + '</span>' : '';
+    return '<div class="kpi-group'+(folded?' folded':'')+'" data-kpi-group="'+key+'">'
+      +'<div class="kpi-group-lbl">'+lbl+scopeHtml+'</div>'
+      +'<div class="kpi-row"'+(folded?' style="display:none"':'')+'>'+tiles+'</div>'
+      +'</div>';
   }
   var g = '';
 
-  // Sessions
+  // Sessions — live snapshot, no time scope needed
   var sessTiles = ''
     + tile(kpi.sessions, 'Active', kpi.sessions > 0 ? '#4caf50' : '#666')
     + tile('$' + kpi.totalCostUsd.toFixed(2), 'Total Cost', '#4caf50')
@@ -238,9 +237,9 @@ function renderKPIGrid(kpi) {
     + (kpi.highCtx > 0 ? tile(kpi.highCtx, 'High Ctx', '#f44336', 'Sessions above 80% context — consider compacting') : '')
     + tile(kpi.runningAgents, 'Agents Running', kpi.runningAgents > 0 ? '#4a9eff' : '#555')
     + (kpi.totalAgents > 0 ? tile(kpi.totalAgents, 'Agents Total', '#888') : '');
-  g += group('Sessions', sessTiles);
+  g += group('Sessions', sessTiles, 'live');
 
-  // Code Activity
+  // Code Activity — scoped to events visible in the current active sessions
   var actTiles = ''
     + tile(kpi.totalUniqueFiles, 'Files Touched', '#e8e8e8')
     + (kpi.totalEdits > 0 ? tile(kpi.totalEdits, 'Total Edits', '#e8e8e8') : '')
@@ -253,31 +252,16 @@ function renderKPIGrid(kpi) {
     + (kpi.newFiles > 0 ? tile(kpi.newFiles, 'New Files', '#4caf84') : '')
     + (kpi.deletedFiles > 0 ? tile(kpi.deletedFiles, 'Deleted', '#f44336') : '')
     + (kpi.commandCount > 0 ? tile(kpi.commandCount, 'Commands', '#f0b429') : '');
-  if (kpi.totalUniqueFiles > 0) g += group('Code Activity', actTiles);
+  if (kpi.totalUniqueFiles > 0) g += group('Code Activity', actTiles, 'this session');
 
-  // Code Health
+  // Code Health — derived from same session activity window
   if (kpi.redFiles > 0 || kpi.amberFiles > 0 || kpi.bigEdits > 0) {
     var healthTiles = ''
       + (kpi.redFiles > 0 ? tile(kpi.redFiles, 'Monoliths', '#ef5350', 'Files with 1000+ lines touched this session') : '')
       + (kpi.amberFiles > 0 ? tile(kpi.amberFiles, 'Large Files', '#f0b429', 'Files with 500–999 lines touched this session') : '')
       + (kpi.bigEdits > 0 ? tile(kpi.bigEdits, 'Big Edits', '#ff9800', 'Files where 50+ lines were changed') : '');
-    g += group('Code Health ⚠', healthTiles);
+    g += group('Code Health ⚠', healthTiles, 'this session');
   }
-
-  // Streams
-  var streamTiles = tile(kpi.streams, 'Active', '#4a9eff');
-  if (kpi.awaitingQA > 0) streamTiles += tile(kpi.awaitingQA, 'Awaiting QA', '#ff9800');
-  if (kpi.totalDC > 0) streamTiles += tile(kpi.checkedDC + '/' + kpi.totalDC, 'Criteria Done', kpi.checkedDC === kpi.totalDC ? '#4caf50' : '#888', 'Done criteria checked across all streams');
-  Object.keys(kpi.streamsByType).sort().forEach(function(type) {
-    streamTiles += tile(kpi.streamsByType[type], type, '#888');
-  });
-  g += group('Streams', streamTiles);
-
-  // Catalog
-  g += group('Catalog', ''
-    + tile(kpi.skills, 'Skills', '#4a9eff')
-    + tile(kpi.roles, 'Roles', '#9c6af7')
-    + tile(kpi.commands, 'Commands', '#888'));
 
   return g;
 }
@@ -320,6 +304,8 @@ function renderSessionHdr(s, d) {
 }
 
 function applyUpdate(d){
+  // Sync ignored-size set from payload so context menu can toggle state
+  window._ignoredSizeFiles = new Set(d.ignoredSizeFiles || []);
 
   // SESSION TAB MODE: own identity bar, stacked layout, session-specific stats
   if (d.isSessionTab) {
@@ -337,15 +323,18 @@ function applyUpdate(d){
         sessionTime: s0.sessionTime || d.sessionTime,
         ctxPct: s0.ctxPct !== undefined ? s0.ctxPct : d.ctxPct,
         branch: s0.branch || d.branch,
-        activeStream: s0.stream || d.activeStream,
+        activeStream: s0.streamPinned ? (s0.stream || '') : (s0.stream || d.activeStream || ''),
         projectName: s0.projectName || d.projectName,
         hasLive: typeof s0.ageSeconds === 'number' ? s0.ageSeconds < 120 : d.hasLive,
         fileActivity: _s0act.length ? _s0act : d.fileActivity,
-        // Per-session NOW block — prevents both tabs showing the same global last-event
         lastEventLabel: _s0act0 ? _s0act0.file : '',
         lastEventTs: _s0act0 ? _s0act0.lastTs : null,
         streamDesc: s0.streamDesc || d.streamDesc,
         isInLongOp: false,
+        // Per-session workflow — override global activeWorkflow with this session's workflow data
+        activeWorkflow: (s0.hasWorkflow && s0.workflowLabel)
+          ? { label: s0.workflowLabel, agentCount: s0.workflowAgentCount || 0, ts: s0.lastUpdated || '' }
+          : d.activeWorkflow,
       });
       renderSessionHdr(s0, d);
     }
@@ -354,7 +343,9 @@ function applyUpdate(d){
     if (liveEl && !liveEl.classList.contains('on')) { liveEl.classList.add('on'); }
     var catEl = document.getElementById('catalog');
     if (catEl) { catEl.classList.remove('on'); catEl.style.display = 'none'; }
-    // Hide now-stats (redundant — identity bar already shows model/cost/time)
+    // Hide KPI grid and now-stats — session tab has its own identity bar
+    var kpiElST = document.getElementById('kpi-grid');
+    if (kpiElST) kpiElST.style.display = 'none';
     var nsEl = document.getElementById('now-stats');
     if (nsEl) nsEl.style.display = 'none';
   } else {
@@ -489,7 +480,8 @@ function applyUpdate(d){
       }
     }
     var rowBg = f.isNew ? 'background:rgba(40,200,80,.07);border-left:2px solid rgba(40,200,80,.35);padding-left:4px;' : f.isDeleted ? 'background:rgba(220,60,60,.07);border-left:2px solid rgba(220,60,60,.35);padding-left:4px;' : '';
-    var diffAttrs = isEdited
+    var hasMenu2 = isEdited || (f.lineCount || 0) >= 500;
+    var diffAttrs = hasMenu2
       ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(_singleRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')
         +' data-line-count="'+(f.lineCount||0)+'"'
         +' data-added="'+(f.added||0)+'" data-deleted="'+(f.deleted||0)+'" data-total-changed="'+totalChanged+'"'
@@ -615,6 +607,9 @@ function applyUpdate(d){
 
   if (multiSession && liveBody && sessionColsEl) {
     liveBody.classList.add('multi');
+    // Show the sessions foldable section wrapper
+    var secMultiSessEl = document.getElementById('sec-multi-sessions');
+    if (secMultiSessEl) secMultiSessEl.style.display = '';
     sessionColsEl.style.display = 'flex';
     if (streamsRowEl) streamsRowEl.style.display = '';
     if (colL) colL.style.display = 'none';
@@ -629,6 +624,9 @@ function applyUpdate(d){
       if(el.scrollTop > 0) _scrollState[el.id] = el.scrollTop;
     });
     var _activeSessions = d.activeSessions || [];
+    // Update sessions section title
+    var multiSessTtl = document.getElementById('multi-sessions-ttl');
+    if (multiSessTtl) multiSessTtl.textContent = 'Sessions (' + _activeSessions.length + ')';
     if (!_activeSessions.length) {
       sessionColsEl.innerHTML = '<div style="padding:32px 20px;opacity:.3;font-size:12px;text-align:center;width:100%">No active sessions</div>';
     } else
@@ -662,7 +660,25 @@ function applyUpdate(d){
         + '<button data-close-session="' + esc(s.sessionId||'') + '" title="Dismiss session from dashboard" style="background:transparent;border:none;cursor:pointer;color:#ff453a;font-size:13px;line-height:1;padding:2px 4px;opacity:.5;flex-shrink:0" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'.5\'">×</button>'
         + '</div>'
         + '<div class="sess-col-grid">'
-        + (s.stream ? '<span style="opacity:.4">Stream</span><span style="color:#4a9eff">' + esc(s.stream) + '</span>' : '')
+        + (function(){
+            // streamPinned=true → user explicitly chose (even "none") — never override with d.activeStream
+            // streamPinned=false → no manual choice → fall back to workspace active stream
+            var effStream = s.streamPinned ? (s.stream || '') : (s.stream || d.activeStream || '');
+            var avail = s.availableStreams || [];
+            var opts = '<option value="">— none —</option>';
+            avail.forEach(function(slug) {
+              opts += '<option value="' + esc(slug) + '"' + (slug === effStream ? ' selected' : '') + '>' + esc(slug) + '</option>';
+            });
+            if (effStream && !avail.includes(effStream)) {
+              opts += '<option value="' + esc(effStream) + '" selected>' + esc(effStream) + ' ⚠</option>';
+            }
+            var autoLabel = (!s.streamPinned && effStream) ? '<span title="Auto from workspace BRIEF.md" style="font-size:9px;opacity:.35;flex-shrink:0">auto</span>' : '';
+            var closeBtn = effStream ? '<button data-close-stream-btn="1" data-stream-slug="' + esc(effStream) + '" data-session-root="' + esc(s.root||'') + '" style="flex-shrink:0;background:#ff453a18;border:1px solid #ff453a44;color:#ff453a;border-radius:4px;font-size:9px;padding:1px 7px;cursor:pointer;white-space:nowrap" onmouseover="this.style.background=\'#ff453a33\'" onmouseout="this.style.background=\'#ff453a18\'">Close</button>' : '';
+            return '<span style="opacity:.4;align-self:center">Stream</span>'
+              + '<span style="display:flex;align-items:center;gap:5px;min-width:0">'
+              + '<select data-sess-stream-select="1" data-session-id="' + esc(s.sessionId||'') + '" data-session-root="' + esc(s.root||'') + '" style="flex:1;min-width:0;max-width:150px;background:#1e1e2e;color:' + (effStream ? '#4a9eff' : '#666') + ';border:1px solid #4a9eff33;border-radius:4px;font-size:10px;padding:1px 5px;cursor:pointer;outline:none">' + opts + '</select>'
+              + autoLabel + closeBtn + '</span>';
+          })()
         + (s.cost ? '<span style="opacity:.4">Cost</span><span>' + esc(s.cost) + '</span>' : '')
         + (s.sessionTime ? '<span style="opacity:.4">Time</span><span>' + esc(s.sessionTime) + '</span>' : '')
         + (ctxBar ? '<span style="opacity:.4">Context</span><span>' + ctxBar + '</span>' : '')
@@ -909,7 +925,8 @@ function applyUpdate(d){
         }
 
         var rowBg = f.isNew ? 'background:rgba(40,200,80,.07);border-left:2px solid rgba(40,200,80,.35);padding-left:4px;' : f.isDeleted ? 'background:rgba(220,60,60,.07);border-left:2px solid rgba(220,60,60,.35);padding-left:4px;' : '';
-        const diffAttrs = isEdited
+        var hasMenu = isEdited || (f.lineCount || 0) >= 500;
+        const diffAttrs = hasMenu
           ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')
             +' data-line-count="'+(f.lineCount||0)+'"'
             +' data-added="'+(f.added||0)+'" data-deleted="'+(f.deleted||0)+'" data-total-changed="'+totalChanged+'"'
@@ -960,21 +977,15 @@ function applyUpdate(d){
     const srTtl2 = document.getElementById('sr-ttl2');
     const srList2 = document.getElementById('sr-list2');
     if (srTtl2) {
-      srTtl2.style.cursor = 'pointer';
-      srTtl2.innerHTML = 'Active streams (' + d.streams.length + ') <span id="sr-toggle-arrow" style="opacity:.5">▸</span>';
-      srTtl2.setAttribute('data-toggle-id', 'sr-list2-body');
+      srTtl2.textContent = 'Active streams (' + d.streams.length + ')';
+      srTtl2.removeAttribute('data-toggle-id');
     }
-    var srBody = document.getElementById('sr-list2-body');
-    if (!srBody && srList2) {
-      srBody = document.createElement('div');
-      srBody.id = 'sr-list2-body';
-      srBody.style.display = 'none'; // collapsed by default
-      srList2.parentNode.insertBefore(srBody, srList2.nextSibling);
-    }
-    if (srBody) srBody.innerHTML = renderStreams(d.streams, d.activeStream);
+    if (srList2) srList2.innerHTML = renderStreams(d.streams, d.activeStream);
   } else {
     // Single-session: restore original layout
     if (liveBody) liveBody.classList.remove('multi');
+    var secMultiSessEl2 = document.getElementById('sec-multi-sessions');
+    if (secMultiSessEl2) secMultiSessEl2.style.display = 'none';
     if (sessionColsEl) sessionColsEl.style.display = 'none';
     if (streamsRowEl) streamsRowEl.style.display = 'none';
     if (colL) colL.style.display = '';
@@ -984,7 +995,8 @@ function applyUpdate(d){
     const sessionsSecEl = document.getElementById('sec-sessions');
     const singleSecEl = document.getElementById('sec-session-single');
     if (sessionsSecEl) sessionsSecEl.style.display = 'none';
-    if (singleSecEl) singleSecEl.style.display = '';
+    // Session tabs already show model/cost/time/context/branch in the identity header — hide the redundant SESSION block
+    if (singleSecEl) singleSecEl.style.display = d.isSessionTab ? 'none' : '';
   }
 
   // streams (single-session path)
@@ -1030,6 +1042,10 @@ window.addEventListener('message',function(e){
   applyUpdate(d);
 });
 
+// Tell the extension this webview is live — triggers a fresh data push.
+// Handles the case where the extension reloaded/reinstalled after this panel was already open.
+vscode.postMessage({command:'webviewReady'});
+
 // Persistent toggle state (survives re-renders)
 window._agentExpanded = window._agentExpanded || new Set();
 window._workflowExpanded = window._workflowExpanded || new Set();
@@ -1038,9 +1054,30 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){var m=document.getElementById('_file-menu');if(m)m.style.display='none';}
 });
 
+// Stream select — manual session→stream pin (change event)
+document.addEventListener('change',function(e){
+  var sel = e.target.closest('[data-sess-stream-select]');
+  if(!sel) return;
+  vscode.postMessage({command:'setSessionStream', sessionId:sel.dataset.sessionId||'', streamSlug:sel.value, sessionRoot:sel.dataset.sessionRoot||''});
+});
+
 // Event delegation — handles tabs, stream toggles, open-stream, refresh, agents toggle
 document.addEventListener('click',function(e){
   const t=e.target;
+  // KPI group fold toggle
+  var kpiLbl = t.closest('.kpi-group-lbl');
+  if (kpiLbl) {
+    var kpiGrp = kpiLbl.closest('.kpi-group');
+    if (kpiGrp) {
+      window._kpiFolded = window._kpiFolded || new Set();
+      var kpiKey = kpiGrp.dataset.kpiGroup || '';
+      if (window._kpiFolded.has(kpiKey)) { window._kpiFolded.delete(kpiKey); } else { window._kpiFolded.add(kpiKey); }
+      kpiGrp.classList.toggle('folded');
+      var kpiRow = kpiGrp.querySelector('.kpi-row');
+      if (kpiRow) kpiRow.style.display = kpiGrp.classList.contains('folded') ? 'none' : '';
+    }
+    return;
+  }
   // Foldable section toggle
   var foldHdr = t.closest('.sec-ttl.foldable');
   if (foldHdr && !t.closest('[data-toggle-id]') && !t.closest('[data-view]')) {
@@ -1091,6 +1128,8 @@ document.addEventListener('click',function(e){
         vscode.postMessage({command:'refactorInSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0,shellPid:menu._shellPid||0,sessionNick:menu._sessionNick||'',sessionId:menu._sessionId||''});
       } else if(fm.dataset.fm==='refactor-new'){
         vscode.postMessage({command:'refactorNewSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0});
+      } else if(fm.dataset.fm==='ignore-size'){
+        vscode.postMessage({command:'toggleIgnoreSize',filePath:fp,sessionRoot:sr});
       }
       menu.style.display='none';
     }
@@ -1156,12 +1195,20 @@ document.addEventListener('click',function(e){
       if(menu._totalChanged<50) _mHtml += _sep;
       _mHtml += _fmItem('refactor-here','⚡','Refactor in this session','#c792ea',_lcHint);
       _mHtml += _fmItem('refactor-new','✨','Refactor in new session','#82aaff');
+      var _alreadyIgnored = window._ignoredSizeFiles && window._ignoredSizeFiles.has(menu._filePath || '');
+      _mHtml += _fmItem('ignore-size', _alreadyIgnored?'🔔':'🔕', _alreadyIgnored?'Show size badge':'Ignore size badge','#888');
     }
     menu.innerHTML=_mHtml;
     var rect=diffEl.getBoundingClientRect();
+    // Measure before showing so we can flip above the row if needed
+    menu.style.visibility='hidden';
     menu.style.display='flex';
+    var menuH=menu.offsetHeight||180;
+    var spaceBelow=window.innerHeight-rect.bottom-8;
+    var menuTop=spaceBelow>=menuH ? rect.bottom+2 : Math.max(4, rect.top-menuH-2);
     menu.style.left=Math.min(e.clientX, window.innerWidth-220)+'px';
-    menu.style.top=(rect.bottom+2)+'px';
+    menu.style.top=menuTop+'px';
+    menu.style.visibility='';
     return;
   }
   // Workflow agent label expand/collapse
@@ -1176,6 +1223,17 @@ document.addEventListener('click',function(e){
     } else {
       window._wfAgentExpanded.add(agKey2);
       if(labelEl){ labelEl.style.whiteSpace='normal'; labelEl.style.overflow='visible'; labelEl.style.textOverflow='clip'; labelEl.style.wordBreak='break-word'; }
+    }
+    return;
+  }
+  // Close stream button
+  const closeStreamBtn = t.closest('[data-close-stream-btn]');
+  if(closeStreamBtn){
+    e.stopPropagation();
+    var slug = closeStreamBtn.dataset.streamSlug || '';
+    var sRoot2 = closeStreamBtn.dataset.sessionRoot || '';
+    if(slug && confirm('Run "agentboard close ' + slug + '" in a new terminal?')){
+      vscode.postMessage({command:'closeStream', streamSlug:slug, sessionRoot:sRoot2});
     }
     return;
   }

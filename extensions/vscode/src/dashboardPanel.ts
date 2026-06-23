@@ -170,16 +170,18 @@ function readActiveStream(root: string): string {
     // Validate: brief stream must exist in ACTIVE.md as a non-closed stream
     if (briefSlug) {
       const active = fs.readFileSync(path.join(root, ".platform", "work", "ACTIVE.md"), "utf8");
+      // ACTIVE.md columns: | Stream | Type | Status | Agent | Last updated |
+      //                      [0]  [1]   [2]    [3]     [4]       [5]
       const isActive = active.split("\n").some(line => {
         const cols = line.split("|").map(c => c.trim());
-        const slug = cols[1]; const status = cols[4];
+        const slug = cols[1]; const status = cols[3];
         return slug === briefSlug && status && !["done","archived","closed"].includes(status);
       });
       if (isActive) return briefSlug;
       // Brief is stale — find first active stream in ACTIVE.md
       for (const line of active.split("\n")) {
         const cols = line.split("|").map(c => c.trim());
-        const slug = cols[1]; const status = cols[4];
+        const slug = cols[1]; const status = cols[3];
         if (slug && slug !== "Stream" && !slug.startsWith("-") && status && !["done","archived","closed","","Status"].includes(status)) {
           return slug;
         }
@@ -189,20 +191,37 @@ function readActiveStream(root: string): string {
   return "";
 }
 
+function isStreamActive(root: string, slug: string): boolean {
+  if (!slug) return false;
+  try {
+    const c = fs.readFileSync(path.join(root, ".platform", "work", `${slug}.md`), "utf8");
+    const st = (parseFrontmatter(c).status ?? "").toLowerCase();
+    return !["done", "archived", "closed"].includes(st);
+  } catch { return false; }
+}
+
+function isValidSkillName(s: string): boolean {
+  return !!s && !s.includes("/") && !s.includes("\n") && !s.includes("\\n") && s.length <= 60;
+}
+
 function readSessionStream(root: string, sessionId: string, eventsCache?: ActivityEvent[]): string {
-  // 1. TSV lookup (first-write-wins, prevents cross-session contamination)
+  // 0. Manual override wins (user pinned via dropdown); "" = explicitly "none"
+  const override = DashboardPanel._loadStreamOverride(root, sessionId);
+  if (override !== undefined) return override;
+  // 1. TSV lookup — validate stream is still active
   try {
     const tsv = fs.readFileSync(path.join(root, ".platform", ".session-streams.tsv"), "utf8");
     for (const line of tsv.trim().split("\n")) {
       const [id, slug] = line.split("\t");
-      if (id === sessionId && slug) return slug.trim();
+      if (id === sessionId && slug) { const s = slug.trim(); return isStreamActive(root, s) ? s : ""; }
     }
   } catch { /* no mapping yet */ }
-  // 2. Fallback: scan session events for a stream field (catches sessions not yet in TSV)
+  // 2. Fallback: scan session events for a stream field
   if (eventsCache) {
     for (const ev of eventsCache) {
       if (ev.session_id === sessionId && (ev as {stream?: string}).stream) {
-        return (ev as {stream?: string}).stream!;
+        const s = (ev as {stream?: string}).stream!;
+        return isStreamActive(root, s) ? s : "";
       }
     }
   }
@@ -385,6 +404,66 @@ export class DashboardPanel {
   private _lastDelegateTs = 0;   // epoch ms of last handled delegate
   // nick → terminal name cache so focusTerminal can match by session nick
   private _sessionTerminalMap = new Map<string, string>(); // nick → terminal.name
+
+  // ── Static: per-project file size ignore list ──────────────────────────────
+  static _ignoreSizes: Map<string, Set<string>> = new Map();
+  private static _ignoreSizePath(): string { return path.join(os.homedir(), ".agentboard", "ignore-sizes.json"); }
+  static _loadIgnoreSizes(root: string): Set<string> {
+    if (DashboardPanel._ignoreSizes.has(root)) return DashboardPanel._ignoreSizes.get(root)!;
+    try {
+      const obj = JSON.parse(fs.readFileSync(DashboardPanel._ignoreSizePath(), "utf8")) as Record<string, string[]>;
+      const set = new Set<string>(obj[root] ?? []);
+      DashboardPanel._ignoreSizes.set(root, set);
+      return set;
+    } catch { const s = new Set<string>(); DashboardPanel._ignoreSizes.set(root, s); return s; }
+  }
+  static _saveIgnoreSizes(root: string): void {
+    try {
+      const fp = DashboardPanel._ignoreSizePath();
+      let obj: Record<string, string[]> = {};
+      try { obj = JSON.parse(fs.readFileSync(fp, "utf8")); } catch { /* new */ }
+      const set = DashboardPanel._ignoreSizes.get(root) ?? new Set();
+      if (set.size > 0) { obj[root] = [...set]; } else { delete obj[root]; }
+      fs.mkdirSync(path.dirname(fp), { recursive: true });
+      fs.writeFileSync(fp, JSON.stringify(obj, null, 2));
+    } catch { /* ignore */ }
+  }
+
+  // ── Static: manual session→stream overrides ────────────────────────────────
+  static _streamOverrides: Map<string, string> = new Map();
+  private static _overridesPath(): string { return path.join(os.homedir(), ".agentboard", "session-stream-overrides.json"); }
+  static _loadStreamOverride(root: string, sessionId: string): string | undefined {
+    const key = `${root}::${sessionId}`;
+    if (DashboardPanel._streamOverrides.has(key)) return DashboardPanel._streamOverrides.get(key);
+    try {
+      const obj = JSON.parse(fs.readFileSync(DashboardPanel._overridesPath(), "utf8")) as Record<string, string>;
+      for (const [k, v] of Object.entries(obj)) DashboardPanel._streamOverrides.set(k, v);
+      return DashboardPanel._streamOverrides.get(key);
+    } catch { return undefined; }
+  }
+  static _setStreamOverride(root: string, sessionId: string, slug: string): void {
+    const key = `${root}::${sessionId}`;
+    // Always store, even "" — empty string means "explicitly none" (different from "no override" = key absent)
+    DashboardPanel._streamOverrides.set(key, slug);
+    try {
+      const fp = DashboardPanel._overridesPath();
+      let obj: Record<string, string> = {};
+      try { obj = JSON.parse(fs.readFileSync(fp, "utf8")); } catch { /* new */ }
+      obj[key] = slug; // persist "" to distinguish from absent key
+      fs.mkdirSync(path.dirname(fp), { recursive: true });
+      fs.writeFileSync(fp, JSON.stringify(obj, null, 2));
+    } catch { /* ignore */ }
+  }
+
+  // ── Static: live branch cache per worktree root (20 s TTL) ─────────────────
+  static _branchPerRootCache = new Map<string, { value: string; ts: number }>();
+
+  // Session IDs the user explicitly dismissed
+  static dismissedSessionIds: Set<string> = new Set();
+
+  // Session panels that have received a fresh HTML load in this extension run.
+  // Cleared on each extension activation so any reinstall gets fresh JS.
+  static _bootstrappedPanels: Set<string> = new Set();
 
   static createOrShow(workspaceRoot: string, extensionUri?: vscode.Uri): void {
     if (extensionUri) DashboardPanel.extensionUri = extensionUri;
@@ -796,6 +875,39 @@ DO NOT proceed to Phase 3 until the plan is approved.
           });
           return;
         }
+        if (msg.command === "webviewReady") {
+          // Webview JS loaded (fresh HTML set or extension reloaded) — push data immediately
+          void this._update();
+          return;
+        }
+        if (msg.command === "toggleIgnoreSize") {
+          const filePath = (msg as {filePath?: string; sessionRoot?: string}).filePath ?? "";
+          if (!filePath) return;
+          const root = (msg as {filePath?: string; sessionRoot?: string}).sessionRoot || this._workspaceRoot || os.homedir();
+          const set = DashboardPanel._loadIgnoreSizes(root);
+          if (set.has(filePath)) { set.delete(filePath); } else { set.add(filePath); }
+          DashboardPanel._saveIgnoreSizes(root);
+          void this._update();
+          return;
+        }
+        if (msg.command === "setSessionStream") {
+          const { sessionId, streamSlug, sessionRoot } = msg as {sessionId?: string; streamSlug?: string; sessionRoot?: string};
+          const root = sessionRoot || this._workspaceRoot || os.homedir();
+          if (sessionId !== undefined) {
+            DashboardPanel._setStreamOverride(root, sessionId, streamSlug ?? "");
+            void this._update();
+          }
+          return;
+        }
+        if (msg.command === "closeStream") {
+          const { streamSlug, sessionRoot } = msg as {streamSlug?: string; sessionRoot?: string};
+          if (!streamSlug) return;
+          const cwd = sessionRoot || this._workspaceRoot;
+          const term = vscode.window.createTerminal({ name: `Close · ${streamSlug}`, cwd });
+          term.show();
+          term.sendText(`agentboard close ${streamSlug}`, true);
+          return;
+        }
         if (msg.command === "focusTerminal") {
           const root = (msg as {sessionRoot?: string; sessionNick?: string; shellPid?: number}).sessionRoot ?? "";
           const nick = (msg as {sessionRoot?: string; sessionNick?: string; shellPid?: number}).sessionNick ?? "";
@@ -1035,7 +1147,7 @@ DO NOT proceed to Phase 3 until the plan is approved.
       branch: string; root: string; shellPid: number; projectName: string;
       sessionLastSkill: string; sessionLastRole: string;
       startedAt: string; lastUpdated: string; ageSeconds: number;
-      ctxPct: number | null; stream: string; sessionTime: string;
+      ctxPct: number | null; stream: string; streamPinned: boolean; availableStreams: string[]; sessionTime: string;
       activity: { file: string; tool: string; count: number; lastTs: string; added?: number; deleted?: number; lineCount?: number; committed?: boolean; isNew?: boolean; isDeleted?: boolean }[];
       agents: { label: string; role: string; skill: string; ts: string; done: boolean }[];
       hasWorkflow: boolean; workflowAgentCount: number; workflowLabel: string;
@@ -1276,6 +1388,8 @@ DO NOT proceed to Phase 3 until the plan is approved.
             ageSeconds: Math.floor(ageMs / 1000),
             ctxPct: sCtxPct,
             stream: sRoot ? readSessionStream(sRoot, sId, getEventsForRoot(sRoot)) : "",
+            streamPinned: sRoot ? DashboardPanel._loadStreamOverride(sRoot, sId) !== undefined : false,
+            availableStreams: sRoot ? readStreams(sRoot).map(st => st.slug) : [],
             sessionTime: sElapsed,
             activity: sActivity,
             agents: sAgents,
@@ -1392,6 +1506,7 @@ DO NOT proceed to Phase 3 until the plan is approved.
       skills: skillsWithUsage, roles: rolesWithUsage,
       commands: AB_CLI_COMMANDS,
       projectName: path.basename(this._workspaceRoot),
+      ignoredSizeFiles: Array.from(DashboardPanel._loadIgnoreSizes(this._workspaceRoot)),
     };
   }
 
@@ -1476,9 +1591,15 @@ DO NOT proceed to Phase 3 until the plan is approved.
           ...payloadRec,
           activeSessions: mySession ? [mySession] : [],
           isSessionTab: true,
-          sessionTabSiblings: allActiveSess, // all sessions for family bar
+          sessionTabSiblings: allActiveSess,
         };
-        void sp._panel.webview.postMessage(spPayload);
+        if (!DashboardPanel._bootstrappedPanels.has(sid)) {
+          // First push in this extension run — set HTML to ensure fresh JS is loaded
+          sp._panel.webview.html = sp._getShell(spPayload, sp._panel.webview);
+          DashboardPanel._bootstrappedPanels.add(sid);
+        } else {
+          void sp._panel.webview.postMessage(spPayload);
+        }
       }
     }
 
@@ -1548,8 +1669,12 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 .col-l{flex:3;border-right:1px solid var(--vscode-panel-border);overflow-y:auto;display:flex;flex-direction:column}
 .col-r{flex:2;overflow-y:auto;display:flex;flex-direction:column}
 /* multi-session layout */
-#live-body.multi{flex-direction:column;overflow:hidden}
-#session-cols{display:flex;flex-wrap:wrap;align-content:flex-start;overflow-y:auto;overflow-x:hidden}
+#live-body.multi{flex-direction:column;overflow-y:auto;overflow-x:hidden}
+#sec-multi-sessions{padding:0}
+#sec-multi-sessions>.sec-ttl{padding:6px 14px;margin:0}
+#streams-row{flex-shrink:0}
+#streams-row>#sr-list2{max-height:220px;overflow-y:auto}
+#session-cols{display:flex;flex-wrap:wrap;align-content:flex-start;overflow-y:visible;overflow-x:hidden}
 .sess-col{border-right:1px solid var(--vscode-panel-border);border-bottom:1px solid var(--vscode-panel-border);display:flex;flex-direction:column;min-width:220px;overflow-y:auto;overflow-x:hidden;min-height:200px}
 .sess-col:last-child{border-right:none}
 .sess-col-hdr{flex-shrink:0;padding:10px 14px;border-bottom:1px solid var(--vscode-panel-border);background:rgba(255,255,255,.02)}
@@ -1608,7 +1733,9 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 /* KPI grid */
 #kpi-grid{padding:10px 14px 6px;border-bottom:1px solid var(--vscode-panel-border);display:none;flex-direction:column;gap:8px}
 .kpi-group{display:flex;flex-direction:column;gap:4px}
-.kpi-group-lbl{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.25}
+.kpi-group-lbl{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.25;cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
+.kpi-group-lbl::after{content:'▾';font-size:9px;opacity:.4;flex-shrink:0;margin-left:4px}
+.kpi-group.folded .kpi-group-lbl::after{content:'▸'}
 .kpi-row{display:flex;flex-wrap:wrap;gap:5px}
 .kpi-tile{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:5px;padding:5px 10px;min-width:48px;cursor:default;transition:background .1s}
 .kpi-tile:hover{background:rgba(255,255,255,.07)}
@@ -1673,13 +1800,14 @@ body.session-tab #sec-streams{display:none!important}
   <div id="kpi-grid" style="display:none"></div>
 
   <div id="live-body">
-    <!-- Multi-session: N activity columns (shown by JS when activeSessions.length > 1) -->
-    <div id="session-cols" style="display:none"></div>
-    <div class="streams-row" id="streams-row" style="display:none">
-      <div class="sec">
-        <div class="sec-ttl foldable" id="sr-ttl2">Active streams</div>
-        <div id="sr-list2"></div>
-      </div>
+    <!-- Multi-session: sessions + streams sections (foldable) -->
+    <div class="sec" id="sec-multi-sessions" style="display:none">
+      <div class="sec-ttl foldable" id="multi-sessions-ttl">Sessions</div>
+      <div id="session-cols"></div>
+    </div>
+    <div class="sec" id="streams-row" style="display:none">
+      <div class="sec-ttl foldable" id="sr-ttl2">Active streams</div>
+      <div id="sr-list2"></div>
     </div>
     <!-- Single-session: Left: files touched + streams -->
     <div class="col-l">
@@ -1699,7 +1827,7 @@ body.session-tab #sec-streams{display:none!important}
         <div id="agents-list"><div class="em">No sub-agents dispatched — Claude is working solo</div></div>
       </div>
       <div class="sec" id="sec-sessions" style="display:none">
-        <div class="sec-ttl">Sessions</div>
+        <div class="sec-ttl foldable">Sessions</div>
         <div id="sessions-list"></div>
       </div>
       <div class="sec" id="sec-session-single">
@@ -1714,7 +1842,7 @@ body.session-tab #sec-streams{display:none!important}
         </div>
       </div>
       <div class="sec" id="sec-role" style="display:none">
-        <div class="sec-ttl">Role / Skill</div>
+        <div class="sec-ttl foldable">Role / Skill</div>
         <div class="stat-grid" id="role-grid"></div>
       </div>
     </div>
@@ -1748,6 +1876,7 @@ ${scriptTag}
     if (this._interval) clearInterval(this._interval);
     if (this._boundSessionId) {
       DashboardPanel.sessionPanels.delete(this._boundSessionId);
+      DashboardPanel._bootstrappedPanels.delete(this._boundSessionId);
     } else {
       DashboardPanel.currentPanel = undefined;
     }

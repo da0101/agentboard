@@ -187,10 +187,12 @@ function readActiveStream(root) {
         // Validate: brief stream must exist in ACTIVE.md as a non-closed stream
         if (briefSlug) {
             const active = fs.readFileSync(path.join(root, ".platform", "work", "ACTIVE.md"), "utf8");
+            // ACTIVE.md columns: | Stream | Type | Status | Agent | Last updated |
+            //                      [0]  [1]   [2]    [3]     [4]       [5]
             const isActive = active.split("\n").some(line => {
                 const cols = line.split("|").map(c => c.trim());
                 const slug = cols[1];
-                const status = cols[4];
+                const status = cols[3];
                 return slug === briefSlug && status && !["done", "archived", "closed"].includes(status);
             });
             if (isActive)
@@ -199,7 +201,7 @@ function readActiveStream(root) {
             for (const line of active.split("\n")) {
                 const cols = line.split("|").map(c => c.trim());
                 const slug = cols[1];
-                const status = cols[4];
+                const status = cols[3];
                 if (slug && slug !== "Stream" && !slug.startsWith("-") && status && !["done", "archived", "closed", "", "Status"].includes(status)) {
                     return slug;
                 }
@@ -209,22 +211,44 @@ function readActiveStream(root) {
     catch { /* ignore */ }
     return "";
 }
+function isStreamActive(root, slug) {
+    if (!slug)
+        return false;
+    try {
+        const c = fs.readFileSync(path.join(root, ".platform", "work", `${slug}.md`), "utf8");
+        const st = (parseFrontmatter(c).status ?? "").toLowerCase();
+        return !["done", "archived", "closed"].includes(st);
+    }
+    catch {
+        return false;
+    }
+}
+function isValidSkillName(s) {
+    return !!s && !s.includes("/") && !s.includes("\n") && !s.includes("\\n") && s.length <= 60;
+}
 function readSessionStream(root, sessionId, eventsCache) {
-    // 1. TSV lookup (first-write-wins, prevents cross-session contamination)
+    // 0. Manual override wins (user pinned via dropdown); "" = explicitly "none"
+    const override = DashboardPanel._loadStreamOverride(root, sessionId);
+    if (override !== undefined)
+        return override;
+    // 1. TSV lookup — validate stream is still active
     try {
         const tsv = fs.readFileSync(path.join(root, ".platform", ".session-streams.tsv"), "utf8");
         for (const line of tsv.trim().split("\n")) {
             const [id, slug] = line.split("\t");
-            if (id === sessionId && slug)
-                return slug.trim();
+            if (id === sessionId && slug) {
+                const s = slug.trim();
+                return isStreamActive(root, s) ? s : "";
+            }
         }
     }
     catch { /* no mapping yet */ }
-    // 2. Fallback: scan session events for a stream field (catches sessions not yet in TSV)
+    // 2. Fallback: scan session events for a stream field
     if (eventsCache) {
         for (const ev of eventsCache) {
             if (ev.session_id === sessionId && ev.stream) {
-                return ev.stream;
+                const s = ev.stream;
+                return isStreamActive(root, s) ? s : "";
             }
         }
     }
@@ -417,6 +441,74 @@ function fmtModel(raw) {
 }
 const MODEL_NAMES = new Set(["claude", "sonnet", "opus", "haiku", "fable", "gpt", "gemini", "codex"]);
 class DashboardPanel {
+    static _ignoreSizePath() { return path.join(os.homedir(), ".agentboard", "ignore-sizes.json"); }
+    static _loadIgnoreSizes(root) {
+        if (DashboardPanel._ignoreSizes.has(root))
+            return DashboardPanel._ignoreSizes.get(root);
+        try {
+            const obj = JSON.parse(fs.readFileSync(DashboardPanel._ignoreSizePath(), "utf8"));
+            const set = new Set(obj[root] ?? []);
+            DashboardPanel._ignoreSizes.set(root, set);
+            return set;
+        }
+        catch {
+            const s = new Set();
+            DashboardPanel._ignoreSizes.set(root, s);
+            return s;
+        }
+    }
+    static _saveIgnoreSizes(root) {
+        try {
+            const fp = DashboardPanel._ignoreSizePath();
+            let obj = {};
+            try {
+                obj = JSON.parse(fs.readFileSync(fp, "utf8"));
+            }
+            catch { /* new */ }
+            const set = DashboardPanel._ignoreSizes.get(root) ?? new Set();
+            if (set.size > 0) {
+                obj[root] = [...set];
+            }
+            else {
+                delete obj[root];
+            }
+            fs.mkdirSync(path.dirname(fp), { recursive: true });
+            fs.writeFileSync(fp, JSON.stringify(obj, null, 2));
+        }
+        catch { /* ignore */ }
+    }
+    static _overridesPath() { return path.join(os.homedir(), ".agentboard", "session-stream-overrides.json"); }
+    static _loadStreamOverride(root, sessionId) {
+        const key = `${root}::${sessionId}`;
+        if (DashboardPanel._streamOverrides.has(key))
+            return DashboardPanel._streamOverrides.get(key);
+        try {
+            const obj = JSON.parse(fs.readFileSync(DashboardPanel._overridesPath(), "utf8"));
+            for (const [k, v] of Object.entries(obj))
+                DashboardPanel._streamOverrides.set(k, v);
+            return DashboardPanel._streamOverrides.get(key);
+        }
+        catch {
+            return undefined;
+        }
+    }
+    static _setStreamOverride(root, sessionId, slug) {
+        const key = `${root}::${sessionId}`;
+        // Always store, even "" — empty string means "explicitly none" (different from "no override" = key absent)
+        DashboardPanel._streamOverrides.set(key, slug);
+        try {
+            const fp = DashboardPanel._overridesPath();
+            let obj = {};
+            try {
+                obj = JSON.parse(fs.readFileSync(fp, "utf8"));
+            }
+            catch { /* new */ }
+            obj[key] = slug; // persist "" to distinguish from absent key
+            fs.mkdirSync(path.dirname(fp), { recursive: true });
+            fs.writeFileSync(fp, JSON.stringify(obj, null, 2));
+        }
+        catch { /* ignore */ }
+    }
     static createOrShow(workspaceRoot, extensionUri) {
         if (extensionUri)
             DashboardPanel.extensionUri = extensionUri;
@@ -452,7 +544,56 @@ class DashboardPanel {
         if (DashboardPanel.currentPanel)
             void DashboardPanel.currentPanel._update();
     }
-    constructor(panel, workspaceRoot) {
+    // Open (or reveal) a per-session tab for the given session.
+    static openSession(sessionId, nick, workspaceRoot) {
+        if (this.sessionPanels.has(sessionId)) {
+            try {
+                this.sessionPanels.get(sessionId)._panel.reveal(undefined, true);
+            }
+            catch { /* disposed */ }
+            return;
+        }
+        if (!this.extensionUri)
+            return;
+        const panel = vscode.window.createWebviewPanel("agentboardSession", nick || sessionId.slice(0, 8), { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "media")],
+        });
+        try {
+            const instance = new DashboardPanel(panel, workspaceRoot, sessionId);
+            this.sessionPanels.set(sessionId, instance);
+        }
+        catch (err) {
+            panel.dispose();
+            console.error("[agentboard] SessionPanel constructor failed:", err);
+        }
+    }
+    // Called by the main panel on each update cycle to sync session tabs.
+    static _syncSessionPanels(payload, workspaceRoot) {
+        const sessions = payload.activeSessions ?? [];
+        const activeIds = new Set(sessions.map(s => s.sessionId));
+        // Open new tabs for newly detected sessions
+        for (const sess of sessions) {
+            if (!this.sessionPanels.has(sess.sessionId)) {
+                this.openSession(sess.sessionId, sess.nick || sess.sessionId.slice(0, 8), workspaceRoot);
+            }
+            else {
+                // Update title if nick changed and session still active
+                const p = this.sessionPanels.get(sess.sessionId);
+                const title = sess.nick || sess.sessionId.slice(0, 8);
+                if (!p._panel.title.endsWith(" ✓") && p._panel.title !== title)
+                    p._panel.title = title;
+            }
+        }
+        // Mark panels whose sessions are no longer active
+        for (const [id, p] of this.sessionPanels) {
+            if (!activeIds.has(id) && !p._panel.title.endsWith(" ✓")) {
+                p._panel.title = p._panel.title + " ✓";
+            }
+        }
+    }
+    constructor(panel, workspaceRoot, boundSessionId) {
         this._disposables = [];
         this._initialized = false;
         // Per-cycle event cache: root → events (reset each build cycle)
@@ -470,27 +611,56 @@ class DashboardPanel {
         this._branchCommittedCache = new Map();
         // HTTP backoff: slow down if server consistently absent
         this._httpFailStreak = 0;
+        this._boundSessionId = null;
         this._lastDelegateKey = ""; // "<role>|<task>" dedup
         this._lastDelegateTs = 0; // epoch ms of last handled delegate
         // nick → terminal name cache so focusTerminal can match by session nick
         this._sessionTerminalMap = new Map(); // nick → terminal.name
+        this._boundSessionId = boundSessionId ?? null;
         this._workspaceRoot = workspaceRoot;
         this._panel = panel;
         const initialData = this._buildDataSync();
-        this._panel.webview.html = this._getShell(initialData, panel.webview);
-        this._initialized = true;
-        // Use broad globs that work regardless of which folder VS Code has open
-        try {
-            const hudWatcher = vscode.workspace.createFileSystemWatcher("**/agentboard.hud-status.json");
-            hudWatcher.onDidChange(() => void this._update(), null, this._disposables);
-            hudWatcher.onDidCreate(() => void this._update(), null, this._disposables);
-            this._disposables.push(hudWatcher);
+        let initialDisplay = initialData;
+        if (this._boundSessionId) {
+            const sessions = initialData.activeSessions ?? [];
+            const my = sessions.find(s => s.sessionId === this._boundSessionId);
+            initialDisplay = { ...initialData, activeSessions: my ? [my] : [] };
         }
-        catch { /* watcher failed — poll interval covers it */ }
-        this._interval = setInterval(() => void this._update(), 5000);
+        this._panel.webview.html = this._getShell(initialDisplay, panel.webview);
+        this._initialized = true;
+        if (!this._boundSessionId) {
+            // Main panel: file system watcher + fast poll
+            try {
+                const hudWatcher = vscode.workspace.createFileSystemWatcher("**/agentboard.hud-status.json");
+                hudWatcher.onDidChange(() => void this._update(), null, this._disposables);
+                hudWatcher.onDidCreate(() => void this._update(), null, this._disposables);
+                this._disposables.push(hudWatcher);
+            }
+            catch { /* watcher failed — poll interval covers it */ }
+            this._interval = setInterval(() => void this._update(), 5000);
+        }
+        else {
+            // Session panel: 60 s fallback self-refresh (main panel drives it at 5 s via _syncSessionPanels)
+            this._interval = setInterval(() => void this._update(), 60000);
+        }
         this._panel.webview.onDidReceiveMessage((msg) => {
             if (msg.command === "refresh")
                 void this._update();
+            if (msg.command === "focusSessionTab") {
+                const sid = msg.targetSessionId ?? "";
+                const sp = DashboardPanel.sessionPanels.get(sid);
+                if (sp)
+                    try {
+                        sp._panel.reveal(undefined, false);
+                    }
+                    catch { /* disposed */ }
+                return;
+            }
+            if (msg.command === "openChat") {
+                // "Open Chat" button in session tab — delegate to focusTerminal via same PID-matching logic
+                // (handled by the focusTerminal branch below; this branch is a no-op alias)
+                msg.command = "focusTerminal";
+            }
             if (msg.command === "openStream") {
                 const fp = String(msg.filePath ?? "");
                 const allowed = this._workspaceRoot && fp.startsWith(this._workspaceRoot + path.sep);
@@ -802,6 +972,46 @@ DO NOT proceed to Phase 3 until the plan is approved.
                 void vscode.env.clipboard.writeText(absPath).then(() => {
                     void vscode.window.setStatusBarMessage(`Copied: ${absPath}`, 3000);
                 });
+                return;
+            }
+            if (msg.command === "webviewReady") {
+                // Webview JS loaded (fresh HTML set or extension reloaded) — push data immediately
+                void this._update();
+                return;
+            }
+            if (msg.command === "toggleIgnoreSize") {
+                const filePath = msg.filePath ?? "";
+                if (!filePath)
+                    return;
+                const root = msg.sessionRoot || this._workspaceRoot || os.homedir();
+                const set = DashboardPanel._loadIgnoreSizes(root);
+                if (set.has(filePath)) {
+                    set.delete(filePath);
+                }
+                else {
+                    set.add(filePath);
+                }
+                DashboardPanel._saveIgnoreSizes(root);
+                void this._update();
+                return;
+            }
+            if (msg.command === "setSessionStream") {
+                const { sessionId, streamSlug, sessionRoot } = msg;
+                const root = sessionRoot || this._workspaceRoot || os.homedir();
+                if (sessionId !== undefined) {
+                    DashboardPanel._setStreamOverride(root, sessionId, streamSlug ?? "");
+                    void this._update();
+                }
+                return;
+            }
+            if (msg.command === "closeStream") {
+                const { streamSlug, sessionRoot } = msg;
+                if (!streamSlug)
+                    return;
+                const cwd = sessionRoot || this._workspaceRoot;
+                const term = vscode.window.createTerminal({ name: `Close · ${streamSlug}`, cwd });
+                term.show();
+                term.sendText(`agentboard close ${streamSlug}`, true);
                 return;
             }
             if (msg.command === "focusTerminal") {
@@ -1347,6 +1557,8 @@ DO NOT proceed to Phase 3 until the plan is approved.
                         ageSeconds: Math.floor(ageMs / 1000),
                         ctxPct: sCtxPct,
                         stream: sRoot ? readSessionStream(sRoot, sId, getEventsForRoot(sRoot)) : "",
+                        streamPinned: sRoot ? DashboardPanel._loadStreamOverride(sRoot, sId) !== undefined : false,
+                        availableStreams: sRoot ? readStreams(sRoot).map(st => st.slug) : [],
                         sessionTime: sElapsed,
                         activity: sActivity,
                         agents: sAgents,
@@ -1355,6 +1567,7 @@ DO NOT proceed to Phase 3 until the plan is approved.
                         workflowLabel: sWorkflowLabel,
                         workflowTranscriptAgents: transcriptAgents,
                         workflowPlan: sRoot ? readWorkflowPlan(sRoot) : null,
+                        nick: "", // filled in after dedup by sessionNick()
                     });
                 }
                 catch { /* skip malformed file */ }
@@ -1402,6 +1615,9 @@ DO NOT proceed to Phase 3 until the plan is approved.
                 h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0;
             return ADJ[h % ADJ.length] + '-' + NON[(h >>> 8) % NON.length];
         }
+        // Stamp nick onto each session entry so the frontend and tab titles can use it
+        for (const sess of activeSessions)
+            sess.nick = sessionNick(sess.sessionId);
         const activeEventsForSkill = allEvents.filter(e => !e.session_id || activeSessionIds.has(e.session_id));
         const { skill: lastSkill, sessionId: lastSkillSessionId } = lastSkillFromEvents(activeEventsForSkill);
         const lastSkillSession = (lastSkillSessionId && activeSessionIds.has(lastSkillSessionId)) ? sessionNick(lastSkillSessionId) : "";
@@ -1470,6 +1686,7 @@ DO NOT proceed to Phase 3 until the plan is approved.
             skills: skillsWithUsage, roles: rolesWithUsage,
             commands: AB_CLI_COMMANDS,
             projectName: path.basename(this._workspaceRoot),
+            ignoredSizeFiles: Array.from(DashboardPanel._loadIgnoreSizes(this._workspaceRoot)),
         };
     }
     _handleDelegateFile() {
@@ -1559,9 +1776,45 @@ DO NOT proceed to Phase 3 until the plan is approved.
             catch { /* ok */ }
         } // else: server not running — skip HTTP entirely until extension reloads
         const payload = { ...data, cpRunning, sessions: sessions.length, worktrees };
-        const delivered = await this._panel.webview.postMessage(payload);
+        // Main panel: sync per-session tabs, then push full data to its own webview.
+        // Session-bound panels: push filtered data (only their session) to their webview.
+        const payloadRec = payload;
+        if (!this._boundSessionId) {
+            DashboardPanel._syncSessionPanels(payloadRec, this._workspaceRoot);
+            // Push filtered data (+ family context) to each open session panel
+            const allActiveSess = payloadRec.activeSessions ?? [];
+            for (const [sid, sp] of DashboardPanel.sessionPanels) {
+                const mySession = allActiveSess.find(s => s.sessionId === sid);
+                const spPayload = {
+                    ...payloadRec,
+                    activeSessions: mySession ? [mySession] : [],
+                    isSessionTab: true,
+                    sessionTabSiblings: allActiveSess,
+                };
+                if (!DashboardPanel._bootstrappedPanels.has(sid)) {
+                    // First push in this extension run — set HTML to ensure fresh JS is loaded
+                    sp._panel.webview.html = sp._getShell(spPayload, sp._panel.webview);
+                    DashboardPanel._bootstrappedPanels.add(sid);
+                }
+                else {
+                    void sp._panel.webview.postMessage(spPayload);
+                }
+            }
+        }
+        let postPayload = payload;
+        if (this._boundSessionId) {
+            const activeSess = payloadRec.activeSessions ?? [];
+            const mySession = activeSess.find(s => s.sessionId === this._boundSessionId);
+            postPayload = {
+                ...payloadRec,
+                activeSessions: mySession ? [mySession] : [],
+                isSessionTab: true,
+                sessionTabSiblings: activeSess,
+            };
+        }
+        const delivered = await this._panel.webview.postMessage(postPayload);
         if (!delivered) {
-            this._panel.webview.html = this._getShell(payload, this._panel.webview);
+            this._panel.webview.html = this._getShell(postPayload, this._panel.webview);
         }
     }
     _getShell(data, webview) {
@@ -1612,8 +1865,12 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 .col-l{flex:3;border-right:1px solid var(--vscode-panel-border);overflow-y:auto;display:flex;flex-direction:column}
 .col-r{flex:2;overflow-y:auto;display:flex;flex-direction:column}
 /* multi-session layout */
-#live-body.multi{flex-direction:column;overflow:hidden}
-#session-cols{display:flex;flex-wrap:wrap;align-content:flex-start;overflow-y:auto;overflow-x:hidden}
+#live-body.multi{flex-direction:column;overflow-y:auto;overflow-x:hidden}
+#sec-multi-sessions{padding:0}
+#sec-multi-sessions>.sec-ttl{padding:6px 14px;margin:0}
+#streams-row{flex-shrink:0}
+#streams-row>#sr-list2{max-height:220px;overflow-y:auto}
+#session-cols{display:flex;flex-wrap:wrap;align-content:flex-start;overflow-y:visible;overflow-x:hidden}
 .sess-col{border-right:1px solid var(--vscode-panel-border);border-bottom:1px solid var(--vscode-panel-border);display:flex;flex-direction:column;min-width:220px;overflow-y:auto;overflow-x:hidden;min-height:200px}
 .sess-col:last-child{border-right:none}
 .sess-col-hdr{flex-shrink:0;padding:10px 14px;border-bottom:1px solid var(--vscode-panel-border);background:rgba(255,255,255,.02)}
@@ -1669,8 +1926,43 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 .more{padding:7px 14px;font-size:11px;opacity:.3;font-style:italic}
 .em{opacity:.35;font-size:11px;font-style:italic}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.3)}}
+/* KPI grid */
+#kpi-grid{padding:10px 14px 6px;border-bottom:1px solid var(--vscode-panel-border);display:none;flex-direction:column;gap:8px}
+.kpi-group{display:flex;flex-direction:column;gap:4px}
+.kpi-group-lbl{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.25;cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
+.kpi-group-lbl::after{content:'▾';font-size:9px;opacity:.4;flex-shrink:0;margin-left:4px}
+.kpi-group.folded .kpi-group-lbl::after{content:'▸'}
+.kpi-row{display:flex;flex-wrap:wrap;gap:5px}
+.kpi-tile{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:5px;padding:5px 10px;min-width:48px;cursor:default;transition:background .1s}
+.kpi-tile:hover{background:rgba(255,255,255,.07)}
+.kpi-val{font-size:14px;font-weight:700;line-height:1.15;letter-spacing:-.01em}
+.kpi-lbl{font-size:9px;opacity:.38;margin-top:1px;white-space:nowrap}
+/* Session tab mode — stacked single-column layout, no nav bar */
+#session-hdr{display:none;flex-direction:column;flex-shrink:0;border-bottom:1px solid var(--vscode-panel-border);background:rgba(255,255,255,.015)}
+body.session-tab #hdr{display:none}
+body.session-tab .tabs{display:none}
+body.session-tab #session-hdr{display:flex}
+body.session-tab #live{overflow-y:auto;overflow-x:hidden}
+body.session-tab #live-body{flex-direction:column;overflow:visible}
+body.session-tab .col-l{flex:none;width:100%;overflow-y:visible;border-right:none;border-bottom:1px solid var(--vscode-panel-border)}
+body.session-tab .col-r{flex:none;width:100%;overflow-y:visible}
+body.session-tab #footer{display:none}
+/* Session tab section ordering: 1-Session 2-Agents 3-Activity */
+body.session-tab .col-r{order:1!important}
+body.session-tab .col-l{order:2!important}
+body.session-tab #sec-session-single,body.session-tab #sec-role{order:-1}
+/* Hide streams completely in session tabs — they belong in the main hub */
+body.session-tab #sec-streams{display:none!important}
+/* Foldable sections */
+.sec-ttl.foldable{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
+.sec-ttl.foldable::after{content:'▾';font-size:10px;opacity:.28;flex-shrink:0;margin-left:6px}
+.sec.folded>.sec-ttl.foldable::after{content:'▸'}
+.sec.folded>:not(.sec-ttl){display:none!important}
+.sib-pill{cursor:pointer;padding:2px 8px;border-radius:10px;border:1px solid rgba(255,255,255,.18);font-size:10px;font-family:monospace;opacity:.65;display:inline-block;transition:opacity .15s}
+.sib-pill:hover{opacity:1}
 </style></head><body>
 
+<div id="session-hdr"></div>
 <div id="hdr">
   <span class="logo">◆ AGENTBOARD</span><span class="sep">·</span>
   <span class="proj" id="h-proj">—</span><span class="sep" id="h-sep2" style="display:none">·</span><span class="br" id="h-br"></span>
@@ -1701,38 +1993,41 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
     </div>
   </div>
 
+  <div id="kpi-grid" style="display:none"></div>
+
   <div id="live-body">
-    <!-- Multi-session: N activity columns (shown by JS when activeSessions.length > 1) -->
-    <div id="session-cols" style="display:none"></div>
-    <div class="streams-row" id="streams-row" style="display:none">
-      <div class="sec">
-        <div class="sec-ttl" id="sr-ttl2">Active streams</div>
-        <div id="sr-list2"></div>
-      </div>
+    <!-- Multi-session: sessions + streams sections (foldable) -->
+    <div class="sec" id="sec-multi-sessions" style="display:none">
+      <div class="sec-ttl foldable" id="multi-sessions-ttl">Sessions</div>
+      <div id="session-cols"></div>
+    </div>
+    <div class="sec" id="streams-row" style="display:none">
+      <div class="sec-ttl foldable" id="sr-ttl2">Active streams</div>
+      <div id="sr-list2"></div>
     </div>
     <!-- Single-session: Left: files touched + streams -->
     <div class="col-l">
-      <div class="sec">
-        <div class="sec-ttl" id="fa-ttl">Files touched this session</div>
+      <div class="sec" id="sec-activity">
+        <div class="sec-ttl foldable" id="fa-ttl">Activity this session</div>
         <div id="fa-list"><div class="em">No activity yet</div></div>
       </div>
-      <div class="sec">
-        <div class="sec-ttl" id="sr-ttl">Active streams</div>
+      <div class="sec" id="sec-streams">
+        <div class="sec-ttl foldable" id="sr-ttl">Active streams</div>
         <div id="sr-list"></div>
       </div>
     </div>
     <!-- Right: agents + session stats -->
     <div class="col-r">
       <div class="sec" id="sec-agents">
-        <div class="sec-ttl" id="agents-ttl">Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· last 5 min</span></div>
+        <div class="sec-ttl foldable" id="agents-ttl">Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· last 5 min</span></div>
         <div id="agents-list"><div class="em">No sub-agents dispatched — Claude is working solo</div></div>
       </div>
       <div class="sec" id="sec-sessions" style="display:none">
-        <div class="sec-ttl">Sessions</div>
+        <div class="sec-ttl foldable">Sessions</div>
         <div id="sessions-list"></div>
       </div>
       <div class="sec" id="sec-session-single">
-        <div class="sec-ttl">Session</div>
+        <div class="sec-ttl foldable">Session</div>
         <div class="stat-grid">
           <span class="sk">Model</span><span class="sv" id="sv-model">—</span>
           <span class="sk">Stream</span><span class="sv sv-stream" id="sv-stream">—</span>
@@ -1743,7 +2038,7 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
         </div>
       </div>
       <div class="sec" id="sec-role" style="display:none">
-        <div class="sec-ttl">Role / Skill</div>
+        <div class="sec-ttl foldable">Role / Skill</div>
         <div class="stat-grid" id="role-grid"></div>
       </div>
     </div>
@@ -1775,7 +2070,13 @@ ${scriptTag}
     dispose() {
         if (this._interval)
             clearInterval(this._interval);
-        DashboardPanel.currentPanel = undefined;
+        if (this._boundSessionId) {
+            DashboardPanel.sessionPanels.delete(this._boundSessionId);
+            DashboardPanel._bootstrappedPanels.delete(this._boundSessionId);
+        }
+        else {
+            DashboardPanel.currentPanel = undefined;
+        }
         this._panel.dispose();
         for (const d of this._disposables)
             d.dispose();
@@ -1783,3 +2084,15 @@ ${scriptTag}
     }
 }
 exports.DashboardPanel = DashboardPanel;
+DashboardPanel.sessionPanels = new Map();
+// ── Static: per-project file size ignore list ──────────────────────────────
+DashboardPanel._ignoreSizes = new Map();
+// ── Static: manual session→stream overrides ────────────────────────────────
+DashboardPanel._streamOverrides = new Map();
+// ── Static: live branch cache per worktree root (20 s TTL) ─────────────────
+DashboardPanel._branchPerRootCache = new Map();
+// Session IDs the user explicitly dismissed
+DashboardPanel.dismissedSessionIds = new Set();
+// Session panels that have received a fresh HTML load in this extension run.
+// Cleared on each extension activation so any reinstall gets fresh JS.
+DashboardPanel._bootstrappedPanels = new Set();
