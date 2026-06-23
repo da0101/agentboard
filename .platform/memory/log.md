@@ -17,6 +17,8 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 2026-04-19 — search-command — shipped: agentboard search with ripgrep/grep fallback, OR-join, scope flags, token estimates — instruction-driven approach works for Claude + Codex + Gemini without needing MCP; BM25-style OR search on well-structured .platform/ files is ~85% as good as semantic search at zero infrastructure cost
 
 ---
+- 2026-06-23 — commit `02028cd`: wip: add index and distill commands; auto-distill on stream close — auto-logged
+- 2026-06-22 — commit `c66a1a3`: fix: context menu for large files, foldable KPI/session sections, remove redundant SESSION block in tab view — auto-logged
 - 2026-06-20 — commit `6088dbc`: chore: add codex dashboard support stream + 2.1.0 staleness + workflow scroll fixes — auto-logged
 - 2026-06-20 — commit `652abca`: feat: vscode extension 2.1.0 — real-time dashboard with workflow + catalog — auto-logged
 - 2026-06-18 — commit `be76239`: fix: global ~/.agentboard/live.json bridges across VS Code windows — no more blank dashboard — auto-logged
