@@ -79,6 +79,12 @@ cmd_close() {
   ok "Stream ${C_BOLD}${slug}${C_RESET} closed and archived → ${C_CYAN}${archive_path}${C_RESET}"
   say "  ${C_DIM}If the harvest step (gotchas/playbook/questions) wasn't done before --confirm,${C_RESET}"
   say "  ${C_DIM}those insights are now lost from project memory. Re-run without --confirm to see the checklist.${C_RESET}"
+
+  # Auto-distill into the knowledge layer (fail-open — close never fails due to distill errors)
+  if command -v agentboard >/dev/null 2>&1; then
+    say "  Distilling stream knowledge…"
+    agentboard distill "$slug" --quiet || true
+  fi
 }
 
 _close_print_help() {

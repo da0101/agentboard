@@ -52,6 +52,8 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/daemon.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/lock.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/log_reason.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/search.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/index.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/distill.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/role.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/rescan.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
@@ -161,6 +163,8 @@ main() {
     lock)        cmd_lock "$@" ;;
     log-reason)  cmd_log_reason "$@" ;;
     search)      cmd_search "$@" ;;
+    index)       cmd_index "$@" ;;
+    distill)     cmd_distill "$@" ;;
     role)        cmd_role "$@" ;;
     rescan)      cmd_rescan "$@" ;;
     close)       cmd_close "$@" ;;
