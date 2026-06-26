@@ -9,7 +9,7 @@ repo_ids: [repo-primary]
 base_branch: develop
 git_branch: feature/codex-dashboard-support
 created_at: 2026-06-20
-updated_at: 2026-06-20
+updated_at: 2026-06-26
 closure_approved: false
 ---
 
@@ -74,3 +74,24 @@ _Append-only. Format: `YYYY-MM-DD — <decision> — <rationale>`_
 - Dashboard backend: `extensions/vscode/src/dashboardPanel.ts` — sessions loop at line ~566
 - Codex config template: `templates/codex/`
 - `AGENTS.md.template` — Codex agent configuration entry point
+
+## Resume state
+_Overwritten by `ab checkpoint` — the compact payload the next agent reads first. Keep this block under ~10 lines._
+
+- **Last updated:** 2026-06-26 by danilulmashev
+- **What just happened:** Pushed VS Code workspace-root fix to develop and prepared platform-pack sync; updated role test to derive expected roles from shipped templates.
+- **Current focus:** —
+- **Next action:** Reload VS Code, close/reopen Agentboard dashboard, and verify it shows the current agentboard workspace instead of stale global live project data.
+- **Blockers:** none
+
+## Progress log
+_Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._
+
+2026-06-26 17:11 — Pushed VS Code workspace-root fix to develop and prepared platform-pack sync; updated role test to derive expected roles from shipped templates.
+
+2026-06-26 16:44 — Found a second root hijack in DashboardPanel._buildDataSync: refresh read ~/.agentboard/live.json and overwrote the panel root. Patched extension.ts and dashboardPanel.ts, repackaged, and reinstalled rootfix VSIX.
+
+2026-06-26 16:38 — Fixed VS Code dashboard root detection in worktree /private/tmp/agentboard-vscode-root-detection: workspace folders now win over stale ~/.agentboard/live.json; packaged and installed local rootfix VSIX.
+
+2026-06-26 16:16 — Oriented on VS Code extension/Codex dashboard stream; found local Codex wrapper/session-track telemetry already exists and current Codex docs support native lifecycle hooks.
+

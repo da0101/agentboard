@@ -7,7 +7,11 @@ source "$ROOT/helpers.sh"
 
 export NO_COLOR=1
 
-ALL_ROLE_SLUGS="backend-architect code-auditor code-cleanup-engineer data-analyst debugger devops-engineer feature-builder frontend-engineer pair-programmer perf-engineer product-manager qa-automation-engineer qa-engineer refactor-architect security-engineer startup-mvp tech-advisor tech-writer"
+all_shipped_role_slugs() {
+  find "$TEST_ROOT/templates/platform/roles" -maxdepth 1 -type f -name '*.md' ! -name 'INDEX.md' \
+    | sed 's|.*/||; s|\.md$||' \
+    | sort
+}
 
 # ---------------------------------------------------------------------------
 # ab role list
@@ -21,9 +25,10 @@ test_role_list_shows_all_shipped_roles() {
 
   run_cli_capture output "$dir" role list
   assert_status "$RUN_STATUS" 0
-  for slug in $ALL_ROLE_SLUGS; do
+  while IFS= read -r slug; do
+    [[ -n "$slug" ]] || continue
     assert_contains "$output" "[role:$slug]"
-  done
+  done < <(all_shipped_role_slugs)
   # INDEX.md is routing metadata, never a listable role
   assert_not_contains "$output" "[role:INDEX]"
 }
@@ -168,15 +173,12 @@ test_update_restores_deleted_role_pack() {
   run_cli_capture output "$dir" update
   assert_status "$RUN_STATUS" 0
 
-  for fname in INDEX.md backend-architect.md code-auditor.md code-cleanup-engineer.md \
-    data-analyst.md debugger.md devops-engineer.md feature-builder.md frontend-engineer.md \
-    pair-programmer.md perf-engineer.md product-manager.md qa-automation-engineer.md qa-engineer.md \
-    refactor-architect.md security-engineer.md startup-mvp.md \
-    tech-advisor.md tech-writer.md; do
+  while IFS= read -r fname; do
+    [[ -n "$fname" ]] || continue
     [[ -f "$dir/.platform/roles/$fname" ]] || fail "update did not restore roles/$fname"
-  done
+  done < <(find "$TEST_ROOT/templates/platform/roles" -maxdepth 1 -type f -name '*.md' -exec basename {} \; | sort)
   count="$(ls "$dir/.platform/roles" | wc -l | tr -d ' ')"
-  assert_eq "$count" "19"
+  assert_eq "$count" "$(find "$TEST_ROOT/templates/platform/roles" -maxdepth 1 -type f -name '*.md' | wc -l | tr -d ' ')"
 
   run_cli_capture output "$dir" role list
   assert_status "$RUN_STATUS" 0

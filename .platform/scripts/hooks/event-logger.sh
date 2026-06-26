@@ -37,9 +37,21 @@ _json_string_field() {
   '
 }
 
-# Skip UserPromptSubmit — full user prompts are noise for the next agent
+# For UserPromptSubmit: only capture /skill invocations, drop everything else
 hook_event="$(_json_string_field "hook_event_name")"
-[[ "$hook_event" == "UserPromptSubmit" ]] && exit 0
+if [[ "$hook_event" == "UserPromptSubmit" ]]; then
+  _prompt="$(_json_string_field "prompt")"
+  if [[ "$_prompt" == /* ]]; then
+    _skill="${_prompt%%[[:space:]]*}"
+    _skill="${_skill#/}"
+    ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" || exit 0
+    _session_id="$(_json_string_field "session_id")"
+    _jsesc() { printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'; }
+    printf '{"ts":"%s","provider":"claude","stream":"","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
+      "$ts" "$(_jsesc "$_skill")" "$(_jsesc "$_session_id")" >> "$log_file" 2>/dev/null
+  fi
+  exit 0
+fi
 
 _brief_primary_stream() {
   local brief=".platform/work/BRIEF.md" slug
@@ -78,10 +90,10 @@ _session_stream_lookup() {
 _remember_session_stream() {
   local session_id="$1" stream_slug="$2" tmp
   [[ -n "$session_id" && -n "$stream_slug" ]] || return 0
+  # First-write-wins: don't overwrite existing mapping (prevents cross-session contamination)
+  if _session_stream_lookup "$session_id" 2>/dev/null; then return 0; fi
   tmp="$(mktemp 2>/dev/null)" || return 0
-  if [[ -f "$_stream_map_file" ]]; then
-    awk -F'\t' -v session_id="$session_id" '$1 != session_id { print }' "$_stream_map_file" > "$tmp"
-  fi
+  [[ -f "$_stream_map_file" ]] && cat "$_stream_map_file" > "$tmp"
   printf '%s\t%s\n' "$session_id" "$stream_slug" >> "$tmp"
   mv "$tmp" "$_stream_map_file" 2>/dev/null || rm -f "$tmp"
 }
@@ -115,16 +127,6 @@ fi
 
 tool="$(_json_string_field "tool_name")"
 
-# Skip Bash events that are ab meta-calls — those commands produce
-# their own structured events (Reason, checkpoint, etc.) which are the signal.
-# Logging the Bash wrapper too just duplicates noise.
-if [[ "$tool" == "Bash" ]]; then
-  _cmd_peek="$(_json_string_field "command")"
-  case "$_cmd_peek" in
-    ab\ *|agentboard\ *) exit 0 ;;
-  esac
-fi
-
 _jsesc() {
   printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'
 }
@@ -132,6 +134,47 @@ provider_e="$(_jsesc "$provider")"
 stream_e="$(_jsesc "$stream")"
 tool_e="$(_jsesc "$tool")"
 hook_e="$(_jsesc "$hook_event")"
+
+# ── Agent start (PreToolUse on Agent tool) ────────────────────────────────────
+# Label format enforced by CLAUDE.md: "role:<name> · skill:<name> · <task desc>"
+if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_start" ]]; then
+  _label="$(_json_string_field "label")"
+  _subtype="$(_json_string_field "subagent_type")"
+  _role=""
+  _skill=""
+  if [[ "$_label" == *"role:"* ]]; then
+    _role="$(printf '%s' "$_label" | sed 's/.*role:\([^·|]*\).*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  fi
+  if [[ "$_label" == *"skill:"* ]]; then
+    _skill="$(printf '%s' "$_label" | sed 's/.*skill:\([^·|]*\).*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  fi
+  _task="${_label:-${_subtype:-sub-agent}}"
+  printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"AgentStart","label":"%s","role":"%s","skill":"%s","session_id":"%s"}\n' \
+    "$ts" "$provider_e" "$stream_e" \
+    "$(_jsesc "$_task")" "$(_jsesc "$_role")" "$(_jsesc "$_skill")" \
+    "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+  exit 0
+fi
+
+# ── Agent done (PostToolUse on Agent tool) ────────────────────────────────────
+# Matches the AgentStart label so the dashboard can flip done=true.
+if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_done" ]]; then
+  _label="$(_json_string_field "label")"
+  _task="${_label:-sub-agent}"
+  printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"AgentDone","label":"%s","session_id":"%s"}\n' \
+    "$ts" "$provider_e" "$stream_e" \
+    "$(_jsesc "$_task")" "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+  exit 0
+fi
+
+# Skip Bash events that are ab meta-calls — those commands produce
+# their own structured events (Reason, checkpoint, etc.) which are the signal.
+if [[ "$tool" == "Bash" ]]; then
+  _cmd_peek="$(_json_string_field "command")"
+  case "$_cmd_peek" in
+    ab\ *|agentboard\ *) exit 0 ;;
+  esac
+fi
 
 # Session events (SessionStart/End, FileChange, Reason) are identified by
 # hook_event_name — regardless of whether tool_name is also present.
@@ -153,7 +196,29 @@ case "$hook_event" in
     detail_val=""
     case "$tool" in
       Read)
-        exit 0  # internal lookups — not "what I changed"
+        _fp="$(_json_string_field "file_path")"
+        # Detect skill file reads — log as Skill invocation
+        case "$_fp" in
+          */.claude/skills/*/SKILL.md|*/.claude/skills/*/*)
+            _skill_name="$(printf '%s' "$_fp" | sed 's|.*\.claude/skills/\([^/]*\)/.*|\1|')"
+            if [[ -n "$_skill_name" ]]; then
+              printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
+                "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_skill_name")" "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+            fi
+            exit 0
+            ;;
+          */.platform/roles/*.md)
+            _role_slug="$(printf '%s' "$_fp" | sed 's|.*\.platform/roles/\([^/]*\)\.md|\1|')"
+            if [[ -n "$_role_slug" ]]; then
+              printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"RoleAdopt","role":"%s","session_id":"%s"}\n' \
+                "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_role_slug")" "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+            fi
+            exit 0
+            ;;
+          *)
+            exit 0  # other reads — not useful activity
+            ;;
+        esac
         ;;
       Edit|Write|MultiEdit|NotebookEdit)
         _fp="$(_json_string_field "file_path")"
@@ -167,25 +232,45 @@ case "$hook_event" in
         ;;
       Bash)
         _cmd="$(_json_string_field "command")"
-        # Keep only git commits/pushes — all other Bash is handoff noise
+        # Skip trivial internal commands — keep everything else
         case "$_cmd" in
-          git\ commit\ *|git\ push\ *) ;;
-          *) exit 0 ;;
+          echo\ *|printf\ *|cat\ *|ls\ *|cd\ *|pwd|true|false|:|\
+          mkdir\ *|rm\ *|mv\ *|cp\ *|touch\ *|chmod\ *|wc\ *|head\ *|tail\ *|\
+          sed\ *|awk\ *|grep\ *|find\ *|sort\ *|uniq\ *|test\ *|\[\ *|\
+          export\ *|source\ *|\.\ *|read\ *) exit 0 ;;
+          *) ;;
         esac
         if [[ -n "$_cmd" ]]; then
           detail_key="cmd"
           detail_val="${_cmd:0:120}"
         fi
         ;;
+      Skill)
+        _sk_type="$(_json_string_field "subagent_type")"
+        _sk_name="${_sk_type:-$(_json_string_field "type")}"
+        if [[ -n "$_sk_name" ]]; then
+          printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
+            "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_sk_name")" "$(_jsesc "${session_id:-}")" >> "$log_file" 2>/dev/null
+        fi
+        exit 0
+        ;;
+      Agent)
+        _label="$(_json_string_field "label")"
+        _subtype="$(_json_string_field "subagent_type")"
+        _agent_id="${_label:-${_subtype:-sub-agent}}"
+        detail_key="agent"
+        detail_val="$_agent_id"
+        ;;
       WebSearch|WebFetch)
         exit 0  # internal research — not "what I changed"
         ;;
     esac
+    _sid_e="$(_jsesc "${session_id:-}")"
     if [[ -n "$detail_key" && -n "$detail_val" ]]; then
       detail_e="$(_jsesc "$detail_val")"
-      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\",\"$detail_key\":\"$detail_e\"}"
+      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\",\"$detail_key\":\"$detail_e\",\"session_id\":\"$_sid_e\"}"
     else
-      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\"}"
+      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\",\"session_id\":\"$_sid_e\"}"
     fi
     ;;
 esac

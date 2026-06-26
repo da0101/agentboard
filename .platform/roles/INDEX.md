@@ -5,6 +5,11 @@ Role profiles turn a loosely-worded request into a professional engagement: the
 agent adopts a specific senior role, announces it, and works to that role's
 deliverables checklist instead of guessing what "make it good" means.
 
+All product and engineering roles inherit the **Silicon Valley product
+mindset** from `.platform/workflow.md`: think user-first, future-facing,
+innovative, craft-driven, and best-in-class while preserving scope discipline,
+tests, maintainability, and human approval gates.
+
 ## Activation rule (all providers — Claude Code, Codex, Gemini)
 
 On the **first substantive task message** of a session — and again whenever the
@@ -40,8 +45,10 @@ wrong to the user, they just say so — switch without ceremony.
 | `debugger` | Production Debugger | a bug found and fixed — errors, crashes, "it stopped working", code-level incidents | known one-line fixes | Sonnet → Opus |
 | `perf-engineer` | Performance Engineer | speed, memory, scalability — "it's slow", "optimize" | bugs that aren't performance-related | Sonnet → Opus |
 | `qa-engineer` | Senior QA Engineer | testing — test plans, coverage, edge-case hunting, "is this ready to ship" | fixing what testing finds (hand to debugger) | Sonnet |
+| `qa-automation-engineer` | QA Automation Engineer | agent-driven app QA with tools like Maestro, browser automation, scripted flows, capped stress probes, report ingestion, and bounded self-healing | read-only ship/no-ship QA, uncapped production load testing | Sonnet → Opus |
 | `security-engineer` | Senior Security Engineer | a security view — "is it secure", auth/permissions review, handling user data safely | general code quality (code-auditor) | Sonnet |
 | `code-auditor` | Senior Code Auditor | an honest assessment of existing code — quality, architecture, risks, scores | making changes (audit first, then switch) | Sonnet |
+| `code-cleanup-engineer` | Code Cleanup Engineer | clean up existing code — duplicates, dead code, oversized files, noisy comments, housekeeping, broad maintainability | new behavior, read-only audits, root-cause bug fixes | Sonnet → Opus |
 | `refactor-architect` | Refactoring Architect | messy working code made clean — structure, coupling; also migrations and version upgrades | adding new features | Opus |
 | `devops-engineer` | Senior DevOps/Platform Engineer | deploy, CI/CD, environments, containers, monitoring, "the server is down" (infra-level) | application-code bugs (debugger) | Sonnet |
 | `data-analyst` | Senior Data Analyst | answers from data — metrics, queries, reports, "why are users churning", dashboards | building data infrastructure (backend-architect) | Sonnet |
@@ -64,7 +71,7 @@ Roles define **who is working and what done looks like**; ab-* skills define
 **process stages** (triage, research, review…). They stack: a `debugger` role
 running the ab-debug skill labels both — `[role:debugger]` `[ab-debug]`. The
 role persists across skill invocations until the task type changes. Natural
-pairs: `product-manager`+ab-pm, `qa-engineer`+ab-qa, `security-engineer`+ab-security.
+pairs: `product-manager`+ab-pm, `qa-engineer`+ab-qa, `qa-automation-engineer`+ab-qa-self-heal, `security-engineer`+ab-security, `code-cleanup-engineer`+ab-cleanup.
 
 ## Custom roles
 
