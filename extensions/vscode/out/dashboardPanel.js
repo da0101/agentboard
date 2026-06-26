@@ -7,6 +7,7 @@ const os = require("os");
 const path = require("path");
 const http = require("http");
 const child_process_1 = require("child_process");
+const workspaceRoot_1 = require("./workspaceRoot");
 const AB_CLI_COMMANDS = [
     { name: "init", description: "Scaffold .platform/ into any project" },
     { name: "new-stream", description: "Open a new work stream" },
@@ -1103,18 +1104,24 @@ DO NOT proceed to Phase 3 until the plan is approved.
         }, null, this._disposables);
     }
     _buildDataSync() {
-        // Always try live.json first — works regardless of which VS Code window is open
-        let hud = null;
-        const globalLive = path.join(os.homedir(), ".agentboard", "live.json");
-        try {
-            const live = JSON.parse(fs.readFileSync(globalLive, "utf8"));
-            hud = live;
-            // If live.json has a root pointer, use it as the effective project root
-            if (live._root && live._root !== this._workspaceRoot) {
-                this._workspaceRoot = live._root;
-            }
+        const workspaceFolderRoot = (0, workspaceRoot_1.detectWorkspaceRootFromFolders)((vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath));
+        if (workspaceFolderRoot && workspaceFolderRoot !== this._workspaceRoot) {
+            this._workspaceRoot = workspaceFolderRoot;
         }
-        catch { /* ok — try local hud file */ }
+        let hud = null;
+        if (!workspaceFolderRoot) {
+            // Generic VS Code windows can follow ~/.agentboard/live.json.
+            // Project windows stay pinned to their own workspace.
+            const globalLive = path.join(os.homedir(), ".agentboard", "live.json");
+            try {
+                const live = JSON.parse(fs.readFileSync(globalLive, "utf8"));
+                hud = live;
+                if (live._root && live._root !== this._workspaceRoot) {
+                    this._workspaceRoot = live._root;
+                }
+            }
+            catch { /* ok — try local hud file */ }
+        }
         // Fallback: read hud from workspaceRoot directly
         if (!hud) {
             try {

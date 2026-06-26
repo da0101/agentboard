@@ -5,6 +5,7 @@ import * as path from "path";
 import * as http from "http";
 import { exec, execSync } from "child_process";
 import { HudStatus } from "./hudTypes";
+import { detectWorkspaceRootFromFolders } from "./workspaceRoot";
 
 const AB_CLI_COMMANDS: CatalogItem[] = [
   { name: "init", description: "Scaffold .platform/ into any project" },
@@ -980,17 +981,26 @@ DO NOT proceed to Phase 3 until the plan is approved.
   }
 
   private _buildDataSync(): object {
-    // Always try live.json first — works regardless of which VS Code window is open
+    const workspaceFolderRoot = detectWorkspaceRootFromFolders(
+      (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath)
+    );
+    if (workspaceFolderRoot && workspaceFolderRoot !== this._workspaceRoot) {
+      this._workspaceRoot = workspaceFolderRoot;
+    }
+
     let hud: HudStatus | null = null;
-    const globalLive = path.join(os.homedir(), ".agentboard", "live.json");
-    try {
-      const live = JSON.parse(fs.readFileSync(globalLive, "utf8")) as HudStatus & { _root?: string };
-      hud = live;
-      // If live.json has a root pointer, use it as the effective project root
-      if (live._root && live._root !== this._workspaceRoot) {
-        this._workspaceRoot = live._root;
-      }
-    } catch { /* ok — try local hud file */ }
+    if (!workspaceFolderRoot) {
+      // Generic VS Code windows can follow ~/.agentboard/live.json.
+      // Project windows stay pinned to their own workspace.
+      const globalLive = path.join(os.homedir(), ".agentboard", "live.json");
+      try {
+        const live = JSON.parse(fs.readFileSync(globalLive, "utf8")) as HudStatus & { _root?: string };
+        hud = live;
+        if (live._root && live._root !== this._workspaceRoot) {
+          this._workspaceRoot = live._root;
+        }
+      } catch { /* ok — try local hud file */ }
+    }
 
     // Fallback: read hud from workspaceRoot directly
     if (!hud) {

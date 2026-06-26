@@ -13,37 +13,12 @@ const catalogProvider_1 = require("./catalogProvider");
 const sessionsProvider_1 = require("./sessionsProvider");
 const worktreesProvider_1 = require("./worktreesProvider");
 const dashboardPanel_1 = require("./dashboardPanel");
+const workspaceRoot_1 = require("./workspaceRoot");
 function detectWorkspaceRoot() {
-    // Primary: ~/.agentboard/live.json written by status-bridge.js on every Claude turn
-    const globalLive = path.join(os.homedir(), ".agentboard", "live.json");
-    try {
-        const live = JSON.parse(fs.readFileSync(globalLive, "utf8"));
-        const root = live._root ?? "";
-        if (root && fs.existsSync(path.join(root, ".platform"))) {
-            const ageMs = Date.now() - new Date(live.last_updated ?? 0).getTime();
-            if (ageMs < 4 * 60 * 60 * 1000)
-                return root;
-        }
-    }
-    catch { /* fall through */ }
-    // Fallback: score open workspace folders by evidence of agentboard usage
-    const folders = vscode.workspace.workspaceFolders ?? [];
-    if (!folders.length)
-        return "";
-    const scored = folders.map(f => {
-        const p = f.uri.fsPath;
-        let score = 0;
-        if (fs.existsSync(path.join(p, "agentboard.hud-status.json")))
-            score += 10;
-        if (fs.existsSync(path.join(p, ".platform", "work")))
-            score += 5;
-        if (fs.existsSync(path.join(p, ".platform")))
-            score += 2;
-        if (fs.existsSync(path.join(p, ".claude", "settings.json")))
-            score += 1;
-        return { p, score };
-    }).sort((a, b) => b.score - a.score);
-    return scored[0]?.p ?? "";
+    // A VS Code window opened on an Agentboard workspace should stay scoped to
+    // that workspace. The global live pointer is only a fallback for generic
+    // windows that do not already contain an Agentboard project.
+    return (0, workspaceRoot_1.detectWorkspaceRootFromSources)((vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath));
 }
 function activate(context) {
     let workspaceRoot = detectWorkspaceRoot();
