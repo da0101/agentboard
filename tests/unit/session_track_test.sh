@@ -53,6 +53,31 @@ test_session_event_writes_jsonl_line() {
   assert_file_contains "$log" '"stream":"login"'
 }
 
+test_session_snapshot_writes_dashboard_json() {
+  local dir home
+  dir="$(mktemp -d)"
+  home="$(mktemp -d)"
+  setup_track_fixture "$dir"
+  (
+    cd "$dir"
+    export HOME="$home"
+    export AGENTBOARD_MODEL="gpt-5.4/medium"
+    export AGENTBOARD_SHELL_PID="12345"
+    # shellcheck disable=SC1091
+    . "$dir/.platform/scripts/session-track.sh"
+    _ab_write_session_snapshot "codex-test-json" "codex"
+  )
+  local session_json="$home/.agentboard/sessions/codex-test-json.json"
+  [[ -f "$session_json" ]] || fail "session snapshot JSON not created"
+  assert_file_contains "$session_json" '"provider": "codex"'
+  assert_file_contains "$session_json" '"_session_id": "codex-test-json"'
+  assert_file_contains "$session_json" '"_root": "'"$dir"'"'
+  assert_file_contains "$session_json" '"model": "gpt-5.4/medium"'
+  assert_file_contains "$session_json" '"_shell_pid": 12345'
+  [[ -f "$dir/agentboard.hud-status.json" ]] || fail "workspace hud snapshot not created"
+  [[ -f "$home/.agentboard/live.json" ]] || fail "global live snapshot not created"
+}
+
 test_file_poller_logs_changed_tracked_files() {
   local dir
   dir="$(mktemp -d)"
@@ -73,6 +98,9 @@ test_file_poller_logs_changed_tracked_files() {
   [[ -f "$log" ]] || fail "events.jsonl not created by poller"
   assert_file_contains "$log" '"hook_event_name":"FileChange"'
   assert_file_contains "$log" '"file_path":"package.json"'
+  assert_file_contains "$log" '"tool":"Edit"'
+  assert_file_contains "$log" '"file":"package.json"'
+  assert_file_contains "$log" '"provider":"codex"'
   assert_file_contains "$log" '"session_id":"test-session"'
 }
 
@@ -176,6 +204,22 @@ test_wrappers_reference_session_track() {
     || fail "codex-ab does not emit SessionStart event"
   grep -q "SessionEnd" "$codex" \
     || fail "codex-ab does not emit SessionEnd event"
+  grep -q "_ab_start_session_heartbeat" "$codex" \
+    || fail "codex-ab does not start dashboard session heartbeat"
+}
+
+test_codex_config_wires_agentboard_hooks() {
+  local config="$TEST_ROOT/templates/codex/config.toml"
+  grep -q "hooks.SessionStart" "$config" \
+    || fail "Codex config does not wire SessionStart hook"
+  grep -q "hooks.PostToolUse" "$config" \
+    || fail "Codex config does not wire PostToolUse hook"
+  grep -q "hooks.SubagentStart" "$config" \
+    || fail "Codex config does not wire SubagentStart hook"
+  grep -q "hooks.SubagentStop" "$config" \
+    || fail "Codex config does not wire SubagentStop hook"
+  grep -q "codex-hook-bridge.js" "$config" \
+    || fail "Codex config does not reference codex-hook-bridge.js"
 }
 
 test_update_refreshes_wrappers_and_tracker() {
@@ -246,10 +290,12 @@ test_check_unreasoned_changes_ignores_other_sessions() {
 
 test_session_track_helper_installed
 test_session_event_writes_jsonl_line
+test_session_snapshot_writes_dashboard_json
 test_file_poller_logs_changed_tracked_files
 test_file_poller_stops_cleanly
 test_file_poller_dedupes_across_concurrent_sessions
 test_file_poller_relogs_same_file_after_new_diff
 test_file_poller_clears_state_after_file_returns_clean
 test_wrappers_reference_session_track
+test_codex_config_wires_agentboard_hooks
 test_update_refreshes_wrappers_and_tracker

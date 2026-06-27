@@ -114,7 +114,7 @@ agentboard install-hooks [--force] [--dry-run] [--aliases]
                                      # `codex` and `gemini` into ~/.zshrc /
                                      # ~/.bashrc so they auto-route through
                                      # .platform/scripts/codex-ab|gemini-ab
-                                     # (runs `agentboard brief` before launch).
+                                     # (briefing + dashboard session telemetry).
 agentboard progress <slug> [--base <b>] [--note "<text>"] [--dry-run]
                                      # append git diff --stat to stream's Progress log
 ```

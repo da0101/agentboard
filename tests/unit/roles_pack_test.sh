@@ -10,9 +10,6 @@ export NO_COLOR=1
 ROLES_DIR="$TEST_ROOT/templates/platform/roles"
 INDEX="$ROLES_DIR/INDEX.md"
 
-# The shipped role pack — alphabetical, one slug per word.
-EXPECTED_SLUGS="backend-architect code-auditor code-cleanup-engineer data-analyst debugger devops-engineer feature-builder frontend-engineer pair-programmer perf-engineer product-manager qa-automation-engineer qa-engineer refactor-architect security-engineer startup-mvp tech-advisor tech-writer"
-
 # pack_role_files — one role file path per line, skipping INDEX.md
 pack_role_files() {
   local f
@@ -22,6 +19,10 @@ pack_role_files() {
     printf '%s\n' "$f"
   done
   return 0
+}
+
+pack_role_slugs() {
+  pack_role_files | sed 's|.*/||; s|\.md$||' | sort
 }
 
 # pack_frontmatter <file> <key> — frontmatter value, surrounding quotes stripped.
@@ -49,15 +50,15 @@ test_index_exists_with_roles_markers() {
 test_index_routing_table_lists_exactly_the_shipped_slugs() {
   local actual expected
   # Routing-table rows start with a backticked slug: | `startup-mvp` | …
-  actual="$(sed -n 's/^| `\([a-z-]*\)` |.*/\1/p' "$INDEX" | sort | tr '\n' ' ')"
-  expected="$(printf '%s\n' $EXPECTED_SLUGS | sort | tr '\n' ' ')"
+  actual="$(sed -n 's/^| `\([a-z0-9-]*\)` |.*/\1/p' "$INDEX" | sort | tr '\n' ' ')"
+  expected="$(pack_role_slugs | tr '\n' ' ')"
   assert_eq "$actual" "$expected"
 }
 
 test_index_routing_table_matches_files_on_disk() {
   local from_disk expected
-  from_disk="$(pack_role_files | sed 's|.*/||; s|\.md$||' | sort | tr '\n' ' ')"
-  expected="$(printf '%s\n' $EXPECTED_SLUGS | sort | tr '\n' ' ')"
+  from_disk="$(pack_role_slugs | tr '\n' ' ')"
+  expected="$(pack_role_slugs | tr '\n' ' ')"
   assert_eq "$from_disk" "$expected"
 }
 

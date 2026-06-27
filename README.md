@@ -376,7 +376,7 @@ agentboard help
 - `close` runs in two steps: first call prints the harvest checklist (distill gotchas/decisions/learnings into `.platform/memory/`); second call with `--confirm` archives the stream and logs closure
 - `brief` prints the compact session-start briefing: active streams, recent gotchas, open questions, top usage pattern; run this at the start of every session
 - `watch` background poller that auto-checkpoints the active stream whenever tracked files change via `git status`; `--install` registers a per-project scheduler (launchd on macOS, systemd on Linux); `--aliases` on `install-hooks` wires `codex`/`gemini` CLI through the project wrappers globally
-- `install-hooks` installs the full hook stack: Claude Code PreToolUse bash-guard, git pre-commit closure gate, git post-commit activity log, and Codex/Gemini provider wrappers; `--aliases` writes shell functions to `~/.zshrc`/`~/.bashrc` so `codex` and `gemini` auto-route through the project wrappers
+- `install-hooks` installs the full hook stack: Claude Code PreToolUse bash-guard, git pre-commit closure gate, git post-commit activity log, Codex native hook templates, and Codex/Gemini provider wrappers; `--aliases` writes shell functions to `~/.zshrc`/`~/.bashrc` so `codex` and `gemini` auto-route through the project wrappers
 - `progress` appends a git-diff summary (`git diff --stat <base>...HEAD`) to the stream's `## Progress log` section, stamped with timestamp and branch; use this instead of hand-typing what changed
 - `status` prints `.platform/STATUS.md`
 - `add-repo` scaffolds entry files into a sibling repo in hub mode and refuses to overwrite existing root entry files
@@ -391,7 +391,7 @@ A webview dashboard extension ships in `extensions/vscode/`. It gives you a live
 
 ### Live tab
 
-Real-time session grid — one column per active Claude Code session:
+Real-time session grid — one column per active Claude Code or Codex session:
 
 - **Session header** — deterministic pet name (e.g. `frost-condor`), model, cost, runtime, context bar, git branch, last-active time, current role and skill
 - **`⌨ terminal` button** — focuses the VS Code terminal that belongs to that session; works across multiple concurrent sessions in the same project by matching process tree + elapsed time
@@ -407,9 +407,11 @@ Real-time session grid — one column per active Claude Code session:
 
 Three columns: Skills (`~40`), Roles (`~26`), and CLI Commands (`14`). Each card shows a description and "used by" badges; clicking expands the full protocol.
 
-### Status line integration
+### Session telemetry
 
 The `status-bridge.js` hook writes a deterministic session nickname to the Claude Code status line (e.g. `frost-condor · Opus 4.8 · $1.20 · …`). Names are stable — the same session ID always produces the same name. The word pool has 40 adjectives × 40 animals (1 600 combinations) with no visually similar words in the same pool, so concurrent sessions stay clearly distinct.
+
+Codex sessions use the same `~/.agentboard/sessions/*.json` dashboard schema via `.codex/config.toml` hooks when trusted, and via the `codex-ab` wrapper as a fallback. Codex currently supplies live session/model/activity presence; cost and context fields are left empty unless Codex exposes them in hook payloads.
 
 ### File size thresholds
 
@@ -426,7 +428,7 @@ code --install-extension agentboard-2.2.1.vsix
 
 Open the dashboard via **Agentboard: Open Dashboard** in the command palette (`Cmd+Shift+P`). Lightweight sidebar tree views (Session Status, Streams, Catalog, Sessions, Worktrees) remain available as an alternative.
 
-The extension reads `~/.agentboard/sessions/*.json` written by the `status-bridge.js` Stop hook and `.platform/events.jsonl` written by the `event-logger.sh` PostToolUse hook. Both are installed by `agentboard install-hooks`. The dashboard does **not** require the control plane to be running for core functionality.
+The extension reads `~/.agentboard/sessions/*.json` written by provider hooks/wrappers and `.platform/events.jsonl` written by `event-logger.sh`. Both are installed by `agentboard init` / `agentboard update`; `agentboard install-hooks --aliases` wires Codex/Gemini wrappers into your shell. The dashboard does **not** require the control plane to be running for core functionality.
 
 ## Control plane
 

@@ -105,3 +105,4 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 2026-06-14 — Silicon Valley product mindset — added provider-neutral workflow, role, root-entry, and contract-test coverage so PM/engineering agents pursue best-in-class product ambition with explicit scope and approval guardrails
 2026-06-15 — manual QA artifact gate — upgraded manual QA from chat-only final plan to stream-scoped markdown artifact gate with archived QA history — future agents must ship with executable QA evidence or a documented not-required reason
 2026-06-15 — QA execution journal — added a chronological journal requirement for LLM-driven interactive QA so Maestro/browser agents document what they did, saw, fixed, retested, passed, skipped, and escalated
+2026-06-26 — Codex dashboard telemetry — Codex now emits Claude-compatible session snapshots and dashboard-readable file activity through native hooks plus wrapper fallback

@@ -122,8 +122,9 @@ explicit checkpoints with specific `--what` / `--next`. The watcher skips
 ticks when it sees a manual checkpoint happened in the last 5 minutes, so it
 never clobbers fresh state. Stop with `ab watch --stop`.
 
-> **Gemini / Codex:** start `ab watch &` at the beginning of every
-> session — it's the closest equivalent to Claude Code's auto-checkpoint hooks.
+> **Gemini / Codex:** provider wrappers under `.platform/scripts/` provide
+> dashboard/session telemetry when aliases are installed. `ab watch` remains
+> the extra checkpoint safety net for long sessions.
 
 ### New task bootstrap (before any non-trivial task — mandatory)
 
