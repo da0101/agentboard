@@ -4,6 +4,7 @@ cmd_doctor() {
   local errors=0 warnings=0 ci_mode=0 _dr_pass=0 _dr_fail=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --repair) shift; cmd_repair "$@"; return ;;
       --ci) ci_mode=1; shift ;;
       *) shift ;;
     esac

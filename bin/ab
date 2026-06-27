@@ -39,6 +39,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/migrate_layout.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/session.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/doctor.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/doctor_ci.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/repair.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/stream_resolve.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/handoff.sh"
@@ -153,6 +154,7 @@ main() {
     migrate-layout) cmd_migrate_layout "$@" ;;
     brief-upgrade) cmd_brief_upgrade "$@" ;;
     doctor)      cmd_doctor "$@" ;;
+    repair)      cmd_repair "$@" ;;
     new-domain)  cmd_new_domain "$@" ;;
     new-stream)  cmd_new_stream "$@" ;;
     resolve)     cmd_resolve "$@" ;;

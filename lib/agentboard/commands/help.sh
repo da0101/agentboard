@@ -37,7 +37,10 @@ COMMANDS
                              .platform/memory/. Cleans up empty sessions/.
                              Default is --dry-run; pass --apply to perform.
   brief-upgrade [slug] ...   Rewrite legacy BRIEF.md for one target stream
-  doctor                     Validate active .platform state and metadata
+  doctor [--repair]          Validate active .platform state and metadata.
+                             --repair scans known stale paths, rewrites safe
+                             matches, runs update, then doctor+validate.
+  repair [--dry-run]         Run the same repair loop directly.
   new-domain <slug> ...      Create a domain file from the shared template
   new-stream <slug> ...      Create a stream file and register it in work/ACTIVE.md
                              --domain <slug>  (repeatable, required)

@@ -158,6 +158,7 @@ agentboard_runtime_gitignore_block() {
 .platform/.watch.pid
 .platform/.watch/
 .platform/graphify/cache/
+agentboard.hud-status.json
 # agentboard:runtime-end
 EOF
 }
