@@ -3,7 +3,7 @@ import * as path from "path";
 import { execFileSync } from "child_process";
 import { readStreams } from "./catalogStore";
 import { sessionRootMatchesWorkspace } from "./sessionFiles";
-import { DashboardSessionEntry } from "./types";
+import { AgentEntry, DashboardSessionEntry, SessionActivityItem } from "./types";
 
 const RAW_CODEX_SCAN_TTL_MS = 10_000;
 const MAX_RAW_CODEX_PROCESSES = 20;
@@ -20,6 +20,13 @@ export interface RawCodexProcess {
 export interface RawCodexProcessCache {
   ts: number;
   processes: RawCodexProcess[];
+}
+
+export interface RawCodexSessionOptions {
+  activity?: SessionActivityItem[];
+  agents?: AgentEntry[];
+  agentActivity?: AgentEntry[];
+  stream?: string;
 }
 
 export function parseElapsedSeconds(value: string): number {
@@ -116,6 +123,7 @@ export function rawCodexProcessToSession(
   workspaceRoot: string,
   branch: string,
   now = Date.now(),
+  options: RawCodexSessionOptions = {},
 ): DashboardSessionEntry | null {
   if (!sessionRootMatchesWorkspace(proc.root, workspaceRoot)) return null;
   const sessionId = `raw-codex-${proc.pid}`;
@@ -137,13 +145,13 @@ export function rawCodexProcessToSession(
     lastUpdated,
     ageSeconds: 0,
     ctxPct: null,
-    stream: "",
+    stream: options.stream ?? "",
     streamPinned: false,
     availableStreams: readStreams(proc.root).map(st => st.slug),
     sessionTime: elapsedFromSeconds(proc.elapsedSeconds),
-    activity: [],
-    agents: [],
-    agentActivity: [],
+    activity: options.activity ?? [],
+    agents: options.agents ?? [],
+    agentActivity: options.agentActivity ?? [],
     hasWorkflow: false,
     workflowAgentCount: 0,
     workflowLabel: "",

@@ -13,7 +13,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 
 const MAX_STDIN = 512 * 1024;
 const TIMEOUT_MS = 3000;
@@ -52,6 +51,14 @@ function writeHudAtomic(hudPath, data) {
   } catch { try { fs.unlinkSync(tmp); } catch {} }
 }
 
+function runtimeDirForRoot(root) {
+  return path.join(root, '.platform', 'runtime', 'agentboard');
+}
+
+function sessionsDirForRoot(root) {
+  return path.join(runtimeDirForRoot(root), 'sessions');
+}
+
 let input = '';
 const timer = setTimeout(() => process.exit(0), TIMEOUT_MS);
 
@@ -77,7 +84,8 @@ process.stdin.on('end', () => {
 
     // session start time — read from per-session file first (survives multi-session HUD overwrites)
     const existing = readHud(hudPath);
-    const sessionFilePath = path.join(os.homedir(), '.agentboard', 'sessions', sessionId + '.json');
+    const sessionsDir = sessionsDirForRoot(root);
+    const sessionFilePath = path.join(sessionsDir, sessionId + '.json');
     const existingSession = readHud(sessionFilePath);
     const sessionStartedAt = (existingSession.context?.session_id === sessionId && existingSession.context?.started_at)
       ? existingSession.context.started_at
@@ -116,17 +124,8 @@ process.stdin.on('end', () => {
 
     writeHudAtomic(hudPath, hud);
 
-    // Write global live.json so VS Code extension finds the active project regardless of open workspace
-    try {
-      const globalDir = path.join(os.homedir(), '.agentboard');
-      fs.mkdirSync(globalDir, { recursive: true });
-      writeHudAtomic(path.join(globalDir, 'live.json'), { ...hud, _root: root });
-    } catch {}
-
     // Write per-session file for multi-session dashboard support
     try {
-      const globalDir = path.join(os.homedir(), '.agentboard');
-      const sessionsDir = path.join(globalDir, 'sessions');
       fs.mkdirSync(sessionsDir, { recursive: true });
       // Detect the shell PID so VS Code extension can focus the right terminal.
       // Chain: VS Code terminal shell → claude → node(this script)

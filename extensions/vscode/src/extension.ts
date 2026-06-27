@@ -8,7 +8,7 @@ import { CatalogProvider } from "./catalogProvider";
 import { SessionsProvider } from "./sessionsProvider";
 import { WorktreesProvider } from "./worktreesProvider";
 import { DashboardPanel } from "./dashboardPanel";
-import { detectWorkspaceRootFromSources } from "./workspaceRoot";
+import { detectWorkspaceRootFromFolders, detectWorkspaceRootFromSources } from "./workspaceRoot";
 
 export function detectWorkspaceRoot(): string {
   // A VS Code window opened on an Agentboard workspace should stay scoped to
@@ -21,6 +21,9 @@ export function detectWorkspaceRoot(): string {
 
 export function activate(context: vscode.ExtensionContext): void {
   let workspaceRoot = detectWorkspaceRoot();
+  const isProjectWindow = !!detectWorkspaceRootFromFolders(
+    (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath)
+  );
 
   const hudEmitter = new vscode.EventEmitter<vscode.TreeItem | undefined | null | void>();
   const streamsEmitter = new vscode.EventEmitter<vscode.TreeItem | undefined | null | void>();
@@ -46,26 +49,28 @@ export function activate(context: vscode.ExtensionContext): void {
   watcher.onDidDelete(() => { hudEmitter.fire(); sessionsProvider.refresh(); });
   context.subscriptions.push(watcher);
 
-  // Poll ~/.agentboard/live.json every 3s to detect workspace switches
-  // (avoids vscode.RelativePattern issues with paths outside workspace)
-  const globalLive = path.join(os.homedir(), ".agentboard", "live.json");
-  let lastLiveMtime = 0;
-  const globalPoll = setInterval(() => {
-    try {
-      const mtime = fs.statSync(globalLive).mtimeMs;
-      if (mtime !== lastLiveMtime) {
-        lastLiveMtime = mtime;
-        const newRoot = detectWorkspaceRoot();
-        if (newRoot && newRoot !== workspaceRoot) {
-          workspaceRoot = newRoot;
+  if (!isProjectWindow) {
+    // Legacy fallback for generic VS Code windows only. Project windows never
+    // poll global state; they are pinned to their own workspace runtime store.
+    const globalLive = path.join(os.homedir(), ".agentboard", "live.json");
+    let lastLiveMtime = 0;
+    const globalPoll = setInterval(() => {
+      try {
+        const mtime = fs.statSync(globalLive).mtimeMs;
+        if (mtime !== lastLiveMtime) {
+          lastLiveMtime = mtime;
+          const newRoot = detectWorkspaceRoot();
+          if (newRoot && newRoot !== workspaceRoot) {
+            workspaceRoot = newRoot;
+          }
+          DashboardPanel.forceUpdate(workspaceRoot);
+          hudEmitter.fire();
+          sessionsProvider.refresh();
         }
-        DashboardPanel.forceUpdate(workspaceRoot);
-        hudEmitter.fire();
-        sessionsProvider.refresh();
-      }
-    } catch { /* file not yet written */ }
-  }, 3000);
-  context.subscriptions.push({ dispose: () => clearInterval(globalPoll) });
+      } catch { /* file not yet written */ }
+    }, 3000);
+    context.subscriptions.push({ dispose: () => clearInterval(globalPoll) });
+  }
 
   context.subscriptions.push(
     vscode.commands.registerCommand("agentboard.refresh", () => {

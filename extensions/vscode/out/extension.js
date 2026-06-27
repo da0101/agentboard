@@ -22,6 +22,7 @@ function detectWorkspaceRoot() {
 }
 function activate(context) {
     let workspaceRoot = detectWorkspaceRoot();
+    const isProjectWindow = !!(0, workspaceRoot_1.detectWorkspaceRootFromFolders)((vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath));
     const hudEmitter = new vscode.EventEmitter();
     const streamsEmitter = new vscode.EventEmitter();
     const hudProvider = new hudProvider_1.HudProvider(workspaceRoot, hudEmitter);
@@ -37,27 +38,29 @@ function activate(context) {
     watcher.onDidCreate(() => { hudEmitter.fire(); sessionsProvider.refresh(); });
     watcher.onDidDelete(() => { hudEmitter.fire(); sessionsProvider.refresh(); });
     context.subscriptions.push(watcher);
-    // Poll ~/.agentboard/live.json every 3s to detect workspace switches
-    // (avoids vscode.RelativePattern issues with paths outside workspace)
-    const globalLive = path.join(os.homedir(), ".agentboard", "live.json");
-    let lastLiveMtime = 0;
-    const globalPoll = setInterval(() => {
-        try {
-            const mtime = fs.statSync(globalLive).mtimeMs;
-            if (mtime !== lastLiveMtime) {
-                lastLiveMtime = mtime;
-                const newRoot = detectWorkspaceRoot();
-                if (newRoot && newRoot !== workspaceRoot) {
-                    workspaceRoot = newRoot;
+    if (!isProjectWindow) {
+        // Legacy fallback for generic VS Code windows only. Project windows never
+        // poll global state; they are pinned to their own workspace runtime store.
+        const globalLive = path.join(os.homedir(), ".agentboard", "live.json");
+        let lastLiveMtime = 0;
+        const globalPoll = setInterval(() => {
+            try {
+                const mtime = fs.statSync(globalLive).mtimeMs;
+                if (mtime !== lastLiveMtime) {
+                    lastLiveMtime = mtime;
+                    const newRoot = detectWorkspaceRoot();
+                    if (newRoot && newRoot !== workspaceRoot) {
+                        workspaceRoot = newRoot;
+                    }
+                    dashboardPanel_1.DashboardPanel.forceUpdate(workspaceRoot);
+                    hudEmitter.fire();
+                    sessionsProvider.refresh();
                 }
-                dashboardPanel_1.DashboardPanel.forceUpdate(workspaceRoot);
-                hudEmitter.fire();
-                sessionsProvider.refresh();
             }
-        }
-        catch { /* file not yet written */ }
-    }, 3000);
-    context.subscriptions.push({ dispose: () => clearInterval(globalPoll) });
+            catch { /* file not yet written */ }
+        }, 3000);
+        context.subscriptions.push({ dispose: () => clearInterval(globalPoll) });
+    }
     context.subscriptions.push(vscode.commands.registerCommand("agentboard.refresh", () => {
         workspaceRoot = detectWorkspaceRoot();
         hudEmitter.fire();

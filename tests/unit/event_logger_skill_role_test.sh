@@ -45,7 +45,7 @@ HOOK="$(cd "$ROOT/.." && pwd)/templates/platform/scripts/hooks/event-logger.sh"
 
 _fire() {
   local dir="$1" json="$2"
-  printf '%s' "$json" | (cd "$dir"; bash "$HOOK")
+  printf '%s' "$json" | (cd "$dir"; AGENTBOARD_PROVIDER=claude bash "$HOOK")
 }
 
 # ---------------------------------------------------------------------------
@@ -64,6 +64,22 @@ test_skill_tool_emits_skill_event() {
   assert_file_contains "$log" '"tool":"Skill"'
   assert_file_contains "$log" '"skill":"ab-debug"'
   assert_file_contains "$log" '"session_id":"sess-skill-01"'
+  assert_file_contains "$dir/.platform/runtime/agentboard/sessions/sess-skill-01.json" '"provider": "claude"'
+  assert_file_contains "$dir/.platform/runtime/agentboard/sessions/sess-skill-01.json" '"_session_id": "sess-skill-01"'
+
+  rm -rf "$dir"
+}
+
+test_event_logger_snapshot_works_in_type_module_project() {
+  local dir
+  dir="$(mktemp -d)"
+  setup_logger_fixture "$dir"
+  printf '{"type":"module"}\n' > "$dir/package.json"
+
+  _fire "$dir" '{"tool_name":"Bash","command":"npm test","session_id":"sess-esm-01"}'
+
+  assert_file_contains "$dir/.platform/runtime/agentboard/sessions/sess-esm-01.json" '"provider": "claude"'
+  assert_file_contains "$dir/.platform/runtime/agentboard/sessions/sess-esm-01.json" '"_session_id": "sess-esm-01"'
 
   rm -rf "$dir"
 }
@@ -299,6 +315,7 @@ test_tool_event_preserves_agent_identity() {
 # Run all tests
 # ---------------------------------------------------------------------------
 test_skill_tool_emits_skill_event
+test_event_logger_snapshot_works_in_type_module_project
 test_role_adopt_from_platform_roles_read
 test_user_prompt_submit_skill_invocation
 test_user_prompt_submit_skill_uses_provider_env

@@ -161,7 +161,7 @@ export class DashboardPanel {
         handleDashboardMessage(msg, {
           workspaceRoot: this._workspaceRoot,
           update: () => { void this._update(); },
-          deleteSessionFile,
+          deleteSessionFile: (sessionId: string) => deleteSessionFile(this._workspaceRoot, sessionId),
           focusSessionTab: (sessionId: string) => {
             const sp = DashboardPanel.sessionPanels.get(sessionId);
             if (sp) try { sp._panel.reveal(undefined, false); } catch { /* disposed */ }
@@ -174,7 +174,7 @@ export class DashboardPanel {
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
     vscode.window.onDidCloseTerminal(async (closed) => {
       const pid = await closed.processId;
-      if (pid && deleteSessionFileByShellPid(pid)) void this._update();
+      if (pid && deleteSessionFileByShellPid(this._workspaceRoot, pid)) void this._update();
     }, null, this._disposables);
   }
 

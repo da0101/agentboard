@@ -17,7 +17,7 @@ import { getRawCodexProcesses, rawCodexProcessToSession, RawCodexProcessCache } 
 import { applySessionCatalogUsage, dedupeClearedSessions } from "./sessionSummary";
 import { readWorkflowPlan, readSessionWorkflowState } from "./workflowStore";
 import { ActivityEvent, CatalogItem, DashboardSessionEntry, SessionActivityItem, StreamEntry } from "./types";
-import { sessionRootMatchesWorkspace } from "./sessionFiles";
+import { listSessionFiles, readSessionFile, sessionRootMatchesWorkspace } from "./sessionFiles";
 
 export interface DashboardDataState {
   workspaceRoot: string;
@@ -172,13 +172,13 @@ export function buildDashboardDataSync(state: DashboardDataState): object {
 
     const recentAgents = buildRecentAgents(sessionEvents);
 
-    const sessionsDir = path.join(os.homedir(), ".agentboard", "sessions");
     const activeSessions: DashboardSessionEntry[] = [];
     try {
-      const files = fs.readdirSync(sessionsDir).filter((f: string) => f.endsWith(".json"));
+      const files = listSessionFiles(state.workspaceRoot);
       for (const f of files) {
         try {
-          const s = JSON.parse(fs.readFileSync(path.join(sessionsDir, f), "utf8")) as Record<string, unknown>;
+          const s = readSessionFile(state.workspaceRoot, f);
+          if (!s) continue;
           const lastUpdated = (s._last_updated as string) || (s.last_updated as string) || "";
           const ageMs = lastUpdated ? Date.now() - new Date(lastUpdated).getTime() : Infinity;
           if (ageMs > 30 * 60 * 1000) continue; // 30 min since last status-bridge ping = session is idle
@@ -265,8 +265,21 @@ export function buildDashboardDataSync(state: DashboardDataState): object {
     if (!hasBridgedCodexSession) {
       const rawCodexCache = getRawCodexProcesses(state.rawCodexProcessCache);
       state.setRawCodexProcessCache(rawCodexCache);
+      const rawActivity = buildFileActivity(sessionEvents, 15).fileActivity;
+      enrichActivityWithGit(state.workspaceRoot, rawActivity, {
+        numstatCache: state.numstatCache,
+        lineCountCache: state.lineCountCache,
+        branchCommittedCache: state.branchCommittedCache,
+      });
+      const rawAgents = buildSessionAgents(sessionEvents, 0);
+      const rawAgentActivity = buildSessionAgentActivity(sessionEvents, rawAgents);
       for (const proc of rawCodexCache.processes) {
-        const rawSession = rawCodexProcessToSession(proc, state.workspaceRoot, branch);
+        const rawSession = rawCodexProcessToSession(proc, state.workspaceRoot, branch, Date.now(), {
+          activity: rawActivity,
+          agents: rawAgents,
+          agentActivity: rawAgentActivity,
+          stream: activeStream,
+        });
         if (rawSession) activeSessions.push(rawSession);
       }
     }

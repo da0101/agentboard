@@ -4,13 +4,12 @@
  *
  * Claude Code writes this shape from status-bridge.js. Codex/Gemini wrappers and
  * Codex native hooks call this helper so the VS Code dashboard can stay
- * provider-agnostic and keep reading ~/.agentboard/sessions/*.json.
+ * provider-agnostic while reading the current repo's private runtime store.
  */
 
 'use strict';
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 
@@ -71,6 +70,14 @@ function writeJsonAtomic(file, data) {
   fs.renameSync(tmp, file);
 }
 
+function runtimeDirForRoot(root) {
+  return path.join(root, '.platform', 'runtime', 'agentboard');
+}
+
+function sessionsDirForRoot(root) {
+  return path.join(runtimeDirForRoot(root), 'sessions');
+}
+
 function gitBranch(root) {
   try {
     return execSync('git rev-parse --abbrev-ref HEAD', { cwd: root, timeout: 500, encoding: 'utf8' }).trim();
@@ -123,20 +130,23 @@ function writeSnapshot(payload = {}, opts = {}) {
   const cwd = firstString(opts.cwd, process.env.AGENTBOARD_CWD, get(payload, 'workspace.current_dir'), payload.cwd) || process.cwd();
   const root = findProjectRoot(cwd);
   const sessionId = firstString(opts.sessionId, deriveSessionId(payload, provider));
-  const model = firstString(opts.model, deriveModel(payload), provider);
   const now = new Date().toISOString();
-  const globalDir = path.join(os.homedir(), '.agentboard');
-  const sessionsDir = path.join(globalDir, 'sessions');
+  const sessionsDir = sessionsDirForRoot(root);
   const sessionPath = path.join(sessionsDir, `${sessionId}.json`);
   const hudPath = path.join(root, 'agentboard.hud-status.json');
   const existing = readJson(sessionPath);
   const existingHud = readJson(hudPath);
   const existingCtx = existing.context || {};
   const existingCost = existing.cost || {};
+  const existingHudCtx = existingHud.context || {};
+  const existingHudStartedAt = existingHudCtx.session_id === sessionId ? existingHudCtx.started_at : '';
+  const model = firstString(opts.model, deriveModel(payload), existingCtx.model, provider);
   const startedAt = firstString(
     opts.startedAt,
+    payload.started_at,
+    payload.startedAt,
     existingCtx.started_at,
-    get(existingHud, 'context.started_at'),
+    existingHudStartedAt,
   ) || now;
 
   const ctxRemaining = numberOrNull(
@@ -202,7 +212,6 @@ function writeSnapshot(payload = {}, opts = {}) {
 
   writeJsonAtomic(sessionPath, snapshot);
   writeJsonAtomic(hudPath, snapshot);
-  writeJsonAtomic(path.join(globalDir, 'live.json'), { ...snapshot, _root: root });
 
   try {
     const cutoff = Date.now() - 8 * 60 * 60 * 1000;
@@ -226,4 +235,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { writeSnapshot, deriveSessionId, findProjectRoot };
+module.exports = { writeSnapshot, deriveSessionId, findProjectRoot, runtimeDirForRoot, sessionsDirForRoot };

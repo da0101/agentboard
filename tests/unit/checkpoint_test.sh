@@ -79,6 +79,27 @@ test_checkpoint_rejects_missing_stream() {
   assert_contains "$output" "not found"
 }
 
+test_checkpoint_legacy_stream_preserves_retry_command() {
+  local dir output stream_file
+  dir="$(mktemp -d)"
+  setup_checkpoint_fixture "$dir"
+  stream_file="$dir/.platform/work/login.md"
+  awk 'NR == 1 && $0 == "---" { in_fm = 1; next } in_fm && $0 == "---" { in_fm = 0; next } !in_fm { print }' \
+    "$stream_file" > "$stream_file.tmp"
+  mv "$stream_file.tmp" "$stream_file"
+
+  run_cli_capture output "$dir" checkpoint login \
+    --what "finished the thing" \
+    --next "continue safely" \
+    --provider codex --model gpt-test
+  assert_status "$RUN_STATUS" 1
+  assert_contains "$output" "has no v1 frontmatter"
+  assert_contains "$output" "ab migrate --apply"
+  assert_contains "$output" "ab checkpoint login"
+  assert_contains "$output" "finished\\ the\\ thing"
+  assert_contains "$output" "--provider codex"
+}
+
 test_checkpoint_overwrites_resume_state() {
   local dir output stream_file
   dir="$(mktemp -d)"
@@ -212,6 +233,7 @@ test_checkpoint_requires_what
 test_checkpoint_requires_next
 test_checkpoint_requires_slug
 test_checkpoint_rejects_missing_stream
+test_checkpoint_legacy_stream_preserves_retry_command
 test_checkpoint_overwrites_resume_state
 test_checkpoint_is_idempotent_no_duplicate_sections
 test_checkpoint_prepends_progress_log_entry

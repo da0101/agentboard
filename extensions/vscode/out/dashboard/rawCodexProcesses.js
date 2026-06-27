@@ -112,7 +112,7 @@ function elapsedFromSeconds(seconds) {
         return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
-function rawCodexProcessToSession(proc, workspaceRoot, branch, now = Date.now()) {
+function rawCodexProcessToSession(proc, workspaceRoot, branch, now = Date.now(), options = {}) {
     if (!(0, sessionFiles_1.sessionRootMatchesWorkspace)(proc.root, workspaceRoot))
         return null;
     const sessionId = `raw-codex-${proc.pid}`;
@@ -134,13 +134,13 @@ function rawCodexProcessToSession(proc, workspaceRoot, branch, now = Date.now())
         lastUpdated,
         ageSeconds: 0,
         ctxPct: null,
-        stream: "",
+        stream: options.stream ?? "",
         streamPinned: false,
         availableStreams: (0, catalogStore_1.readStreams)(proc.root).map(st => st.slug),
         sessionTime: elapsedFromSeconds(proc.elapsedSeconds),
-        activity: [],
-        agents: [],
-        agentActivity: [],
+        activity: options.activity ?? [],
+        agents: options.agents ?? [],
+        agentActivity: options.agentActivity ?? [],
         hasWorkflow: false,
         workflowAgentCount: 0,
         workflowLabel: "",

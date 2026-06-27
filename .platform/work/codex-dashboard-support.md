@@ -182,13 +182,21 @@ Codex wrapper fallback
 _Overwritten by `ab checkpoint` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
 - **Last updated:** 2026-06-27 by danilulmashev
-- **What just happened:** Fixed raw Codex invisibility: VS Code dashboard now detects unbridged local Codex CLI processes by workspace cwd and shows them as raw Codex sessions when no bridged Codex session exists.
+- **What just happened:** Fixed VS Code refactor-new context action so it asks for Codex/Claude/Gemini instead of hard-coding Claude, and hot-applied compiled extension files for local dogfooding.
 - **Current focus:** —
-- **Next action:** Reload VS Code and verify vibe-music-ai shows the running Codex process as an active unbridged session; then decide whether to harden full hook telemetry for raw Codex launches.
+- **Next action:** Reload the Agentboard panel and verify Refactor in new session opens a provider picker; choose Codex and confirm it launches Codex Code Cleanup through .platform/scripts/codex-ab.
 - **Blockers:** none
 
 ## Progress log
 _Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._
+
+2026-06-27 13:12 — Fixed VS Code refactor-new context action so it asks for Codex/Claude/Gemini instead of hard-coding Claude, and hot-applied compiled extension files for local dogfooding.
+
+2026-06-27 12:23 — Fixed Claude session invisibility in ESM projects: event logger now refreshes repo-local session snapshots via a CJS runtime copy, and checkpoint legacy-frontmatter failures preserve retry commands.
+
+2026-06-27 10:52 — Fixed raw Codex session activity mismatch: unbridged Codex sessions now carry best-effort workspace activity so KPI file counts and session panel activity agree.
+
+2026-06-27 10:20 — Moved VS Code dashboard session storage from global ~/.agentboard/sessions to per-repo .platform/runtime/agentboard/sessions; provider hooks and installed extension output updated.
 
 2026-06-27 09:23 — Fixed raw Codex invisibility: VS Code dashboard now detects unbridged local Codex CLI processes by workspace cwd and shows them as raw Codex sessions when no bridged Codex session exists.
 
@@ -201,11 +209,3 @@ _Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._
 2026-06-27 07:45 — Fixed VS Code dashboard cross-project session leak: active sessions from ~/.agentboard/sessions are now filtered by canonical workspace root before rendering.
 
 2026-06-27 07:36 — Fixed dashboard session activity Git enrichment so untracked created files are expanded individually, emitted as synthetic new rows, and sorted into the visible feed.
-
-2026-06-27 07:30 — Fixed dashboard activity fallback so git-status new/deleted files are added as activity rows when hooks miss file creation events; regression test added.
-
-2026-06-27 07:13 — Refactored VS Code dashboardPanel monolith into focused dashboard modules under 300 lines, regenerated compiled output, and added dashboard helper characterization tests including new-file marker coverage.
-
-2026-06-27 00:45 — Fixed selected-session agent rendering, provider-neutral empty state, and sub-agent identity propagation through Codex hooks/events/dashboard payloads.
-
-2026-06-27 00:43 — Fixed Codex session-tab agent rendering and added optional sub-agent identity attribution through hooks, dashboard payloads, and webview rendering.

@@ -537,6 +537,7 @@ function applyUpdate(d){
         +' data-session-id="'+esc((_singleSess&&_singleSess.sessionId)||'')+'"'
         +' data-shell-pid="'+((_singleSess&&_singleSess.shellPid)||0)+'"'
         +' data-session-nick="'+esc((_singleSess&&_singleSess.nick)||'')+'"'
+        +' data-session-provider="'+esc((_singleSess&&(_singleSess.provider||_singleSess.model))||'')+'"'
         +' title="Click for options" style="cursor:pointer;'+rowBg+'"'
       : (rowBg ? ' style="'+rowBg+'"' : '');
     return '<div class="fa"'+diffAttrs+'>'
@@ -1003,6 +1004,7 @@ function applyUpdate(d){
             +' data-session-id="'+esc(s.sessionId||'')+'"'
             +' data-shell-pid="'+(s.shellPid||0)+'"'
             +' data-session-nick="'+esc(s.nick||'')+'"'
+            +' data-session-provider="'+esc(s.provider||s.model||'')+'"'
             +' title="Click for options" style="cursor:pointer;'+rowBg+'"'
           : (rowBg ? ' style="'+rowBg+'"' : '');
         return '<div class="fa"'+diffAttrs+'>'
@@ -1201,8 +1203,10 @@ document.addEventListener('click',function(e){
         vscode.postMessage({command:'explainChange',filePath:fp,sessionRoot:sr,added:menu._added||0,deleted:menu._deleted||0,totalChanged:menu._totalChanged||0,shellPid:menu._shellPid||0,sessionNick:menu._sessionNick||'',sessionId:menu._sessionId||''});
       } else if(fm.dataset.fm==='refactor-here'){
         vscode.postMessage({command:'refactorInSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0,shellPid:menu._shellPid||0,sessionNick:menu._sessionNick||'',sessionId:menu._sessionId||''});
-      } else if(fm.dataset.fm==='refactor-new'){
-        vscode.postMessage({command:'refactorNewSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0});
+      } else if(fm.dataset.fm==='refactor-new-codex'||fm.dataset.fm==='refactor-new-claude'||fm.dataset.fm==='refactor-new-gemini'||fm.dataset.fm==='refactor-new'){
+        var agentProvider = fm.dataset.provider || fm.dataset.fm.replace('refactor-new-','');
+        if(agentProvider==='refactor-new') agentProvider='';
+        vscode.postMessage({command:'refactorNewSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0,sessionProvider:menu._sessionProvider||'',agentProvider:agentProvider});
       } else if(fm.dataset.fm==='ignore-size'){
         vscode.postMessage({command:'toggleIgnoreSize',filePath:fp,sessionRoot:sr});
       }
@@ -1237,6 +1241,7 @@ document.addEventListener('click',function(e){
     menu._sessionId=diffEl.dataset.sessionId||'';
     menu._shellPid=parseInt(diffEl.dataset.shellPid||'0',10);
     menu._sessionNick=diffEl.dataset.sessionNick||'';
+    menu._sessionProvider=diffEl.dataset.sessionProvider||'';
     var _sep='<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
     var _fmItem=function(fm,icon,label,color,hint){
       var c=color||'#d4d4d4';
@@ -1269,7 +1274,9 @@ document.addEventListener('click',function(e){
       var _lcHint='<span style="opacity:.45">'+_lcTier+' '+menu._lineCount+'L</span>';
       if(menu._totalChanged<50) _mHtml += _sep;
       _mHtml += _fmItem('refactor-here','⚡','Refactor in this session','#c792ea',_lcHint);
-      _mHtml += _fmItem('refactor-new','✨','Refactor in new session','#82aaff');
+      _mHtml += _fmItem('refactor-new-codex','✨','Refactor in new Codex session','#82aaff');
+      _mHtml += _fmItem('refactor-new-claude','☄','Refactor in new Claude session','#c792ea');
+      _mHtml += _fmItem('refactor-new-gemini','◇','Refactor in new Gemini session','#8bd5ca');
       var _alreadyIgnored = window._ignoredSizeFiles && window._ignoredSizeFiles.has(menu._filePath || '');
       _mHtml += _fmItem('ignore-size', _alreadyIgnored?'🔔':'🔕', _alreadyIgnored?'Show size badge':'Ignore size badge','#888');
     }

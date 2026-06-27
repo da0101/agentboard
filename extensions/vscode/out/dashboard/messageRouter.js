@@ -6,6 +6,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const panelPrefs_1 = require("./panelPrefs");
+const providerLaunch_1 = require("./providerLaunch");
 const prompts_1 = require("./prompts");
 const terminalFocus_1 = require("./terminalFocus");
 function handleDashboardMessage(msg, ctx) {
@@ -100,7 +101,7 @@ function handleDashboardMessage(msg, ctx) {
         const added = msg.added ?? 0;
         const deleted = msg.deleted ?? 0;
         const totalChanged = msg.totalChanged ?? 0;
-        const claudePid = msg.shellPid ?? 0;
+        const shellPid = msg.shellPid ?? 0;
         const sessionNick = msg.sessionNick ?? "";
         if (!filePath)
             return;
@@ -109,11 +110,11 @@ function handleDashboardMessage(msg, ctx) {
         void (async () => {
             try {
                 await (0, terminalFocus_1.sendTextToSessionTerminal)(explainPrompt, {
-                    shellPid: claudePid,
+                    shellPid,
                     nick: sessionNick,
                     root: sessRoot,
                     terminalMap: ctx.sessionTerminalMap,
-                    pickPlaceholder: "Pick the Claude terminal to send the explanation request to",
+                    pickPlaceholder: "Pick the agent terminal to send the explanation request to",
                 });
             }
             catch (err) {
@@ -131,17 +132,16 @@ function handleDashboardMessage(msg, ctx) {
         const absPath = path.isAbsolute(filePath) ? filePath : path.join(sessRoot, filePath);
         const refactorPrompt = (0, prompts_1.buildRefactorPrompt)({ absPath, lineCount });
         if (msg.command === "refactorInSession") {
-            // _shell_pid is Claude's PID; terminal.processId is the SHELL's PID (Claude's parent)
-            const claudePid = msg.shellPid ?? 0;
+            const shellPid = msg.shellPid ?? 0;
             const sessionNick = msg.sessionNick ?? "";
             void (async () => {
                 try {
                     await (0, terminalFocus_1.sendTextToSessionTerminal)(refactorPrompt, {
-                        shellPid: claudePid,
+                        shellPid,
                         nick: sessionNick,
                         root: sessRoot,
                         terminalMap: ctx.sessionTerminalMap,
-                        pickPlaceholder: "Pick the Claude terminal to send the refactor prompt to",
+                        pickPlaceholder: "Pick the agent terminal to send the refactor prompt to",
                     });
                 }
                 catch (err) {
@@ -150,12 +150,32 @@ function handleDashboardMessage(msg, ctx) {
             })();
         }
         else {
-            // Spawn new Claude terminal with Code Cleanup role
             const cwd = sessRoot || ctx.workspaceRoot;
-            const terminal = vscode.window.createTerminal({ name: "Claude · Code Cleanup", cwd });
-            terminal.show();
-            const escaped = (0, prompts_1.escapeForDoubleQuotedCli)(refactorPrompt);
-            terminal.sendText(`claude "${escaped}"`, true);
+            void (async () => {
+                try {
+                    const requested = (0, providerLaunch_1.normalizeProvider)(msg.agentProvider);
+                    let provider = requested;
+                    if (!provider) {
+                        const preferred = (0, providerLaunch_1.normalizeProvider)(msg.sessionProvider);
+                        const choices = preferred
+                            ? [...providerLaunch_1.PROVIDER_CHOICES.filter(choice => choice.provider === preferred), ...providerLaunch_1.PROVIDER_CHOICES.filter(choice => choice.provider !== preferred)]
+                            : providerLaunch_1.PROVIDER_CHOICES;
+                        const picked = await vscode.window.showQuickPick(choices.map(choice => ({ label: choice.label, description: choice.description, provider: choice.provider })), { placeHolder: "Choose the agent for the new refactor session" });
+                        if (!picked)
+                            return;
+                        provider = picked.provider;
+                    }
+                    const wrapper = (0, providerLaunch_1.providerWrapperScript)(provider);
+                    const hasWrapper = !!wrapper && fs.existsSync(path.join(cwd, wrapper));
+                    const terminal = vscode.window.createTerminal({ name: `${(0, providerLaunch_1.providerLabel)(provider)} · Code Cleanup`, cwd });
+                    terminal.show();
+                    const escaped = (0, prompts_1.escapeForDoubleQuotedCli)(refactorPrompt);
+                    terminal.sendText((0, providerLaunch_1.buildProviderLaunchCommand)(provider, escaped, hasWrapper), true);
+                }
+                catch (err) {
+                    void vscode.window.showErrorMessage(`Refactor launch error: ${err instanceof Error ? err.message : String(err)}`);
+                }
+            })();
         }
         return;
     }

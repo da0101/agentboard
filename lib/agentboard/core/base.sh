@@ -148,6 +148,7 @@ agentboard_runtime_gitignore_block() {
 .platform/events.jsonl
 .platform/events-*.jsonl
 .platform/events.jsonl.archive-*
+.platform/runtime/
 .platform/.daemon-port
 .platform/.file-change-state.lock
 .platform/.file-change-state.lock.d/

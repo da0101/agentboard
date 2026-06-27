@@ -176,13 +176,14 @@ function buildDashboardDataSync(state) {
         }
     }
     const recentAgents = (0, activityBuilders_1.buildRecentAgents)(sessionEvents);
-    const sessionsDir = path.join(os.homedir(), ".agentboard", "sessions");
     const activeSessions = [];
     try {
-        const files = fs.readdirSync(sessionsDir).filter((f) => f.endsWith(".json"));
+        const files = (0, sessionFiles_1.listSessionFiles)(state.workspaceRoot);
         for (const f of files) {
             try {
-                const s = JSON.parse(fs.readFileSync(path.join(sessionsDir, f), "utf8"));
+                const s = (0, sessionFiles_1.readSessionFile)(state.workspaceRoot, f);
+                if (!s)
+                    continue;
                 const lastUpdated = s._last_updated || s.last_updated || "";
                 const ageMs = lastUpdated ? Date.now() - new Date(lastUpdated).getTime() : Infinity;
                 if (ageMs > 30 * 60 * 1000)
@@ -270,8 +271,21 @@ function buildDashboardDataSync(state) {
     if (!hasBridgedCodexSession) {
         const rawCodexCache = (0, rawCodexProcesses_1.getRawCodexProcesses)(state.rawCodexProcessCache);
         state.setRawCodexProcessCache(rawCodexCache);
+        const rawActivity = (0, activityBuilders_1.buildFileActivity)(sessionEvents, 15).fileActivity;
+        (0, gitActivity_1.enrichActivityWithGit)(state.workspaceRoot, rawActivity, {
+            numstatCache: state.numstatCache,
+            lineCountCache: state.lineCountCache,
+            branchCommittedCache: state.branchCommittedCache,
+        });
+        const rawAgents = (0, activityBuilders_1.buildSessionAgents)(sessionEvents, 0);
+        const rawAgentActivity = (0, activityBuilders_1.buildSessionAgentActivity)(sessionEvents, rawAgents);
         for (const proc of rawCodexCache.processes) {
-            const rawSession = (0, rawCodexProcesses_1.rawCodexProcessToSession)(proc, state.workspaceRoot, branch);
+            const rawSession = (0, rawCodexProcesses_1.rawCodexProcessToSession)(proc, state.workspaceRoot, branch, Date.now(), {
+                activity: rawActivity,
+                agents: rawAgents,
+                agentActivity: rawAgentActivity,
+                stream: activeStream,
+            });
             if (rawSession)
                 activeSessions.push(rawSession);
         }

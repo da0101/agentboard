@@ -11,8 +11,9 @@ const { readWorkflowPlan, readWorkflowTranscriptAgents } = require("../out/dashb
 const { buildFileActivity, buildSessionAgentActivity, buildSessionAgents } = require("../out/dashboard/activityBuilders");
 const { applyGitStatus } = require("../out/dashboard/gitActivity");
 const { buildExplainChangePrompt, buildRefactorPrompt, escapeForDoubleQuotedCli } = require("../out/dashboard/prompts");
+const { buildProviderLaunchCommand, normalizeProvider, providerWrapperScript } = require("../out/dashboard/providerLaunch");
 const { applySessionCatalogUsage, dedupeClearedSessions } = require("../out/dashboard/sessionSummary");
-const { sessionRootMatchesWorkspace } = require("../out/dashboard/sessionFiles");
+const { runtimeDirForRoot, sessionsDirForRoot, sessionRootMatchesWorkspace } = require("../out/dashboard/sessionFiles");
 const { isHudFresh } = require("../out/dashboard/hudFreshness");
 const {
   parseCodexEffort,
@@ -224,6 +225,22 @@ test("escapeForDoubleQuotedCli escapes shell-sensitive characters", () => {
   assert.strictEqual(escapeForDoubleQuotedCli('a"b`c\\d'), 'a\\"b\\`c\\\\d');
 });
 
+test("provider launch commands prefer Agentboard wrappers where available", () => {
+  assert.strictEqual(providerWrapperScript("codex"), ".platform/scripts/codex-ab");
+  assert.strictEqual(buildProviderLaunchCommand("codex", "refactor me", true), 'bash .platform/scripts/codex-ab "refactor me"');
+  assert.strictEqual(buildProviderLaunchCommand("gemini", "refactor me", true), 'bash .platform/scripts/gemini-ab "refactor me"');
+  assert.strictEqual(buildProviderLaunchCommand("claude", "refactor me", true), 'claude "refactor me"');
+  assert.strictEqual(buildProviderLaunchCommand("codex", "refactor me", false), 'codex "refactor me"');
+});
+
+test("normalizeProvider infers provider from model or provider labels", () => {
+  assert.strictEqual(normalizeProvider("Codex high"), "codex");
+  assert.strictEqual(normalizeProvider("gpt-5.5/high"), "codex");
+  assert.strictEqual(normalizeProvider("claude-opus-4"), "claude");
+  assert.strictEqual(normalizeProvider("Gemini 2.5 Pro"), "gemini");
+  assert.strictEqual(normalizeProvider("unknown"), "");
+});
+
 function session(overrides) {
   return Object.assign({
     sessionId: "s1", model: "", costUsd: 0, cost: "", branch: "develop", root: "/repo",
@@ -250,6 +267,12 @@ test("sessionRootMatchesWorkspace scopes sessions to the current project root", 
   assert.strictEqual(sessionRootMatchesWorkspace(root, root), true);
   assert.strictEqual(sessionRootMatchesWorkspace(otherRoot, root), false);
   assert.strictEqual(sessionRootMatchesWorkspace("", root), false);
+});
+
+test("session runtime store is rooted inside the current workspace", () => {
+  const root = tempProject();
+  assert.strictEqual(runtimeDirForRoot(root), path.join(root, ".platform", "runtime", "agentboard"));
+  assert.strictEqual(sessionsDirForRoot(root), path.join(root, ".platform", "runtime", "agentboard", "sessions"));
 });
 
 test("isHudFresh rejects stale local HUD status", () => {
@@ -291,6 +314,23 @@ test("rawCodexProcessToSession scopes process fallback to workspace root", () =>
   assert.strictEqual(session.root, root);
   assert.strictEqual(rawCodexProcessToSession(proc, otherRoot, "develop"), null);
   assert.strictEqual(parseLsofCwd("p123\nn/tmp/project\n"), "/tmp/project");
+});
+
+test("rawCodexProcessToSession can carry best-effort workspace activity", () => {
+  const root = tempProject();
+  const activity = [{ file: "src/App.tsx", tool: "Edit", count: 1, lastTs: "2026-01-01T00:01:00Z" }];
+  const proc = {
+    pid: 123,
+    elapsedSeconds: 65,
+    command: "/bin/codex -c model_reasoning_effort=\"high\"",
+    cwd: root,
+    root,
+    effort: "high",
+  };
+  const session = rawCodexProcessToSession(proc, root, "develop", new Date("2026-06-27T12:00:00Z").getTime(), { activity });
+  assert.ok(session);
+  assert.strictEqual(session.activity.length, 1);
+  assert.strictEqual(session.activity[0].file, "src/App.tsx");
 });
 
 test("applySessionCatalogUsage annotates used skills and roles", () => {

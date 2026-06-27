@@ -20,6 +20,8 @@ setup_track_fixture() {
     "$TEST_ROOT/bin/ab" new-domain auth >/dev/null
     "$TEST_ROOT/bin/ab" new-stream login \
       --domain auth --base-branch main --branch feat/login >/dev/null
+    git add -A >/dev/null 2>&1
+    git commit -m "ab stream setup" >/dev/null 2>&1
   )
 }
 
@@ -67,7 +69,7 @@ test_session_snapshot_writes_dashboard_json() {
     . "$dir/.platform/scripts/session-track.sh"
     _ab_write_session_snapshot "codex-test-json" "codex"
   )
-  local session_json="$home/.agentboard/sessions/codex-test-json.json"
+  local session_json="$dir/.platform/runtime/agentboard/sessions/codex-test-json.json"
   [[ -f "$session_json" ]] || fail "session snapshot JSON not created"
   assert_file_contains "$session_json" '"provider": "codex"'
   assert_file_contains "$session_json" '"_session_id": "codex-test-json"'
@@ -75,7 +77,7 @@ test_session_snapshot_writes_dashboard_json() {
   assert_file_contains "$session_json" '"model": "gpt-5.4/medium"'
   assert_file_contains "$session_json" '"_shell_pid": 12345'
   [[ -f "$dir/agentboard.hud-status.json" ]] || fail "workspace hud snapshot not created"
-  [[ -f "$home/.agentboard/live.json" ]] || fail "global live snapshot not created"
+  [[ ! -f "$home/.agentboard/live.json" ]] || fail "project snapshot leaked global live.json"
 }
 
 test_file_poller_logs_changed_tracked_files() {

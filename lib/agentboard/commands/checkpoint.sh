@@ -1,3 +1,31 @@
+_checkpoint_print_migration_blocker() {
+  local stream_file="$1" slug="$2" what="$3" next_action="$4" blocker="$5" focus="$6"
+  local explicit_blocker="$7" explicit_focus="$8" include_diff="$9"
+  shift 9
+  local tokens_in="$1" tokens_out="$2" cum_in="$3" cum_out="$4" provider="$5" model="$6" task_type="$7" complexity="$8"
+
+  local -a retry_cmd=()
+  retry_cmd=(ab checkpoint "$slug" --what "$what" --next "$next_action")
+  [[ "$explicit_blocker" -eq 1 ]] && retry_cmd+=(--blocker "$blocker")
+  [[ "$explicit_focus" -eq 1 ]] && retry_cmd+=(--focus "$focus")
+  [[ "$include_diff" -eq 1 ]] && retry_cmd+=(--diff)
+  [[ -n "$tokens_in" ]] && retry_cmd+=(--tokens-in "$tokens_in")
+  [[ -n "$tokens_out" ]] && retry_cmd+=(--tokens-out "$tokens_out")
+  [[ -n "$cum_in" ]] && retry_cmd+=(--cumulative-in "$cum_in")
+  [[ -n "$cum_out" ]] && retry_cmd+=(--cumulative-out "$cum_out")
+  [[ -n "$provider" ]] && retry_cmd+=(--provider "$provider")
+  [[ -n "$model" ]] && retry_cmd+=(--model "$model")
+  [[ -n "$task_type" ]] && retry_cmd+=(--type "$task_type")
+  [[ -n "$complexity" ]] && retry_cmd+=(--complexity "$complexity")
+
+  printf '  %s✖%s  %s has no v1 frontmatter.\n' "$C_RED" "$C_RESET" "$stream_file" >&2
+  printf '     Run migration, then retry the same checkpoint payload:\n' >&2
+  printf '       %sab migrate --apply%s\n' "$C_BOLD" "$C_RESET" >&2
+  printf '       %s' "$C_BOLD" >&2
+  printf '%q ' "${retry_cmd[@]}" >&2
+  printf '%s\n' "$C_RESET" >&2
+}
+
 cmd_checkpoint() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
@@ -117,23 +145,29 @@ EOF
   [[ -n "$what" ]] || die "checkpoint requires --what \"<1-2 lines>\""
   [[ -n "$next_action" ]] || die "checkpoint requires --next \"<one sentence>\""
 
+  (( explicit_blocker )) || blocker="none"
+  (( explicit_focus )) || focus="—"
+
+  # Sanitize single-line fields before validation so any recovery command keeps
+  # the same payload checkpoint would have written.
+  what="${what//$'\n'/ }"
+  next_action="${next_action//$'\n'/ }"
+  blocker="${blocker//$'\n'/ }"
+  focus="${focus//$'\n'/ }"
+
   local stream_file="./.platform/work/${slug}.md"
   [[ -f "$stream_file" ]] || die "$stream_file not found. Create the stream first (ab new-stream)."
-  has_frontmatter "$stream_file" || die "$stream_file has no v1 frontmatter. Run 'ab migrate --apply' first."
+  if ! has_frontmatter "$stream_file"; then
+    _checkpoint_print_migration_blocker "$stream_file" "$slug" "$what" "$next_action" "$blocker" "$focus" \
+      "$explicit_blocker" "$explicit_focus" "$include_diff" \
+      "$tokens_in" "$tokens_out" "$cum_in" "$cum_out" "$provider" "$model" "$task_type" "$complexity"
+    return 1
+  fi
 
   local today_str ts agent
   today_str="$(today)"
   ts="$(date '+%Y-%m-%d %H:%M')"
   agent="${AGENTBOARD_AGENT:-${USER:-agent}}"
-
-  (( explicit_blocker )) || blocker="none"
-  (( explicit_focus )) || focus="—"
-
-  # Sanitize single-line fields: no newlines, no pipe tricks
-  what="${what//$'\n'/ }"
-  next_action="${next_action//$'\n'/ }"
-  blocker="${blocker//$'\n'/ }"
-  focus="${focus//$'\n'/ }"
 
   # Build new Resume state block
   local resume_block

@@ -43,7 +43,7 @@ test_codex_post_tool_use_writes_session_and_event() {
   assert_file_contains "$log" '"file":"src/main.ts"'
   assert_file_contains "$log" '"session_id":"codex-native-1"'
 
-  local session_json="$home/.agentboard/sessions/codex-native-1.json"
+  local session_json="$dir/.platform/runtime/agentboard/sessions/codex-native-1.json"
   [[ -f "$session_json" ]] || fail "session JSON not created by Codex hook bridge"
   assert_file_contains "$session_json" '"provider": "codex"'
   assert_file_contains "$session_json" '"_session_id": "codex-native-1"'

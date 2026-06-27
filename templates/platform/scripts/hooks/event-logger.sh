@@ -44,6 +44,30 @@ _json_first_string_field() {
   return 1
 }
 
+_jsesc() {
+  printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'
+}
+
+_refresh_session_snapshot() {
+  local sid="$1"
+  [[ -n "$sid" ]] || return 0
+  [[ -f ".platform/scripts/hooks/session-snapshot.js" ]] || return 0
+  command -v node >/dev/null 2>&1 || return 0
+  local runtime_hook_dir runtime_snapshot
+  runtime_hook_dir=".platform/runtime/agentboard/node-hooks"
+  runtime_snapshot="${runtime_hook_dir}/session-snapshot.cjs"
+  mkdir -p "$runtime_hook_dir" 2>/dev/null || return 0
+  cp ".platform/scripts/hooks/session-snapshot.js" "$runtime_snapshot" 2>/dev/null || return 0
+  local payload
+  payload="{\"session_id\":\"$(_jsesc "$sid")\",\"provider\":\"$(_jsesc "$provider")\",\"cwd\":\"$(_jsesc "$(pwd)")\"}"
+  printf '%s' "$payload" \
+    | AGENTBOARD_PROVIDER="$provider" \
+      AGENTBOARD_SESSION_ID="$sid" \
+      AGENTBOARD_MODEL= \
+      AGENTBOARD_CWD="$(pwd)" \
+      node "$runtime_snapshot" >/dev/null 2>&1 || true
+}
+
 hook_event="$(_json_string_field "hook_event_name")"
 if [[ "$hook_event" == "UserPromptSubmit" ]]; then
   _prompt="$(_json_string_field "prompt")"
@@ -52,7 +76,7 @@ if [[ "$hook_event" == "UserPromptSubmit" ]]; then
     _skill="${_skill#/}"
     ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" || exit 0
     _session_id="$(_json_string_field "session_id")"
-    _jsesc() { printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'; }
+    _refresh_session_snapshot "$_session_id"
     printf '{"ts":"%s","provider":"%s","stream":"","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
       "$ts" "$(_jsesc "$provider")" "$(_jsesc "$_skill")" "$(_jsesc "$_session_id")" >> "$log_file" 2>/dev/null
   fi
@@ -130,12 +154,10 @@ stream="$(_resolve_stream "${AGENTBOARD_STREAM:-$payload_stream}" "$session_id" 
 if [[ -n "$stream" && -n "$session_id" ]]; then
   _remember_session_stream "$session_id" "$stream"
 fi
+_refresh_session_snapshot "$session_id"
 
 tool="$(_json_string_field "tool_name")"
 
-_jsesc() {
-  printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'
-}
 provider_e="$(_jsesc "$provider")"
 stream_e="$(_jsesc "$stream")"
 tool_e="$(_jsesc "$tool")"

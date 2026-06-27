@@ -32,6 +32,42 @@ _json_string_field() {
   '
 }
 
+_json_first_string_field() {
+  local value field
+  for field in "$@"; do
+    value="$(_json_string_field "$field")"
+    if [[ -n "$value" ]]; then
+      printf '%s\n' "$value"
+      return 0
+    fi
+  done
+  return 1
+}
+
+_jsesc() {
+  printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'
+}
+
+_refresh_session_snapshot() {
+  local sid="$1"
+  [[ -n "$sid" ]] || return 0
+  [[ -f ".platform/scripts/hooks/session-snapshot.js" ]] || return 0
+  command -v node >/dev/null 2>&1 || return 0
+  local runtime_hook_dir runtime_snapshot
+  runtime_hook_dir=".platform/runtime/agentboard/node-hooks"
+  runtime_snapshot="${runtime_hook_dir}/session-snapshot.cjs"
+  mkdir -p "$runtime_hook_dir" 2>/dev/null || return 0
+  cp ".platform/scripts/hooks/session-snapshot.js" "$runtime_snapshot" 2>/dev/null || return 0
+  local payload
+  payload="{\"session_id\":\"$(_jsesc "$sid")\",\"provider\":\"$(_jsesc "$provider")\",\"cwd\":\"$(_jsesc "$(pwd)")\"}"
+  printf '%s' "$payload" \
+    | AGENTBOARD_PROVIDER="$provider" \
+      AGENTBOARD_SESSION_ID="$sid" \
+      AGENTBOARD_MODEL= \
+      AGENTBOARD_CWD="$(pwd)" \
+      node "$runtime_snapshot" >/dev/null 2>&1 || true
+}
+
 hook_event="$(_json_string_field "hook_event_name")"
 if [[ "$hook_event" == "UserPromptSubmit" ]]; then
   _prompt="$(_json_string_field "prompt")"
@@ -40,7 +76,7 @@ if [[ "$hook_event" == "UserPromptSubmit" ]]; then
     _skill="${_skill#/}"
     ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" || exit 0
     _session_id="$(_json_string_field "session_id")"
-    _jsesc() { printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'; }
+    _refresh_session_snapshot "$_session_id"
     printf '{"ts":"%s","provider":"%s","stream":"","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
       "$ts" "$(_jsesc "$provider")" "$(_jsesc "$_skill")" "$(_jsesc "$_session_id")" >> "$log_file" 2>/dev/null
   fi
@@ -118,16 +154,26 @@ stream="$(_resolve_stream "${AGENTBOARD_STREAM:-$payload_stream}" "$session_id" 
 if [[ -n "$stream" && -n "$session_id" ]]; then
   _remember_session_stream "$session_id" "$stream"
 fi
+_refresh_session_snapshot "$session_id"
 
 tool="$(_json_string_field "tool_name")"
 
-_jsesc() {
-  printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'
-}
 provider_e="$(_jsesc "$provider")"
 stream_e="$(_jsesc "$stream")"
 tool_e="$(_jsesc "$tool")"
 hook_e="$(_jsesc "$hook_event")"
+
+agent_id="${AGENTBOARD_AGENT_ID:-$(_json_first_string_field "agent_id" "agentId" "subagent_id" "subagentId" "agent_path" "agentPath" 2>/dev/null || true)}"
+agent_label="${AGENTBOARD_AGENT_LABEL:-$(_json_first_string_field "agent_label" "agentLabel" "label" "subagent_type" "subagentType" "agent_type" "agentType" 2>/dev/null || true)}"
+parent_session_id="${AGENTBOARD_PARENT_SESSION_ID:-$(_json_first_string_field "parent_session_id" "parentSessionId" 2>/dev/null || true)}"
+
+_agent_attrs() {
+  local attrs=""
+  [[ -n "${agent_id:-}" ]] && attrs="${attrs},\"agent_id\":\"$(_jsesc "$agent_id")\""
+  [[ -n "${agent_label:-}" ]] && attrs="${attrs},\"agent_label\":\"$(_jsesc "$agent_label")\""
+  [[ -n "${parent_session_id:-}" ]] && attrs="${attrs},\"parent_session_id\":\"$(_jsesc "$parent_session_id")\""
+  printf '%s' "$attrs"
+}
 
 if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_start" ]]; then
   _label="$(_json_string_field "label")"
@@ -141,19 +187,23 @@ if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_start" ]]; then
     _skill="$(printf '%s' "$_label" | sed 's/.*skill:\([^·|]*\).*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
   fi
   _task="${_label:-${_subtype:-sub-agent}}"
-  printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"AgentStart","label":"%s","role":"%s","skill":"%s","session_id":"%s"}\n' \
+  agent_id="${agent_id:-$_task}"
+  agent_label="${agent_label:-$_task}"
+  printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"AgentStart","label":"%s","role":"%s","skill":"%s","session_id":"%s"%s}\n' \
     "$ts" "$provider_e" "$stream_e" \
     "$(_jsesc "$_task")" "$(_jsesc "$_role")" "$(_jsesc "$_skill")" \
-    "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+    "$(_jsesc "$session_id")" "$(_agent_attrs)" >> "$log_file" 2>/dev/null
   exit 0
 fi
 
 if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_done" ]]; then
   _label="$(_json_string_field "label")"
   _task="${_label:-sub-agent}"
-  printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"AgentDone","label":"%s","session_id":"%s"}\n' \
+  agent_id="${agent_id:-$_task}"
+  agent_label="${agent_label:-$_task}"
+  printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"AgentDone","label":"%s","session_id":"%s"%s}\n' \
     "$ts" "$provider_e" "$stream_e" \
-    "$(_jsesc "$_task")" "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+    "$(_jsesc "$_task")" "$(_jsesc "$session_id")" "$(_agent_attrs)" >> "$log_file" 2>/dev/null
   exit 0
 fi
 
@@ -167,16 +217,17 @@ fi
 case "$hook_event" in
   SessionStart|SessionEnd|FileChange|Reason)
     _sid_e="$(_jsesc "${session_id:-}")"
+    _agent_attrs="$(_agent_attrs)"
     _fp="$(_json_string_field "file_path")"
     if [[ -n "$_fp" ]]; then
       _fp_e="$(_jsesc "$_fp")"
       if [[ "$hook_event" == "FileChange" ]]; then
-        _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"hook_event_name\":\"$hook_e\",\"tool\":\"Edit\",\"session_id\":\"$_sid_e\",\"file_path\":\"$_fp_e\",\"file\":\"$_fp_e\"}"
+        _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"hook_event_name\":\"$hook_e\",\"tool\":\"Edit\",\"session_id\":\"$_sid_e\",\"file_path\":\"$_fp_e\",\"file\":\"$_fp_e\"$_agent_attrs}"
       else
-        _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"hook_event_name\":\"$hook_e\",\"session_id\":\"$_sid_e\",\"file_path\":\"$_fp_e\"}"
+        _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"hook_event_name\":\"$hook_e\",\"session_id\":\"$_sid_e\",\"file_path\":\"$_fp_e\"$_agent_attrs}"
       fi
     else
-      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"hook_event_name\":\"$hook_e\",\"session_id\":\"$_sid_e\"}"
+      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"hook_event_name\":\"$hook_e\",\"session_id\":\"$_sid_e\"$_agent_attrs}"
     fi
     ;;
   *)
@@ -191,16 +242,16 @@ case "$hook_event" in
             [[ "$_skill_name" == "$_fp" ]] && _skill_name="${_fp#*/.agents/skills/}"
             _skill_name="${_skill_name%%/*}"
             if [[ -n "$_skill_name" ]]; then
-              printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
-                "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_skill_name")" "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+              printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"Skill","skill":"%s","session_id":"%s"%s}\n' \
+                "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_skill_name")" "$(_jsesc "$session_id")" "$(_agent_attrs)" >> "$log_file" 2>/dev/null
             fi
             exit 0
             ;;
           */.platform/roles/*.md)
             _role_slug="$(printf '%s' "$_fp" | sed 's|.*\.platform/roles/\([^/]*\)\.md|\1|')"
             if [[ -n "$_role_slug" ]]; then
-              printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"RoleAdopt","role":"%s","session_id":"%s"}\n' \
-                "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_role_slug")" "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
+              printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"RoleAdopt","role":"%s","session_id":"%s"%s}\n' \
+                "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_role_slug")" "$(_jsesc "$session_id")" "$(_agent_attrs)" >> "$log_file" 2>/dev/null
             fi
             exit 0
             ;;
@@ -236,8 +287,8 @@ case "$hook_event" in
         _sk_type="$(_json_string_field "subagent_type")"
         _sk_name="${_sk_type:-$(_json_string_field "type")}"
         if [[ -n "$_sk_name" ]]; then
-          printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
-            "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_sk_name")" "$(_jsesc "${session_id:-}")" >> "$log_file" 2>/dev/null
+          printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"Skill","skill":"%s","session_id":"%s"%s}\n' \
+            "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_sk_name")" "$(_jsesc "${session_id:-}")" "$(_agent_attrs)" >> "$log_file" 2>/dev/null
         fi
         exit 0
         ;;
@@ -253,11 +304,12 @@ case "$hook_event" in
         ;;
     esac
     _sid_e="$(_jsesc "${session_id:-}")"
+    _agent_attrs="$(_agent_attrs)"
     if [[ -n "$detail_key" && -n "$detail_val" ]]; then
       detail_e="$(_jsesc "$detail_val")"
-      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\",\"$detail_key\":\"$detail_e\",\"session_id\":\"$_sid_e\"}"
+      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\",\"$detail_key\":\"$detail_e\",\"session_id\":\"$_sid_e\"$_agent_attrs}"
     else
-      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\",\"session_id\":\"$_sid_e\"}"
+      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"tool\":\"$tool_e\",\"session_id\":\"$_sid_e\"$_agent_attrs}"
     fi
     ;;
 esac
