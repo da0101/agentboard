@@ -25,3 +25,54 @@ config_file = "agents/auditor.toml"
 [agents.mapper]
 description = "Fast file discovery, grep, glob — trivial mechanical ops"
 config_file = "agents/mapper.toml"
+
+# ── Agentboard dashboard telemetry ───────────────────────────────────────────
+# Codex loads project hooks only after the project .codex/ layer is trusted.
+# These hooks normalize Codex lifecycle/tool events into the same local files
+# used by Claude Code:
+#   - ~/.agentboard/sessions/<session>.json
+#   - .platform/events.jsonl
+
+[[hooks.SessionStart]]
+matcher = "startup|resume|clear|compact"
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = 'AGENTBOARD_PROVIDER=codex AGENTBOARD_CODEX_HOOK_EVENT=SessionStart node "$(git rev-parse --show-toplevel)/.platform/scripts/hooks/codex-hook-bridge.js"'
+timeout = 10
+statusMessage = "Agentboard: starting Codex session"
+
+[[hooks.PostToolUse]]
+matcher = "*"
+
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = 'AGENTBOARD_PROVIDER=codex AGENTBOARD_CODEX_HOOK_EVENT=PostToolUse node "$(git rev-parse --show-toplevel)/.platform/scripts/hooks/codex-hook-bridge.js"'
+timeout = 10
+statusMessage = "Agentboard: logging Codex activity"
+
+[[hooks.SubagentStart]]
+matcher = "*"
+
+[[hooks.SubagentStart.hooks]]
+type = "command"
+command = 'AGENTBOARD_PROVIDER=codex AGENTBOARD_CODEX_HOOK_EVENT=SubagentStart node "$(git rev-parse --show-toplevel)/.platform/scripts/hooks/codex-hook-bridge.js"'
+timeout = 10
+statusMessage = "Agentboard: tracking Codex subagent"
+
+[[hooks.SubagentStop]]
+matcher = "*"
+
+[[hooks.SubagentStop.hooks]]
+type = "command"
+command = 'AGENTBOARD_PROVIDER=codex AGENTBOARD_CODEX_HOOK_EVENT=SubagentStop node "$(git rev-parse --show-toplevel)/.platform/scripts/hooks/codex-hook-bridge.js"'
+timeout = 10
+statusMessage = "Agentboard: finishing Codex subagent"
+
+[[hooks.Stop]]
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = 'AGENTBOARD_PROVIDER=codex AGENTBOARD_CODEX_HOOK_EVENT=Stop node "$(git rev-parse --show-toplevel)/.platform/scripts/hooks/codex-hook-bridge.js"'
+timeout = 10
+statusMessage = "Agentboard: ending Codex session"

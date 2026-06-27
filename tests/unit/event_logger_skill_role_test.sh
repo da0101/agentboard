@@ -113,6 +113,50 @@ test_user_prompt_submit_skill_invocation() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 3b: UserPromptSubmit respects AGENTBOARD_PROVIDER (Codex hooks/wrappers)
+# ---------------------------------------------------------------------------
+test_user_prompt_submit_skill_uses_provider_env() {
+  local dir
+  dir="$(mktemp -d)"
+  setup_logger_fixture "$dir"
+
+  printf '%s' '{"hook_event_name":"UserPromptSubmit","prompt":"/ab-debug some task","session_id":"sess-ups-codex"}' \
+    | (cd "$dir"; AGENTBOARD_PROVIDER=codex bash "$HOOK")
+
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created for provider-tagged UPS Skill event"
+
+  assert_file_contains "$log" '"provider":"codex"'
+  assert_file_contains "$log" '"tool":"Skill"'
+  assert_file_contains "$log" '"skill":"ab-debug"'
+
+  rm -rf "$dir"
+}
+
+# ---------------------------------------------------------------------------
+# Test 3c: Read of .agents/skills/<skill>/SKILL.md emits Skill (Codex/Gemini)
+# ---------------------------------------------------------------------------
+test_agents_skill_read_emits_skill_event() {
+  local dir
+  dir="$(mktemp -d)"
+  setup_logger_fixture "$dir"
+
+  mkdir -p "$dir/.agents/skills/ab-review"
+  printf '# Review\n' > "$dir/.agents/skills/ab-review/SKILL.md"
+
+  _fire "$dir" "{\"tool_name\":\"Read\",\"file_path\":\"$dir/.agents/skills/ab-review/SKILL.md\",\"session_id\":\"sess-agent-skill\"}"
+
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created for .agents skill read"
+
+  assert_file_contains "$log" '"tool":"Skill"'
+  assert_file_contains "$log" '"skill":"ab-review"'
+  assert_file_contains "$log" '"session_id":"sess-agent-skill"'
+
+  rm -rf "$dir"
+}
+
+# ---------------------------------------------------------------------------
 # Test 4: UserPromptSubmit non-slash prompt → NOT logged (dropped)
 # ---------------------------------------------------------------------------
 test_user_prompt_submit_non_slash_is_dropped() {
@@ -236,6 +280,8 @@ test_skill_tool_type_field_fallback() {
 test_skill_tool_emits_skill_event
 test_role_adopt_from_platform_roles_read
 test_user_prompt_submit_skill_invocation
+test_user_prompt_submit_skill_uses_provider_env
+test_agents_skill_read_emits_skill_event
 test_user_prompt_submit_non_slash_is_dropped
 test_malformed_input_exits_zero
 test_empty_input_exits_zero

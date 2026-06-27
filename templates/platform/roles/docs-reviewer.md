@@ -51,7 +51,7 @@ reveal to be confusing.
 - **Prioritised fix list** — ordered by user-impact; each item names the doc
   location, the problem, and the correct current behaviour
 
-## Hard Rules
+## Constraints
 
 - **Every inaccuracy finding includes the current correct behaviour** — do not
   just flag it, state the truth.

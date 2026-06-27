@@ -2,8 +2,8 @@
 stream_id: stream-codex-dashboard-support
 slug: codex-dashboard-support
 type: feature
-status: planned
-agent_owner: claude
+status: awaiting-verification
+agent_owner: codex
 domain_slugs: [vscode-extension]
 repo_ids: [repo-primary]
 base_branch: develop
@@ -66,6 +66,17 @@ _Append-only. Format: `YYYY-MM-DD — <decision> — <rationale>`_
 
 2026-06-20 — Deferred until after Claude Code dashboard is stable — focus on one provider at a time, validate the schema before locking it for cross-provider use.
 
+## Worktree / Local environment
+
+| Repo | Worktree path | Branch | Base | Dependencies | Local command | Localhost port(s) |
+|---|---|---|---|---|---|---|
+| repo-primary | `/private/tmp/agentboard-codex-dashboard-support` | `feature/codex-dashboard-support` | `develop` | installed: `npm ci` in `extensions/vscode`; root has no lockfile/deps | Root tests: `npm test`; extension compile: `cd extensions/vscode && npm run compile` | none; VS Code extension host/manual reload rather than localhost |
+
+## Manual QA
+
+- Artifact: `.platform/work/qa/codex-dashboard-support-manual-qa.md`
+- Status: pending human VS Code/Codex click-through. Automated unit and compile checks passed; live dashboard verification requires a real Codex session in VS Code.
+
 ## Reference
 
 - Claude Code bridge: `templates/platform/scripts/hooks/status-bridge.js`
@@ -79,13 +90,17 @@ _Append-only. Format: `YYYY-MM-DD — <decision> — <rationale>`_
 _Overwritten by `ab checkpoint` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
 - **Last updated:** 2026-06-26 by danilulmashev
-- **What just happened:** Pushed VS Code workspace-root fix to develop and prepared platform-pack sync; updated role test to derive expected roles from shipped templates.
+- **What just happened:** Implemented Codex dashboard telemetry: native hook bridge, session snapshots, wrapper heartbeat fallback, event normalization, docs, and tests.
 - **Current focus:** —
-- **Next action:** Reload VS Code, close/reopen Agentboard dashboard, and verify it shows the current agentboard workspace instead of stale global live project data.
+- **Next action:** Run manual VS Code QA with a trusted Codex project, then commit if approved.
 - **Blockers:** none
 
 ## Progress log
 _Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._
+
+2026-06-26 19:06 — Implemented Codex dashboard telemetry: native hook bridge, session snapshots, wrapper heartbeat fallback, event normalization, docs, and tests.
+
+2026-06-26 19:02 — Implemented Codex dashboard telemetry: session snapshots, native hook bridge, wrapper heartbeat fallback, FileChange normalization, tests, docs, and manual QA artifact.
 
 2026-06-26 17:11 — Pushed VS Code workspace-root fix to develop and prepared platform-pack sync; updated role test to derive expected roles from shipped templates.
 
@@ -94,4 +109,3 @@ _Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._
 2026-06-26 16:38 — Fixed VS Code dashboard root detection in worktree /private/tmp/agentboard-vscode-root-detection: workspace folders now win over stale ~/.agentboard/live.json; packaged and installed local rootfix VSIX.
 
 2026-06-26 16:16 — Oriented on VS Code extension/Codex dashboard stream; found local Codex wrapper/session-track telemetry already exists and current Codex docs support native lifecycle hooks.
-

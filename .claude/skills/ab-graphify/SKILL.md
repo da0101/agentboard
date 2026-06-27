@@ -1,3 +1,8 @@
+---
+name: ab-graphify
+description: "Graphify maps the codebase into a queryable structural knowledge graph for research and architecture navigation."
+---
+
 # ab-graphify
 
 Graphify maps your entire codebase into a queryable structural knowledge graph stored at

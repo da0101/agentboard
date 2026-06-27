@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
 # event-logger.sh — append lean AI agent events to .platform/events.jsonl
 #
-# Invoked by Claude Code hooks (PostToolUse + UserPromptSubmit) via stdin.
-# Can also be called from Codex/Gemini wrappers — any JSON payload accepted.
+# Invoked by provider hooks/wrappers via stdin.
 # Fail-open: errors never block a tool call.
 #
-# Output format (one JSON object per line):
-#   {"ts":"<ISO>","provider":"<p>","stream":"<slug>","tool":"<name>","file":"<path>"}
-#   {"ts":"<ISO>","provider":"<p>","stream":"<slug>","tool":"Bash","cmd":"<truncated>"}
-#
-# UserPromptSubmit events are dropped — they're noise, not signal.
-# The raw hook payload is never stored — only the meaningful fields.
+# UserPromptSubmit events are dropped except /skill invocations.
+# Raw hook payloads are never stored.
 
 set -u
 [[ -d ".platform" ]] || exit 0
@@ -37,7 +32,6 @@ _json_string_field() {
   '
 }
 
-# For UserPromptSubmit: only capture /skill invocations, drop everything else
 hook_event="$(_json_string_field "hook_event_name")"
 if [[ "$hook_event" == "UserPromptSubmit" ]]; then
   _prompt="$(_json_string_field "prompt")"
@@ -47,8 +41,8 @@ if [[ "$hook_event" == "UserPromptSubmit" ]]; then
     ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" || exit 0
     _session_id="$(_json_string_field "session_id")"
     _jsesc() { printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'; }
-    printf '{"ts":"%s","provider":"claude","stream":"","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
-      "$ts" "$(_jsesc "$_skill")" "$(_jsesc "$_session_id")" >> "$log_file" 2>/dev/null
+    printf '{"ts":"%s","provider":"%s","stream":"","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
+      "$ts" "$(_jsesc "$provider")" "$(_jsesc "$_skill")" "$(_jsesc "$_session_id")" >> "$log_file" 2>/dev/null
   fi
   exit 0
 fi
@@ -135,8 +129,6 @@ stream_e="$(_jsesc "$stream")"
 tool_e="$(_jsesc "$tool")"
 hook_e="$(_jsesc "$hook_event")"
 
-# ── Agent start (PreToolUse on Agent tool) ────────────────────────────────────
-# Label format enforced by CLAUDE.md: "role:<name> · skill:<name> · <task desc>"
 if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_start" ]]; then
   _label="$(_json_string_field "label")"
   _subtype="$(_json_string_field "subagent_type")"
@@ -156,8 +148,6 @@ if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_start" ]]; then
   exit 0
 fi
 
-# ── Agent done (PostToolUse on Agent tool) ────────────────────────────────────
-# Matches the AgentStart label so the dashboard can flip done=true.
 if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_done" ]]; then
   _label="$(_json_string_field "label")"
   _task="${_label:-sub-agent}"
@@ -167,8 +157,6 @@ if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_done" ]]; then
   exit 0
 fi
 
-# Skip Bash events that are ab meta-calls — those commands produce
-# their own structured events (Reason, checkpoint, etc.) which are the signal.
 if [[ "$tool" == "Bash" ]]; then
   _cmd_peek="$(_json_string_field "command")"
   case "$_cmd_peek" in
@@ -176,31 +164,32 @@ if [[ "$tool" == "Bash" ]]; then
   esac
 fi
 
-# Session events (SessionStart/End, FileChange, Reason) are identified by
-# hook_event_name — regardless of whether tool_name is also present.
 case "$hook_event" in
   SessionStart|SessionEnd|FileChange|Reason)
-    # ── Session event: preserve hook_event_name + session_id + file_path ─────
     _sid_e="$(_jsesc "${session_id:-}")"
     _fp="$(_json_string_field "file_path")"
     if [[ -n "$_fp" ]]; then
       _fp_e="$(_jsesc "$_fp")"
-      _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"hook_event_name\":\"$hook_e\",\"session_id\":\"$_sid_e\",\"file_path\":\"$_fp_e\"}"
+      if [[ "$hook_event" == "FileChange" ]]; then
+        _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"hook_event_name\":\"$hook_e\",\"tool\":\"Edit\",\"session_id\":\"$_sid_e\",\"file_path\":\"$_fp_e\",\"file\":\"$_fp_e\"}"
+      else
+        _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"hook_event_name\":\"$hook_e\",\"session_id\":\"$_sid_e\",\"file_path\":\"$_fp_e\"}"
+      fi
     else
       _payload="{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"hook_event_name\":\"$hook_e\",\"session_id\":\"$_sid_e\"}"
     fi
     ;;
   *)
-    # ── Tool event (PostToolUse): extract one meaningful detail, no raw dump ──
     detail_key=""
     detail_val=""
     case "$tool" in
       Read)
         _fp="$(_json_string_field "file_path")"
-        # Detect skill file reads — log as Skill invocation
         case "$_fp" in
-          */.claude/skills/*/SKILL.md|*/.claude/skills/*/*)
-            _skill_name="$(printf '%s' "$_fp" | sed 's|.*\.claude/skills/\([^/]*\)/.*|\1|')"
+          */.claude/skills/*/SKILL.md|*/.claude/skills/*/*|*/.agents/skills/*/SKILL.md|*/.agents/skills/*/*)
+            _skill_name="${_fp#*/.claude/skills/}"
+            [[ "$_skill_name" == "$_fp" ]] && _skill_name="${_fp#*/.agents/skills/}"
+            _skill_name="${_skill_name%%/*}"
             if [[ -n "$_skill_name" ]]; then
               printf '{"ts":"%s","provider":"%s","stream":"%s","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
                 "$ts" "$provider_e" "$stream_e" "$(_jsesc "$_skill_name")" "$(_jsesc "$session_id")" >> "$log_file" 2>/dev/null
@@ -222,7 +211,6 @@ case "$hook_event" in
         ;;
       Edit|Write|MultiEdit|NotebookEdit)
         _fp="$(_json_string_field "file_path")"
-        # Skip .platform/ meta-file edits (memory, stream files, daemon state)
         _rel="${_fp##"$(pwd)/"}"
         case "$_rel" in .platform/*) exit 0 ;; esac
         if [[ -n "$_fp" ]]; then
@@ -232,7 +220,6 @@ case "$hook_event" in
         ;;
       Bash)
         _cmd="$(_json_string_field "command")"
-        # Skip trivial internal commands — keep everything else
         case "$_cmd" in
           echo\ *|printf\ *|cat\ *|ls\ *|cd\ *|pwd|true|false|:|\
           mkdir\ *|rm\ *|mv\ *|cp\ *|touch\ *|chmod\ *|wc\ *|head\ *|tail\ *|\
@@ -262,7 +249,7 @@ case "$hook_event" in
         detail_val="$_agent_id"
         ;;
       WebSearch|WebFetch)
-        exit 0  # internal research — not "what I changed"
+        exit 0
         ;;
     esac
     _sid_e="$(_jsesc "${session_id:-}")"
@@ -275,7 +262,6 @@ case "$hook_event" in
     ;;
 esac
 
-# Write via daemon (concurrent-safe) or direct append fallback
 _port_file=".platform/.daemon-port"
 _daemon_ok=0
 if [[ -f "$_port_file" ]] && command -v curl >/dev/null 2>&1; then

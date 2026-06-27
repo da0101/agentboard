@@ -85,7 +85,7 @@ Probe for project-provided tools before inventing new ones:
 
 - **Maestro mobile/web:** `.maestro/`, `maestro`, `scripts/*maestro*`, `docs/*maestro*`, app ids, simulator/emulator docs.
 - **Browser/web:** Playwright, Cypress, Selenium, project dev server scripts, Browser plugin, Playwright skill.
-- **API/backend:** package scripts, test runners, Postman/Newman, curl examples, OpenAPI specs, integration tests.
+- **API/backend:** package scripts, test runners, Postman/Newman, API request examples, OpenAPI specs, integration tests.
 - **Unit/integration:** existing test commands and focused test filters.
 - **Load/rate-limit:** project-local load scripts, fake services, emulator suites, rate-limit unit tests.
 

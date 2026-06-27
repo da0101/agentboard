@@ -23,7 +23,7 @@ _fm() {
 _ci_warn() { printf 'agentboard-validate: WARNING %s\n' "$1"; }
 
 # _ci_annotation <file> <message> — emit GitHub Actions error annotation
-_ci_annotation() { printf '::error file=%s::%s\n' "$1" "$2"; }
+_ci_annotation() { printf '::error file=%s::%s\n' "$1" "$2" >&2; }
 
 # _check_fields <ci> <file> <type> <field...>
 # Warns on missing fields. In CI mode also emits ::error annotations.
@@ -77,7 +77,7 @@ _validate_skills() {
           fi
           _sw=$((_sw+1)); continue
         fi
-        _m="$(_check_fields "$_ci" "$_f" "skill" name description version origin)"
+        _m="$(_check_fields "$_ci" "$_f" "skill" name description)"
         if [[ "$_m" -eq 0 ]]; then
           [[ "$_ci" != "1" ]] && ok "${_lbl}"
           _sk=$((_sk+1))
@@ -115,7 +115,7 @@ _validate_roles() {
         fi
         _rw=$((_rw+1)); continue
       fi
-      _m="$(_check_fields "$_ci" "$_f" "role" name description routes_to)"
+      _m="$(_check_fields "$_ci" "$_f" "role" slug name label ansi_color mission)"
       if [[ "$_m" -eq 0 ]]; then
         [[ "$_ci" != "1" ]] && ok "${_lbl}"
         _rk=$((_rk+1))
