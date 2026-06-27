@@ -106,3 +106,6 @@ Format: `YYYY-MM-DD — <task> — <outcome> — <takeaway>`
 2026-06-15 — manual QA artifact gate — upgraded manual QA from chat-only final plan to stream-scoped markdown artifact gate with archived QA history — future agents must ship with executable QA evidence or a documented not-required reason
 2026-06-15 — QA execution journal — added a chronological journal requirement for LLM-driven interactive QA so Maestro/browser agents document what they did, saw, fixed, retested, passed, skipped, and escalated
 2026-06-26 — Codex dashboard telemetry — Codex now emits Claude-compatible session snapshots and dashboard-readable file activity through native hooks plus wrapper fallback
+2026-06-27 — debug: VS Code dashboard cross-project session leak — fixed root cause: dashboard session ingestion now filters ~/.agentboard live session files by canonical workspace root before rendering active sessions
+2026-06-27 — debug: VS Code dashboard stale HUD ghost status — fixed root cause: dashboard trusted old agentboard.hud-status.json snapshots forever; HUD data is now ignored after the freshness window
+2026-06-27 — debug: VS Code dashboard raw Codex invisibility — fixed root cause: raw Codex CLI processes do not write Agentboard session snapshots; dashboard now detects matching local Codex processes by workspace cwd as unbridged sessions

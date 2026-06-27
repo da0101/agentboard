@@ -2,7 +2,7 @@
 
 ## Scope
 
-Validate that Agentboard can repair stale generated path references from older projects, especially `.claude/roles/*` references in root entry files that should now point to `.platform/roles/*`.
+Validate that Agentboard can repair stale generated path references and older stream metadata drift, especially `.claude/roles/*` references in root entry files and partial `.platform/work/*.md` frontmatter.
 
 ## Environment
 
@@ -27,6 +27,11 @@ Validate that Agentboard can repair stale generated path references from older p
 7. Confirm `.gitignore` contains `agentboard.hud-status.json`.
 8. Run `ab doctor --repair --dry-run`.
 9. Confirm it delegates to the same repair scan.
+10. Create a stream file with frontmatter missing `stream_id`.
+11. Create a stream file with a non-canonical `stream_id`.
+12. Add an `ACTIVE.md` row for a missing stream file.
+13. Run `ab repair`.
+14. Confirm stream frontmatter is canonicalized and the stale `ACTIVE.md` row is removed.
 
 ## Automated Evidence
 
@@ -43,6 +48,8 @@ Validate that Agentboard can repair stale generated path references from older p
 ## Expected Result
 
 - Stale `.claude/roles` references are repaired to `.platform/roles`.
+- Partial stream metadata gets canonical `stream_id`, `slug`, dates, status, owner, repo/domain arrays, and closure state.
+- Missing stream-file rows are pruned from `work/ACTIVE.md`.
 - Dry-run mode reports drift without writing files.
 - `doctor --repair` uses the same repair path.
 - The repair command runs `ab update`, `ab doctor --ci`, and `ab validate --ci` in apply mode.

@@ -6,9 +6,9 @@ _repair_usage() {
   cat <<'EOF'
 Usage: ab repair [--dry-run] [--max-passes N]
 
-Scans generated Agentboard context files for known stale paths, rewrites safe
-matches, refreshes shipped process files with ab update, then runs doctor and
-validate until green or no further safe repair exists.
+Scans generated Agentboard context files for known stale paths and metadata
+drift, rewrites safe matches, refreshes shipped process files with ab update,
+then runs doctor and validate until green or no further safe repair exists.
 
 Flags:
   --dry-run       Report findings without writing files or running update.
@@ -27,6 +27,8 @@ _repair_candidates() {
     find "$dir" \
       \( -path ".platform/work/archive" -o \
          -path ".platform/work/archive/*" -o \
+         -path ".platform/work/qa" -o \
+         -path ".platform/work/qa/*" -o \
          -path ".platform/graphify" -o \
          -path ".platform/graphify/*" \) -prune -o \
       -type f \( \
@@ -104,8 +106,9 @@ cmd_repair() {
   printf '\n%s%sab repair%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
   (( dry_run )) && warn "Dry-run mode - no files will be changed."
 
-  local pass=1 changed=0 stale_count=0 file stale_files
+  local pass=1 changed=0 stale_count=0 metadata_count=0 pass_changes=0 file stale_files
   while (( pass <= max_passes )); do
+    pass_changes=0
     head "Pass ${pass}: scanning known Agentboard path drift"
     stale_files="$(_repair_scan_stale_paths)"
     stale_count=0
@@ -118,21 +121,28 @@ cmd_repair() {
         elif _repair_rewrite_file "$file"; then
           ok "$file: .claude/roles -> .platform/roles"
           changed=$((changed + 1))
+          pass_changes=$((pass_changes + 1))
         fi
       done <<< "$stale_files"
     else
       ok "No stale .claude/roles paths found"
     fi
 
+    head "Pass ${pass}: scanning stream registry metadata"
+    metadata_count="$(_repair_stream_registry "$dry_run")"
+
     if (( dry_run )); then
       say
-      if (( stale_count > 0 )); then
-        printf '%s%sDry-run found %d file(s) to repair.%s\n' "$C_BOLD" "$C_YELLOW" "$stale_count" "$C_RESET"
+      if (( stale_count + metadata_count > 0 )); then
+        printf '%s%sDry-run found %d path file(s) and %d metadata repair(s).%s\n' \
+          "$C_BOLD" "$C_YELLOW" "$stale_count" "$metadata_count" "$C_RESET"
       else
         printf '%s%sDry-run found no path drift.%s\n' "$C_BOLD" "$C_GREEN" "$C_RESET"
       fi
       return 0
     fi
+    changed=$((changed + metadata_count))
+    pass_changes=$((pass_changes + metadata_count))
 
     head "Refreshing generated Agentboard files"
     cmd_update
@@ -145,7 +155,7 @@ cmd_repair() {
       return 0
     fi
 
-    if (( stale_count == 0 )); then
+    if (( pass_changes == 0 )); then
       warn "Validation still fails, and no known safe path repair remains."
       return 1
     fi

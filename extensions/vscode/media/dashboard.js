@@ -3,28 +3,57 @@
 
 const vscode = acquireVsCodeApi();
 window._vscode = vscode; // make accessible to inline onclick attributes
+function _loadUiState(){try{return (vscode.getState&&vscode.getState())||{};}catch(e){return{};}}
+function _savedUi(){return _loadUiState().ui||{};}
+function _savedSet(name){var v=_savedUi()[name];return new Set(Array.isArray(v)?v:[]);}
+function _saveUiState(){
+  try{
+    var prev=_loadUiState();
+    vscode.setState(Object.assign({},prev,{ui:{
+      streamOpen:window._streamOpenState||{},
+      sectionFolded:Array.from(window._sectionFolded||[]),
+      kpiFolded:Array.from(window._kpiFolded||[]),
+      agentExpanded:Array.from(window._agentExpanded||[]),
+      workflowExpanded:Array.from(window._workflowExpanded||[]),
+      actCollapsed:Array.from(window._actCollapsed||[]),
+      catExpanded:Array.from(window._catExpanded||[])
+    }}));
+  }catch(e){}
+}
+window._streamOpenState = window._streamOpenState || Object.assign({}, _savedUi().streamOpen || {});
+window._sectionFolded = window._sectionFolded || _savedSet('sectionFolded');
+window._kpiFolded = window._kpiFolded || _savedSet('kpiFolded');
+window._agentExpanded = window._agentExpanded || _savedSet('agentExpanded');
+window._workflowExpanded = window._workflowExpanded || _savedSet('workflowExpanded');
+window._actCollapsed = window._actCollapsed || _savedSet('actCollapsed');
+window._catExpanded = window._catExpanded || _savedSet('catExpanded');
 const TYPE_COLOR={bugfix:'#e8823a',feature:'#4caf84',task:'#4a9eff',maintenance:'#888',research:'#9c6af7'};
 const TOOL_ICON={Edit:'✏',Write:'✏',Bash:'$',Read:'👁',WebSearch:'⌕',WebFetch:'⌕',Agent:'◈',Skill:'⚡'};
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function html(id,h){const el=document.getElementById(id);if(el)el.innerHTML=h;}
+function streamDetailId(slug,i){return 'sr-detail-'+String(slug||i).replace(/[^a-zA-Z0-9_-]/g,'-');}
 
 function renderStreams(streams, activeStream) {
   if (!streams || !streams.length) return '<div class="em">No active streams</div>';
   return streams.map(function(s, i) {
     const isA = s.slug === activeStream;
+    const key = s.slug || String(i);
+    const explicit = Object.prototype.hasOwnProperty.call(window._streamOpenState || {}, key);
+    const isOpen = explicit ? !!window._streamOpenState[key] : isA;
+    const detailId = streamDetailId(key, i);
     const c = TYPE_COLOR[s.type] || '#888';
     const statColor = {active:'#4caf50','in-progress':'#4caf50','awaiting-verification':'#ff9800',blocked:'#f44336',paused:'#888'}[s.status] || '#888';
     const doneCount = s.doneCriteria ? s.doneCriteria.filter(function(x){return x.done;}).length : 0;
     const totalCount = s.doneCriteria ? s.doneCriteria.length : 0;
     const pct = totalCount > 0 ? Math.round(doneCount / totalCount * 100) : null;
-    var header = '<div class="sr-hdr" data-toggle-id="sr-detail-'+i+'" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 4px;border-radius:4px;transition:background .15s">'
+    var header = '<div class="sr-hdr" data-toggle-id="'+esc(detailId)+'" data-stream-slug="'+esc(key)+'" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 4px;border-radius:4px;transition:background .15s">'
       + '<span style="width:7px;height:7px;border-radius:50%;background:'+(isA?'#4caf50':c)+';flex-shrink:0"></span>'
       + '<span style="font-size:12px;font-weight:'+(isA?'600':'400')+';color:'+(isA?'#4caf84':'#ccc')+';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(s.slug)+'</span>'
       + (pct!==null?'<span style="font-size:10px;opacity:.45">'+doneCount+'/'+totalCount+'</span>':'')
       + '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:'+c+'22;color:'+c+'">'+esc(s.type)+'</span>'
-      + '<span style="font-size:10px;opacity:.4">▾</span>'
+      + '<span style="font-size:10px;opacity:.4">'+(isOpen?'▾':'▸')+'</span>'
       + '</div>';
-    var detail = '<div id="sr-detail-'+i+'" style="display:'+(isA?'block':'none')+';padding:0 4px 8px 18px;border-left:2px solid '+c+'44;margin-left:3px">';
+    var detail = '<div id="'+esc(detailId)+'" data-stream-detail-slug="'+esc(key)+'" style="display:'+(isOpen?'block':'none')+';padding:0 4px 8px 18px;border-left:2px solid '+c+'44;margin-left:3px">';
     detail += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
       + '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:'+statColor+'22;color:'+statColor+'">'+esc(s.status)+'</span>'
       + (s.role?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#9c6af722;color:#9c6af7">'+esc(s.role)+'</span>':'')
@@ -72,12 +101,22 @@ function relTime(iso){
   if(s<3600)return Math.floor(s/60)+'m ago';
   return Math.floor(s/3600)+'h ago';
 }
-function toggleStream(id){
+function toggleStream(id, slug){
   const el=document.getElementById(id);
   if(!el)return;
   const open=el.style.display==='block';
-  document.querySelectorAll('[id^="sr-detail-"]').forEach(function(e){e.style.display='none';});
-  if(!open)el.style.display='block';
+  window._streamOpenState = window._streamOpenState || {};
+  document.querySelectorAll('[data-stream-detail-slug]').forEach(function(e){
+    e.style.display='none';
+    window._streamOpenState[e.dataset.streamDetailSlug||'']=false;
+  });
+  if(!open){
+    el.style.display='block';
+    window._streamOpenState[slug||el.dataset.streamDetailSlug||id]=true;
+  } else {
+    window._streamOpenState[slug||el.dataset.streamDetailSlug||id]=false;
+  }
+  _saveUiState();
 }
 function openStream(fp){vscode.postMessage({command:'openStream',filePath:fp});}
 function ctxBar(pct){
@@ -85,6 +124,14 @@ function ctxBar(pct){
   const used=Math.round(100-pct);const fill=Math.floor(used/10);
   const c=used<50?'#4caf50':used<75?'#ff9800':'#f44336';
   return '<span class="ctx" style="color:'+c+'">'+'█'.repeat(fill)+'░'.repeat(10-fill)+'</span><span style="color:'+c+';font-size:11px"> '+used+'%</span>';
+}
+function applySectionFoldState(){
+  window._sectionFolded = window._sectionFolded || new Set();
+  document.querySelectorAll('.sec').forEach(function(sec){
+    var key = sec.id || ((sec.querySelector('.sec-ttl')||{}).textContent || '');
+    if(!key)return;
+    sec.classList.toggle('folded', window._sectionFolded.has(key));
+  });
 }
 // Role launcher — selectable role cards with linked skills + launch button
 window._selectedRole = window._selectedRole || null;
@@ -325,9 +372,11 @@ function applyUpdate(d){
         branch: s0.branch || d.branch,
         activeStream: s0.streamPinned ? (s0.stream || '') : (s0.stream || d.activeStream || ''),
         projectName: s0.projectName || d.projectName,
-        hasLive: typeof s0.ageSeconds === 'number' ? s0.ageSeconds < 120 : d.hasLive,
-        fileActivity: _s0act.length ? _s0act : d.fileActivity,
-        lastEventLabel: _s0act0 ? _s0act0.file : '',
+	    hasLive: typeof s0.ageSeconds === 'number' ? s0.ageSeconds < 120 : d.hasLive,
+	    fileActivity: _s0act.length ? _s0act : d.fileActivity,
+	    recentAgents: s0.agents || [],
+	    agentActivity: s0.agentActivity || [],
+	    lastEventLabel: _s0act0 ? _s0act0.file : '',
         lastEventTs: _s0act0 ? _s0act0.lastTs : null,
         streamDesc: s0.streamDesc || d.streamDesc,
         isInLongOp: false,
@@ -580,6 +629,10 @@ function applyUpdate(d){
     }
     agentsEl.innerHTML=phasePills+cards;
   } else if(agentsEl&&d.recentAgents&&d.recentAgents.length){
+    const attributed=(d.agentActivity||[]).reduce(function(map,a){
+      map[a.agentId||a.label]=a;
+      return map;
+    },{});
     const running=d.recentAgents.filter(function(a){return !a.done;});
     const done2=d.recentAgents.filter(function(a){return a.done;});
     if(agentsTtl)agentsTtl.innerHTML='Agents'
@@ -590,11 +643,28 @@ function applyUpdate(d){
       const pulse=a.done?'<span style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;flex-shrink:0"></span>':'<span class="ag-pulse"></span>';
       const roleTag=a.role?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#9c6af722;color:#9c6af7">'+esc(a.role)+'</span>':'';
       const skillTag=a.skill?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#4caf8422;color:#4caf84">'+esc(a.skill)+'</span>':'';
-      return '<div class="ag-row">'+pulse+'<span class="ag-label" style="'+(a.done?'opacity:.4':'')+'">'+esc(a.label)+'</span>'+roleTag+skillTag+'<span class="ag-t">'+relTime(a.ts)+'</span></div>';
+      const activity=(attributed[a.agentId||a.label]&&attributed[a.agentId||a.label].activity)||[];
+      const activityHtml=activity.length
+        ? '<div style="margin-left:14px;margin-top:4px;border-left:1px solid rgba(255,255,255,.08);padding-left:8px">'
+          + activity.slice(0,5).map(function(item){
+            const icon = item.file && item.file.startsWith('$ ') ? '$' : (TOOL_ICON[item.tool] || '·');
+            return '<div style="display:flex;gap:6px;align-items:center;min-width:0;font-size:10px;opacity:.68;padding:1px 0">'
+              + '<span style="color:#f0b429;flex-shrink:0">'+esc(icon)+'</span>'
+              + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+esc(item.file)+'</span>'
+              + (item.count>1?'<span style="opacity:.45;flex-shrink:0">×'+item.count+'</span>':'')
+              + '<span style="opacity:.45;flex-shrink:0">'+relTime(item.lastTs)+'</span>'
+              + '</div>';
+          }).join('')
+          + '</div>'
+        : '';
+      return '<div style="border-bottom:1px solid rgba(128,128,128,.07);padding:4px 0">'
+        + '<div class="ag-row">'+pulse+'<span class="ag-label" style="'+(a.done?'opacity:.4':'')+'">'+esc(a.label)+'</span>'+roleTag+skillTag+'<span class="ag-t">'+relTime(a.ts)+'</span></div>'
+        + activityHtml
+        + '</div>';
     }).join('');
   } else if(agentsEl){
-    if(agentsTtl)agentsTtl.innerHTML='Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· last 10 min</span>';
-    agentsEl.innerHTML='<div class="em">No sub-agents — Claude is working solo</div>';
+    if(agentsTtl)agentsTtl.innerHTML='Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· this session</span>';
+    agentsEl.innerHTML='<div class="em">No sub-agents</div>';
   }
 
   // Layout mode: main hub = always global session-card view; session tabs = single-session detail
@@ -1035,6 +1105,7 @@ function applyUpdate(d){
 
   // footer — global counts only (session-specific data is shown on each session card)
   html('footer','<span style="opacity:.25;font-size:10px">'+d.skillCount+' skills · '+d.roleCount+' roles · '+d.streams.length+' streams</span>');
+  applySectionFoldState();
 }
 
 window.addEventListener('message',function(e){
@@ -1045,10 +1116,6 @@ window.addEventListener('message',function(e){
 // Tell the extension this webview is live — triggers a fresh data push.
 // Handles the case where the extension reloaded/reinstalled after this panel was already open.
 vscode.postMessage({command:'webviewReady'});
-
-// Persistent toggle state (survives re-renders)
-window._agentExpanded = window._agentExpanded || new Set();
-window._workflowExpanded = window._workflowExpanded || new Set();
 
 document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){var m=document.getElementById('_file-menu');if(m)m.style.display='none';}
@@ -1075,6 +1142,7 @@ document.addEventListener('click',function(e){
       kpiGrp.classList.toggle('folded');
       var kpiRow = kpiGrp.querySelector('.kpi-row');
       if (kpiRow) kpiRow.style.display = kpiGrp.classList.contains('folded') ? 'none' : '';
+      _saveUiState();
     }
     return;
   }
@@ -1082,7 +1150,14 @@ document.addEventListener('click',function(e){
   var foldHdr = t.closest('.sec-ttl.foldable');
   if (foldHdr && !t.closest('[data-toggle-id]') && !t.closest('[data-view]')) {
     var foldSec = foldHdr.closest('.sec');
-    if (foldSec) { foldSec.classList.toggle('folded'); }
+    if (foldSec) {
+      var foldKey = foldSec.id || foldHdr.textContent || '';
+      window._sectionFolded = window._sectionFolded || new Set();
+      foldSec.classList.toggle('folded');
+      if (foldSec.classList.contains('folded')) window._sectionFolded.add(foldKey);
+      else window._sectionFolded.delete(foldKey);
+      _saveUiState();
+    }
     return;
   }
   // Session tab: Open Chat button
@@ -1268,6 +1343,7 @@ document.addEventListener('click',function(e){
         window._workflowExpanded.add(wfSid);
         if(wfChevronEl)wfChevronEl.textContent='▾';
       }
+      _saveUiState();
     }
     return;
   }
@@ -1282,6 +1358,7 @@ document.addEventListener('click',function(e){
       var actOpen=actBody.style.display!=='none';
       if(actOpen){actBody.style.display='none';window._actCollapsed.add(actSid);if(actChevEl)actChevEl.textContent='▸';}
       else{actBody.style.display='block';window._actCollapsed.delete(actSid);if(actChevEl)actChevEl.textContent='▾';}
+      _saveUiState();
     }
     return;
   }
@@ -1302,6 +1379,7 @@ document.addEventListener('click',function(e){
         window._agentExpanded.add(sid);
         if(chevronEl)chevronEl.textContent='▾';
       }
+      _saveUiState();
     }
     return;
   }
@@ -1332,6 +1410,7 @@ document.addEventListener('click',function(e){
       cbody.style.display = copen ? 'none' : 'block';
       if (changed) changed.textContent = copen ? '▸' : '▾';
       if (copen) window._catExpanded.delete(cid); else window._catExpanded.add(cid);
+      _saveUiState();
     }
     return;
   }
@@ -1340,7 +1419,7 @@ document.addEventListener('click',function(e){
   if(tab){switchTab(tab.dataset.view,tab);return;}
   // Stream header toggle
   const hdr=t.closest('[data-toggle-id]');
-  if(hdr){toggleStream(hdr.dataset.toggleId);return;}
+  if(hdr){toggleStream(hdr.dataset.toggleId,hdr.dataset.streamSlug||'');return;}
   // Open stream file button
   const openBtn=t.closest('[data-open-stream]');
   if(openBtn){vscode.postMessage({command:'openStream',filePath:openBtn.dataset.openStream});return;}

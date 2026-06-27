@@ -9,7 +9,7 @@ repo_ids: [repo-primary]
 base_branch: develop
 git_branch: feature/codex-dashboard-support
 created_at: 2026-06-20
-updated_at: 2026-06-26
+updated_at: 2026-06-27
 closure_approved: false
 ---
 
@@ -86,26 +86,126 @@ _Append-only. Format: `YYYY-MM-DD — <decision> — <rationale>`_
 - Codex config template: `templates/codex/`
 - `AGENTS.md.template` — Codex agent configuration entry point
 
+## Audit - 2026-06-27
+
+Run via Stream / Feature Analysis Protocol with four parallel audit agents plus local synthesis.
+
+### At-a-glance scorecard
+
+| Area | Status | Notes |
+|---|---:|---|
+| Implementation | Red | Basic Codex telemetry works, but session identity, stale-root handling, and session-tab agent rendering still have closure blockers. |
+| Tests | Yellow | Hook/wrapper unit coverage is good; dashboard ingestion/rendering and live Claude+Codex parity are not covered by the default gate. |
+| Security | Green | No secret, auth, or unsafe external-call issue found in the scoped telemetry/dashboard path. |
+| Code quality | Red | `extensions/vscode/src/dashboardPanel.ts` is a 1,897-line god module mixing root resolution, event parsing, git/HTTP I/O, terminal focus, rendering, and webview commands. |
+
+### End-to-end wiring
+
+```text
+Claude hooks
+  -> status-bridge.js / event-logger.sh / workflow-parser.js
+  -> ~/.agentboard/sessions/*.json + .platform/events.jsonl + agentboard.hud-status.json
+  -> VS Code dashboard
+
+Codex native hooks
+  -> templates/platform/scripts/hooks/codex-hook-bridge.js
+  -> session-snapshot.js + event-logger.sh
+  -> same session/event sinks
+  -> VS Code dashboard
+
+Codex wrapper fallback
+  -> templates/platform/scripts/codex-ab
+  -> session-track.sh heartbeat + file poller
+  -> same session/event sinks
+  -> VS Code dashboard
+```
+
+### What is healthy
+
+- Codex native hooks normalize tool/file/command payloads into the same event contract used by Claude.
+- Codex wrapper fallback can create heartbeat snapshots and file-change events when native hooks are absent.
+- Session JSONs use the provider-neutral fields the dashboard already expects: provider, model, branch, cost/context, session id, root, timestamps, and shell pid.
+- Subagent lifecycle events are mapped into `AgentStart` / `AgentDone`.
+- Targeted unit tests pass for `codex_hook_bridge`, `session_track`, `events_test`, `event_logger_skill_role`, `wrapper_model`, `commands_update`, and the existing VS Code helper tests.
+
+### Must fix before closure
+
+1. One real Codex run can fragment into two dashboard sessions when wrapper fallback and native hooks emit different session ids. The wrapper invents `AGENTBOARD_SESSION_ID`, while native hooks derive from the Codex hook payload. The dashboard reads all `~/.agentboard/sessions/*.json` and does not dedupe concurrently updating records.
+   - Evidence: `templates/platform/scripts/codex-ab:16`, `templates/platform/scripts/codex-ab:70`, `templates/platform/scripts/hooks/codex-hook-bridge.js:148`, `templates/platform/scripts/hooks/session-snapshot.js:82`, `extensions/vscode/src/dashboardPanel.ts:1154`.
+
+2. Session-tab agents can be misleading or duplicated across tabs. The backend builds per-session `sAgents`, but session-tab frontend mode overrides `fileActivity` with `s0.activity` and does not override `recentAgents` with `s0.agents`, so the agents panel can render the global/current-session list.
+   - Evidence: `extensions/vscode/src/dashboardPanel.ts:1308`, `extensions/vscode/src/dashboardPanel.ts:1405`, `extensions/vscode/media/dashboard.js:320`, `extensions/vscode/media/dashboard.js:582`.
+
+3. Generic VS Code windows can still be scoped by stale global `~/.agentboard/live.json` through `DashboardPanel._buildDataSync`, which duplicates root-selection logic instead of consistently using the TTL-checked workspace-root helper.
+   - Evidence: `extensions/vscode/src/dashboardPanel.ts:983`, `extensions/vscode/src/workspaceRoot.ts:31`.
+
+4. The default green test path does not execute the dashboard session ingestion/rendering path. Existing extension tests cover helpers, not the Codex session loop, diff enrichment, stale-agent behavior, or session-tab rendering.
+   - Evidence: `package.json:6`, `tests/unit.sh:79`, `extensions/vscode/package.json:68`, `extensions/vscode/src/dashboardPanel.ts:1154`.
+
+5. Manual QA remains incomplete. The stream explicitly requires live VS Code verification with Claude Code and Codex sessions running simultaneously; current QA is still pending and Codex-only in places.
+   - Evidence: `.platform/work/codex-dashboard-support.md:60`, `.platform/work/qa/codex-dashboard-support-manual-qa.md:19`.
+
+### Should fix soon
+
+1. Root changes propagate only to `DashboardPanel`; sidebar providers keep readonly initial roots and can drift from the dashboard after live-root switching.
+   - Evidence: `extensions/vscode/src/extension.ts:22`, `extensions/vscode/src/extension.ts:53`, `extensions/vscode/src/hudProvider.ts:9`, `extensions/vscode/src/sessionsProvider.ts:41`.
+
+2. Wrapper-only fallback misses brand-new untracked files because polling is based on `git diff HEAD` / `git diff --name-only HEAD`.
+   - Evidence: `templates/platform/scripts/session-track.sh:186`, `templates/platform/scripts/session-track.sh:203`.
+
+3. Native-hook-only Codex sessions are not explicitly pinned to a stream, so multi-stream repos can fall back to heuristics.
+   - Evidence: `templates/platform/scripts/hooks/codex-hook-bridge.js:144`, `templates/platform/scripts/hooks/event-logger.sh:95`, `templates/platform/scripts/codex-ab:20`.
+
+4. Snapshot branch metadata is effectively write-once and can go stale after checkout.
+   - Evidence: `templates/platform/scripts/hooks/session-snapshot.js:180`, `templates/platform/scripts/hooks/status-bridge.js:95`.
+
+5. Claude workflow/transcript parity is not implemented for Codex. Codex supports subagent lifecycle events, but no Codex producer currently emits the `WorkflowStart` / `WorkflowEnd` path consumed by the dashboard workflow section.
+   - Evidence: `extensions/vscode/src/dashboardPanel.ts:251`, `extensions/vscode/src/dashboardPanel.ts:1105`, `templates/codex/config.toml:36`, `templates/platform/scripts/hooks/codex-hook-bridge.js:153`.
+
+6. Per-subagent activity attribution is incomplete. Normal activity rows have `session_id`, `tool`, and `cmd`/`file`, but do not consistently carry `agent_id` or a stable subagent key. The dashboard can group by session today, but not reliably by subagent inside the session.
+   - Evidence: `templates/platform/scripts/hooks/event-logger.sh:144`, `templates/platform/scripts/hooks/event-logger.sh:258`, `extensions/vscode/src/dashboardPanel.ts:1189`, `extensions/vscode/media/dashboard.js:461`.
+
+### Close checklist
+
+- [ ] Choose one authoritative Codex session id, then make wrapper and native hook paths share it or dedupe them deterministically.
+- [ ] Fix session-tab rendering to use `s0.agents` for the selected session and update provider-specific empty copy.
+- [ ] Add `agent_id` / `agent_label` / parent-session attribution to emitted events, then add a per-subagent activity UI inside session tabs.
+- [ ] Route dashboard root selection through the same TTL-checked helper used by workspace-root tests.
+- [ ] Propagate root changes to sidebar providers and HUD watchers.
+- [ ] Capture untracked new files in wrapper fallback.
+- [ ] Pin stream identity for native-hook-only Codex sessions.
+- [ ] Refresh branch on each snapshot write.
+- [ ] Add dashboard ingestion/rendering tests for Codex session tabs, diff stats, stale clearing, and duplicate-session prevention.
+- [ ] Execute manual QA with Claude Code and Codex running simultaneously in VS Code.
+
 ## Resume state
 _Overwritten by `ab checkpoint` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
-- **Last updated:** 2026-06-26 by danilulmashev
-- **What just happened:** Implemented Codex dashboard telemetry: native hook bridge, session snapshots, wrapper heartbeat fallback, event normalization, docs, and tests.
+- **Last updated:** 2026-06-27 by danilulmashev
+- **What just happened:** Fixed raw Codex invisibility: VS Code dashboard now detects unbridged local Codex CLI processes by workspace cwd and shows them as raw Codex sessions when no bridged Codex session exists.
 - **Current focus:** —
-- **Next action:** Run manual VS Code QA with a trusted Codex project, then commit if approved.
+- **Next action:** Reload VS Code and verify vibe-music-ai shows the running Codex process as an active unbridged session; then decide whether to harden full hook telemetry for raw Codex launches.
 - **Blockers:** none
 
 ## Progress log
 _Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._
 
-2026-06-26 19:06 — Implemented Codex dashboard telemetry: native hook bridge, session snapshots, wrapper heartbeat fallback, event normalization, docs, and tests.
+2026-06-27 09:23 — Fixed raw Codex invisibility: VS Code dashboard now detects unbridged local Codex CLI processes by workspace cwd and shows them as raw Codex sessions when no bridged Codex session exists.
 
-2026-06-26 19:02 — Implemented Codex dashboard telemetry: session snapshots, native hook bridge, wrapper heartbeat fallback, FileChange normalization, tests, docs, and manual QA artifact.
+2026-06-27 08:42 — Fixed stale HUD ghost status: dashboard ignores workspace/global HUD snapshots older than 30 minutes, preventing old Opus/Claude status from showing as live.
 
-2026-06-26 17:11 — Pushed VS Code workspace-root fix to develop and prepared platform-pack sync; updated role test to derive expected roles from shipped templates.
+2026-06-27 08:09 — Fixed live dashboard UI state reset by persisting stream/section/KPI/session fold state in VS Code webview state and hot-updated the installed extension copy.
 
-2026-06-26 16:44 — Found a second root hijack in DashboardPanel._buildDataSync: refresh read ~/.agentboard/live.json and overwrote the panel root. Patched extension.ts and dashboardPanel.ts, repackaged, and reinstalled rootfix VSIX.
+2026-06-27 07:55 — Installed the rebuilt VS Code extension runtime locally and added session-tab disposal so sessions from another workspace cannot linger after root filtering.
 
-2026-06-26 16:38 — Fixed VS Code dashboard root detection in worktree /private/tmp/agentboard-vscode-root-detection: workspace folders now win over stale ~/.agentboard/live.json; packaged and installed local rootfix VSIX.
+2026-06-27 07:45 — Fixed VS Code dashboard cross-project session leak: active sessions from ~/.agentboard/sessions are now filtered by canonical workspace root before rendering.
 
-2026-06-26 16:16 — Oriented on VS Code extension/Codex dashboard stream; found local Codex wrapper/session-track telemetry already exists and current Codex docs support native lifecycle hooks.
+2026-06-27 07:36 — Fixed dashboard session activity Git enrichment so untracked created files are expanded individually, emitted as synthetic new rows, and sorted into the visible feed.
+
+2026-06-27 07:30 — Fixed dashboard activity fallback so git-status new/deleted files are added as activity rows when hooks miss file creation events; regression test added.
+
+2026-06-27 07:13 — Refactored VS Code dashboardPanel monolith into focused dashboard modules under 300 lines, regenerated compiled output, and added dashboard helper characterization tests including new-file marker coverage.
+
+2026-06-27 00:45 — Fixed selected-session agent rendering, provider-neutral empty state, and sub-agent identity propagation through Codex hooks/events/dashboard payloads.
+
+2026-06-27 00:43 — Fixed Codex session-tab agent rendering and added optional sub-agent identity attribution through hooks, dashboard payloads, and webview rendering.

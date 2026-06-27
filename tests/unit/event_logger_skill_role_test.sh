@@ -275,6 +275,27 @@ test_skill_tool_type_field_fallback() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 11: Tool events preserve sub-agent identity for per-agent dashboard views
+# ---------------------------------------------------------------------------
+test_tool_event_preserves_agent_identity() {
+  local dir
+  dir="$(mktemp -d)"
+  setup_logger_fixture "$dir"
+
+  _fire "$dir" '{"tool_name":"Bash","command":"npm test","session_id":"sess-agent-attrib","agent_id":"agent-123","agent_label":"auditor"}'
+
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created for attributed Bash event"
+
+  assert_file_contains "$log" '"tool":"Bash"'
+  assert_file_contains "$log" '"cmd":"npm test"'
+  assert_file_contains "$log" '"agent_id":"agent-123"'
+  assert_file_contains "$log" '"agent_label":"auditor"'
+
+  rm -rf "$dir"
+}
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 test_skill_tool_emits_skill_event
@@ -289,3 +310,4 @@ test_skill_event_has_timestamp
 test_role_adopt_event_has_timestamp
 test_read_of_regular_file_not_logged
 test_skill_tool_type_field_fallback
+test_tool_event_preserves_agent_identity

@@ -51,6 +51,7 @@ export interface HudQueue {
 }
 
 export interface HudStatus {
+  last_updated?: string;
   context?: HudContext;
   tool_calls?: number;
   active_agents?: HudAgent[];

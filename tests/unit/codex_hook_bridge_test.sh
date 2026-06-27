@@ -50,6 +50,23 @@ test_codex_post_tool_use_writes_session_and_event() {
   assert_file_contains "$session_json" '"model": "gpt-5.4"'
 }
 
+test_codex_post_tool_use_preserves_agent_identity() {
+  local dir home
+  dir="$(mktemp -d)"
+  home="$(mktemp -d)"
+  setup_codex_hook_fixture "$dir"
+
+  printf '%s' '{"session_id":"codex-native-agent","tool_name":"Bash","command":"npm test","model":"gpt-5.4","agent":{"id":"agent-42","type":"auditor"}}' \
+    | (cd "$dir"; HOME="$home" AGENTBOARD_PROVIDER=codex AGENTBOARD_CODEX_HOOK_EVENT=PostToolUse node "$BRIDGE")
+
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created by attributed Codex hook bridge"
+  assert_file_contains "$log" '"tool":"Bash"'
+  assert_file_contains "$log" '"cmd":"npm test"'
+  assert_file_contains "$log" '"agent_id":"agent-42"'
+  assert_file_contains "$log" '"agent_label":"auditor"'
+}
+
 test_codex_subagent_hooks_emit_agent_events() {
   local dir home
   dir="$(mktemp -d)"
@@ -70,4 +87,5 @@ test_codex_subagent_hooks_emit_agent_events() {
 }
 
 test_codex_post_tool_use_writes_session_and_event
+test_codex_post_tool_use_preserves_agent_identity
 test_codex_subagent_hooks_emit_agent_events
