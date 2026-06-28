@@ -3,6 +3,7 @@
 
 const vscode = acquireVsCodeApi();
 window._vscode = vscode; // make accessible to inline onclick attributes
+const AB_CORE = window.AgentboardDashboard.core;
 function _loadUiState(){try{return (vscode.getState&&vscode.getState())||{};}catch(e){return{};}}
 function _savedUi(){return _loadUiState().ui||{};}
 function _savedSet(name){var v=_savedUi()[name];return new Set(Array.isArray(v)?v:[]);}
@@ -27,11 +28,11 @@ window._agentExpanded = window._agentExpanded || _savedSet('agentExpanded');
 window._workflowExpanded = window._workflowExpanded || _savedSet('workflowExpanded');
 window._actCollapsed = window._actCollapsed || _savedSet('actCollapsed');
 window._catExpanded = window._catExpanded || _savedSet('catExpanded');
-const TYPE_COLOR={bugfix:'#e8823a',feature:'#4caf84',task:'#4a9eff',maintenance:'#888',research:'#9c6af7'};
-const TOOL_ICON={Edit:'✏',Write:'✏',Bash:'$',Read:'👁',WebSearch:'⌕',WebFetch:'⌕',Agent:'◈',Skill:'⚡'};
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-function html(id,h){const el=document.getElementById(id);if(el)el.innerHTML=h;}
-function streamDetailId(slug,i){return 'sr-detail-'+String(slug||i).replace(/[^a-zA-Z0-9_-]/g,'-');}
+const TYPE_COLOR=AB_CORE.TYPE_COLOR;
+const TOOL_ICON=AB_CORE.TOOL_ICON;
+const esc=AB_CORE.esc;
+const html=AB_CORE.html;
+const streamDetailId=AB_CORE.streamDetailId;
 
 function renderStreams(streams, activeStream) {
   if (!streams || !streams.length) return '<div class="em">No active streams</div>';
@@ -85,22 +86,13 @@ function sessionNickname(id) {
   for (var i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0;
   return _SN_ADJ[h % _SN_ADJ.length] + '-' + _SN_NON[(h >>> 8) % _SN_NON.length];
 }
-function txt(id,t){const el=document.getElementById(id);if(el)el.textContent=t;}
+const txt=AB_CORE.txt;
 function switchTab(id,btn){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.getElementById(id).classList.add('on');btn.classList.add('on');
 }
-function relTime(iso){
-  if(!iso)return'';
-  const ms=new Date(iso).getTime();
-  if(isNaN(ms))return'?';
-  const s=Math.floor((Date.now()-ms)/1000);
-  if(s<0)return'just now';
-  if(s<60)return s+'s ago';
-  if(s<3600)return Math.floor(s/60)+'m ago';
-  return Math.floor(s/3600)+'h ago';
-}
+const relTime=AB_CORE.relTime;
 function toggleStream(id, slug){
   const el=document.getElementById(id);
   if(!el)return;
@@ -119,12 +111,7 @@ function toggleStream(id, slug){
   _saveUiState();
 }
 function openStream(fp){vscode.postMessage({command:'openStream',filePath:fp});}
-function ctxBar(pct){
-  if(pct===null||pct===undefined)return'—';
-  const used=Math.round(100-pct);const fill=Math.floor(used/10);
-  const c=used<50?'#4caf50':used<75?'#ff9800':'#f44336';
-  return '<span class="ctx" style="color:'+c+'">'+'█'.repeat(fill)+'░'.repeat(10-fill)+'</span><span style="color:'+c+';font-size:11px"> '+used+'%</span>';
-}
+const ctxBar=AB_CORE.ctxBar;
 function applySectionFoldState(){
   window._sectionFolded = window._sectionFolded || new Set();
   document.querySelectorAll('.sec').forEach(function(sec){
@@ -516,15 +503,15 @@ function applyUpdate(d){
     var totalChanged = (f.added || 0) + (f.deleted || 0);
     var editWarn = '';
     if (isEdited && totalChanged >= 50) {
-      var warnColor = totalChanged >= 150 ? '#ff7043' : '#f0b429';
+      var warnColor = AB_CORE.editWarnColor(totalChanged);
       editWarn = '<span title="'+totalChanged+' lines changed" style="color:'+warnColor+';font-size:11px;flex-shrink:0;margin-right:2px">⚠</span>';
     }
     var sizeBadge = '';
     if (f.lineCount && !(window._ignoredSizeFiles && window._ignoredSizeFiles.has(f.file))) {
       var lc = f.lineCount;
-      var sizeColor = lc >= 1000 ? '#ef5350' : lc >= 800 ? '#ff7043' : lc >= 500 ? '#f0b429' : '';
+      var sizeColor = AB_CORE.sizeColor(lc);
       if (sizeColor) {
-        var sizeLabel = lc >= 1000 ? (Math.round(lc/100)/10)+'k' : lc+'';
+        var sizeLabel = AB_CORE.sizeLabel(lc);
         sizeBadge = '<span class="fa-size-badge" title="'+lc+' lines" style="font-size:9px;padding:1px 5px;border-radius:8px;background:'+sizeColor+'22;color:'+sizeColor+';border:1px solid '+sizeColor+'44;flex-shrink:0;cursor:default">'+sizeLabel+'L</span>';
       }
     }
@@ -980,7 +967,7 @@ function applyUpdate(d){
         var totalChanged = (f.added || 0) + (f.deleted || 0);
         var editWarn = '';
         if (isEdited && totalChanged >= 50) {
-          var warnColor = totalChanged >= 150 ? '#ff7043' : '#f0b429';
+          var warnColor = AB_CORE.editWarnColor(totalChanged);
           editWarn = '<span title="'+totalChanged+' lines changed" style="color:'+warnColor+';font-size:11px;flex-shrink:0;margin-right:2px">⚠</span>';
         }
 
@@ -988,10 +975,10 @@ function applyUpdate(d){
         var sizeBadge = '';
         if (f.lineCount && !(window._ignoredSizeFiles && window._ignoredSizeFiles.has(f.file))) {
           var lc = f.lineCount;
-          var sizeColor = lc >= 1000 ? '#ef5350' : lc >= 800 ? '#ff7043' : lc >= 500 ? '#f0b429' : '';
+          var sizeColor = AB_CORE.sizeColor(lc);
           if (sizeColor) {
-            var sizeLabel = lc >= 1000 ? (Math.round(lc/100)/10)+'k' : lc+'';
-            sizeBadge = '<span class="fa-size-badge" title="'+lc+' lines — '+(lc>=1000?'monolith, very hard to refactor':lc>=800?'large, hard to refactor':'growing, consider splitting')+'" style="font-size:9px;padding:1px 5px;border-radius:8px;background:'+sizeColor+'22;color:'+sizeColor+';border:1px solid '+sizeColor+'44;flex-shrink:0;cursor:default">'+sizeLabel+'L</span>';
+            var sizeLabel = AB_CORE.sizeLabel(lc);
+            sizeBadge = '<span class="fa-size-badge" title="'+lc+' lines — '+AB_CORE.sizeDescription(lc)+'" style="font-size:9px;padding:1px 5px;border-radius:8px;background:'+sizeColor+'22;color:'+sizeColor+';border:1px solid '+sizeColor+'44;flex-shrink:0;cursor:default">'+sizeLabel+'L</span>';
           }
         }
 

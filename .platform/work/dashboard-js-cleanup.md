@@ -39,15 +39,15 @@ closure_approved: false
 
 | Repo | Worktree path | Branch | Base | Dependencies | Local command | Localhost port(s) |
 |---|---|---|---|---|---|---|
-| repo-primary | pending before Phase 3 implementation | `feature/dashboard-js-cleanup` | `develop` | pending before Phase 3 implementation | pending discovery | pending discovery |
+| repo-primary | `/Users/danilulmashev/Documents/GitHub/agentboard-dashboard-js-cleanup` | `feature/dashboard-js-cleanup` | `develop` | `npm ci --prefix extensions/vscode` installed | `npm --prefix extensions/vscode run compile`; dashboard webview is launched by VS Code extension host | n/a |
 
 ## Resume state
 _Overwritten by `ab checkpoint` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
 - **Last updated:** 2026-06-27 by danilulmashev
-- **What just happened:** Re-ran Phase 0 baseline, re-read dashboard.js end to end, and prepared the refreshed Phase 2 extraction plan without production code changes.
-- **Current focus:** —
-- **Next action:** Wait for human approval, then create/switch to feature/dashboard-js-cleanup worktree and begin Phase 3 one extraction at a time.
+- **What just happened:** Phase 3 was approved; a behavior-preserving `dashboard/core.js` helper extraction was implemented in the feature worktree and merged forward.
+- **Current focus:** Keep dashboard behavior stable while continuing one extraction at a time.
+- **Next action:** Continue with the next approved dashboard module extraction, then run extension compile and focused tests.
 - **Blockers:** none
 
 ## Progress log
