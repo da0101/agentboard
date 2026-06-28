@@ -7,11 +7,16 @@ export function getDashboardShell(data: object | undefined, webview: vscode.Webv
     const dataEl = data
       ? `<script id="ab-data" type="application/json">${JSON.stringify(data).replace(/<\/script>/gi, "<\\/script>")}</script>`
       : "";
-    // External script loaded via webview URI (allowed by cspSource)
+    // External scripts loaded via webview URIs (allowed by cspSource)
     let scriptTag = "";
     if (webview && extensionUri) {
-      const uri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "dashboard.js"));
-      scriptTag = `<script src="${uri.toString()}"></script>`;
+      const scripts = [
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "core.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard.js"),
+      ];
+      scriptTag = scripts
+        .map((uri) => `<script src="${webview.asWebviewUri(uri).toString()}"></script>`)
+        .join("");
     }
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}">${dataEl}<style>
 *{box-sizing:border-box;margin:0;padding:0}
