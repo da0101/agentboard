@@ -178,6 +178,17 @@ test("buildSessionAgents marks idle running agents done", () => {
   assert.strictEqual(agents[0].done, true);
 });
 
+test("buildSessionAgents derives Codex workers from attributed tool activity", () => {
+  const events = [
+    { ts: "2026-01-01T00:01:00Z", tool: "Write", stream: "s", file: "src/main.ts", agent_id: "worker-7", agent_label: "security-hardener" },
+  ];
+  const agents = buildSessionAgents(events, 0, new Date("2026-01-01T00:02:00Z").getTime());
+  assert.strictEqual(agents.length, 1);
+  assert.strictEqual(agents[0].agentId, "worker-7");
+  assert.strictEqual(agents[0].label, "security-hardener");
+  assert.strictEqual(agents[0].done, false);
+});
+
 test("buildSessionAgentActivity nests activity under the matching agent", () => {
   const events = [
     { ts: "2026-01-01T00:00:00Z", tool: "AgentStart", stream: "s", agent_id: "a1", agent_label: "default" },

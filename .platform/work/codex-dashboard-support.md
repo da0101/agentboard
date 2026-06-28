@@ -182,13 +182,15 @@ Codex wrapper fallback
 _Overwritten by `ab checkpoint` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
 - **Last updated:** 2026-06-28 by danilulmashev
-- **What just happened:** Finished dogfood fixes for dashboard flicker, file tooltip/size-badge popover, explicit provider refactor actions, and partial-stream migration so checkpoint works in vibe-music-ai.
+- **What just happened:** Fixed Codex sub-agent visibility root cause: dogfood .platform hook bridge was stale, and dashboard now derives workers from attributed Codex tool activity when lifecycle hooks are absent.
 - **Current focus:** —
-- **Next action:** Pull latest on the other computer, run ab update in target projects, reload VS Code Agentboard, and verify cross-repo sessions, refactor provider menu, badge hiding, and ab migrate/checkpoint.
+- **Next action:** Commit/push this fix if approved, then dogfood by spawning Codex workers and verifying Agents shows worker rows and stale workers expire.
 - **Blockers:** none
 
 ## Progress log
 _Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._
+
+2026-06-28 08:58 — Fixed Codex sub-agent visibility root cause: dogfood .platform hook bridge was stale, and dashboard now derives workers from attributed Codex tool activity when lifecycle hooks are absent.
 
 2026-06-28 07:42 — Finished dogfood fixes for dashboard flicker, file tooltip/size-badge popover, explicit provider refactor actions, and partial-stream migration so checkpoint works in vibe-music-ai.
 
@@ -208,4 +210,3 @@ _Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._
 
 2026-06-27 08:42 — Fixed stale HUD ghost status: dashboard ignores workspace/global HUD snapshots older than 30 minutes, preventing old Opus/Claude status from showing as live.
 
-2026-06-27 08:09 — Fixed live dashboard UI state reset by persisting stream/section/KPI/session fold state in VS Code webview state and hot-updated the installed extension copy.

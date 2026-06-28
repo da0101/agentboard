@@ -77,6 +77,28 @@ export function buildSessionAgents(events: ActivityEvent[], sessionIdleMs: numbe
       const key = ev.agent_id || (ev as {label?: string}).label || "";
       const existing = agentMap.get(key);
       if (existing) agentMap.set(key, { ...existing, done: true });
+    } else {
+      const key = ev.agent_id || ev.agent || "";
+      if (!key) continue;
+      const existing = agentMap.get(key);
+      const label = ev.agent_label || key;
+      if (!existing) {
+        agentMap.set(key, {
+          agentId: key,
+          label,
+          role: "",
+          skill: ev.skill ?? "",
+          ts: ev.ts,
+          done: false,
+        });
+      } else if (ev.ts > existing.ts) {
+        agentMap.set(key, {
+          ...existing,
+          label: existing.label || label,
+          skill: existing.skill || ev.skill || "",
+          ts: ev.ts,
+        });
+      }
     }
   }
   const sessionIsIdle = sessionIdleMs > SESSION_IDLE_AGENT_STALE_MS;

@@ -27,6 +27,12 @@ setup_codex_hook_fixture() {
 
 BRIDGE="$TEST_ROOT/templates/platform/scripts/hooks/codex-hook-bridge.js"
 
+test_repo_runtime_codex_bridge_matches_template() {
+  cmp -s "$TEST_ROOT/templates/platform/scripts/hooks/codex-hook-bridge.js" \
+    "$TEST_ROOT/.platform/scripts/hooks/codex-hook-bridge.js" \
+    || fail "repo .platform codex hook bridge drifted from template"
+}
+
 test_codex_post_tool_use_writes_session_and_event() {
   local dir home
   dir="$(mktemp -d)"
@@ -67,6 +73,24 @@ test_codex_post_tool_use_preserves_agent_identity() {
   assert_file_contains "$log" '"agent_label":"auditor"'
 }
 
+test_codex_post_tool_use_preserves_nested_subagent_identity() {
+  local dir home
+  dir="$(mktemp -d)"
+  home="$(mktemp -d)"
+  setup_codex_hook_fixture "$dir"
+
+  printf '%s' '{"session_id":"codex-native-nested","tool_name":"Edit","file_path":"src/main.ts","model":"gpt-5.4","subagent":{"id":"worker-7","type":"security-hardener"},"parent":{"session_id":"codex-native-nested"}}' \
+    | (cd "$dir"; HOME="$home" AGENTBOARD_PROVIDER=codex AGENTBOARD_CODEX_HOOK_EVENT=PostToolUse node "$BRIDGE")
+
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created by nested attributed Codex hook bridge"
+  assert_file_contains "$log" '"tool":"Edit"'
+  assert_file_contains "$log" '"file":"src/main.ts"'
+  assert_file_contains "$log" '"agent_id":"worker-7"'
+  assert_file_contains "$log" '"agent_label":"security-hardener"'
+  assert_file_contains "$log" '"parent_session_id":"codex-native-nested"'
+}
+
 test_codex_subagent_hooks_emit_agent_events() {
   local dir home
   dir="$(mktemp -d)"
@@ -86,6 +110,8 @@ test_codex_subagent_hooks_emit_agent_events() {
   assert_file_contains "$log" '"session_id":"codex-native-2"'
 }
 
+test_repo_runtime_codex_bridge_matches_template
 test_codex_post_tool_use_writes_session_and_event
 test_codex_post_tool_use_preserves_agent_identity
+test_codex_post_tool_use_preserves_nested_subagent_identity
 test_codex_subagent_hooks_emit_agent_events
