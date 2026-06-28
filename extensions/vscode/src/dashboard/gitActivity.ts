@@ -13,7 +13,12 @@ export interface ActivityGitCaches {
   branchCommittedCache: Map<string, { ts: number; files: Set<string> }>;
 }
 
-export function applyGitStatus(activity: SessionActivityItem[], statusOut: string, nowIso = new Date().toISOString()): void {
+export function applyGitStatus(
+  activity: SessionActivityItem[],
+  statusOut: string,
+  nowIso = new Date().toISOString(),
+  timestampForFile?: (file: string, xy: string) => string,
+): void {
   const statusMap = new Map<string, string>();
   for (const line of statusOut.split("\n")) {
     if (line.length < 4) continue;
@@ -35,7 +40,7 @@ export function applyGitStatus(activity: SessionActivityItem[], statusOut: strin
       file,
       tool: xy[0] === "D" || xy[1] === "D" ? "Delete" : "Write",
       count: 1,
-      lastTs: nowIso,
+      lastTs: timestampForFile?.(file, xy) || nowIso,
       isNew: xy === "??" || xy[0] === "A" || xy[1] === "A",
       isDeleted: xy[0] === "D" || xy[1] === "D",
     });
@@ -48,7 +53,15 @@ export function enrichActivityWithGit(root: string, activity: SessionActivityIte
   enrichDiffStats(root, activity, caches.numstatCache, now);
   try {
     const statusOut = execSync(`git -C "${root}" status --porcelain --untracked-files=all 2>/dev/null`, { timeout: 3000, encoding: "utf8" });
-    applyGitStatus(activity, statusOut, new Date(now).toISOString());
+    const fallbackTs = new Date(now).toISOString();
+    applyGitStatus(activity, statusOut, fallbackTs, (file, xy) => {
+      if (xy[0] === "D" || xy[1] === "D") return fallbackTs;
+      try {
+        return fs.statSync(path.join(root, file)).mtime.toISOString();
+      } catch {
+        return fallbackTs;
+      }
+    });
   } catch {
     // git unavailable
   }

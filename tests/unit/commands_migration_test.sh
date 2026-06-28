@@ -121,6 +121,48 @@ EOF
   assert_file_contains "$dir/.platform/work/legacy-auth.md" "# Legacy Auth"
 }
 
+test_migrate_apply_writes_frontmatter_to_active_partial_stream() {
+  local dir output checkpoint_output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  init_project_fixture "$dir"
+
+  cat > "$dir/.platform/domains/core.md" <<'EOF'
+# Domain: Core
+
+## Key files
+- .platform/work/core-editing.md
+EOF
+
+  cat > "$dir/.platform/work/core-editing.md" <<'EOF'
+# Core editing
+
+## Resume state
+- what: old partial stream shape without metadata
+- next: checkpoint should work after migration
+EOF
+
+  cat > "$dir/.platform/work/ACTIVE.md" <<'EOF'
+# Active workstreams
+
+| Stream | Type | Status | Agent | Updated |
+|---|---|---|---|---|
+| core-editing | task | active | codex | 2026-06-27 |
+EOF
+
+  run_cli_capture output "$dir" migrate --apply
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "Migrated legacy stream"
+  assert_file_contains "$dir/.platform/work/core-editing.md" "stream_id: stream-core-editing"
+  assert_file_contains "$dir/.platform/work/core-editing.md" "slug: core-editing"
+  assert_file_contains "$dir/.platform/work/core-editing.md" "type: task"
+
+  run_cli_capture checkpoint_output "$dir" checkpoint core-editing --what "migrated" --next "continue" --provider codex
+  assert_status "$RUN_STATUS" 0
+  assert_not_contains "$checkpoint_output" "has no v1 frontmatter"
+}
+
 test_migrate_preview_leaves_legacy_files_untouched
 test_brief_upgrade_requires_slug_when_multiple_streams_exist
 test_migrate_apply_writes_frontmatter_to_legacy_stream
+test_migrate_apply_writes_frontmatter_to_active_partial_stream

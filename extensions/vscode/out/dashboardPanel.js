@@ -6,6 +6,7 @@ const http = require("http");
 const dataBuilder_1 = require("./dashboard/dataBuilder");
 const delegateFile_1 = require("./dashboard/delegateFile");
 const messageRouter_1 = require("./dashboard/messageRouter");
+const renderFingerprint_1 = require("./dashboard/renderFingerprint");
 const sessionFiles_1 = require("./dashboard/sessionFiles");
 const shell_1 = require("./dashboard/shell");
 function httpGet(url, ms) {
@@ -121,6 +122,7 @@ class DashboardPanel {
         this._boundSessionId = null;
         this._lastDelegateKey = ""; // "<role>|<task>" dedup
         this._lastDelegateTs = 0; // epoch ms of last handled delegate
+        this._lastRenderFingerprint = "";
         // nick → terminal name cache so focusTerminal can match by session nick
         this._sessionTerminalMap = new Map(); // nick → terminal.name
         this._boundSessionId = boundSessionId ?? null;
@@ -251,10 +253,11 @@ class DashboardPanel {
                 if (!DashboardPanel._bootstrappedPanels.has(sid)) {
                     // First push in this extension run — set HTML to ensure fresh JS is loaded
                     sp._panel.webview.html = sp._getShell(spPayload, sp._panel.webview);
+                    sp._lastRenderFingerprint = (0, renderFingerprint_1.dashboardRenderFingerprint)(spPayload);
                     DashboardPanel._bootstrappedPanels.add(sid);
                 }
                 else {
-                    void sp._panel.webview.postMessage(spPayload);
+                    void sp._postPayloadIfChanged(spPayload);
                 }
             }
         }
@@ -269,6 +272,13 @@ class DashboardPanel {
                 sessionTabSiblings: activeSess,
             };
         }
+        await this._postPayloadIfChanged(postPayload);
+    }
+    async _postPayloadIfChanged(postPayload) {
+        const fingerprint = (0, renderFingerprint_1.dashboardRenderFingerprint)(postPayload);
+        if (fingerprint === this._lastRenderFingerprint)
+            return;
+        this._lastRenderFingerprint = fingerprint;
         const delivered = await this._panel.webview.postMessage(postPayload);
         if (!delivered) {
             this._panel.webview.html = this._getShell(postPayload, this._panel.webview);

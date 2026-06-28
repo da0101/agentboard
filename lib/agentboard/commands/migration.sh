@@ -27,10 +27,10 @@ cmd_migrate() {
   local stream_file slug row row_type row_status row_agent row_updated
   while IFS= read -r stream_file; do
     [[ -n "$stream_file" ]] || continue
-    is_legacy_stream_file "$stream_file" || continue
     slug="$(basename "$stream_file" .md)"
 
     row="$(printf '%s\n' "$stream_rows" | awk -F'|' -v slug="$slug" '$1 == slug { print; exit }')"
+    is_legacy_stream_file "$stream_file" || [[ -n "$row" ]] || continue
     row_type=""; row_status=""; row_agent=""; row_updated=""
     [[ -n "$row" ]] && IFS='|' read -r _ row_type row_status row_agent row_updated <<< "$row"
 
@@ -49,6 +49,10 @@ cmd_migrate() {
     [[ -z "$updated_at" ]] && updated_at="$created_at"
 
     domain_slugs="$(infer_stream_domain_slugs "$slug")"
+    if [[ -z "$domain_slugs" && -n "$row" ]]; then
+      domain_slugs="$(_migration_first_domain_slug)"
+      [[ -n "$domain_slugs" ]] && warn "Migrating active stream '$slug' with fallback domain '$domain_slugs'"
+    fi
     if [[ -z "$domain_slugs" ]]; then
       warn "Skipping legacy stream '$slug' — could not infer domain_slugs safely"
       skipped=$((skipped + 1))
@@ -56,6 +60,7 @@ cmd_migrate() {
     fi
 
     repo_ids="$(infer_stream_repo_ids "$stream_file" "$repos_file" "$domain_slugs" | unique_nonempty_lines)"
+    [[ -z "$repo_ids" && -n "$row" ]] && repo_ids="repo-primary"
     if [[ -z "$repo_ids" ]]; then
       warn "Skipping legacy stream '$slug' — could not infer repo_ids safely"
       skipped=$((skipped + 1))
@@ -150,6 +155,16 @@ EOF
   say
 }
 
+_migration_first_domain_slug() {
+  local f
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    basename "$f" .md
+    return 0
+  done < <(domain_files)
+  return 0
+}
+
 cmd_brief_upgrade() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
@@ -242,4 +257,3 @@ cmd_brief_upgrade() {
   printf '%s\n' "$generated"
   say
 }
-

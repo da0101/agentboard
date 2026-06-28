@@ -4,6 +4,7 @@ import { buildDashboardDataSync } from "./dashboard/dataBuilder";
 import { handleDelegateFile } from "./dashboard/delegateFile";
 import { handleDashboardMessage } from "./dashboard/messageRouter";
 import { RawCodexProcessCache } from "./dashboard/rawCodexProcesses";
+import { dashboardRenderFingerprint } from "./dashboard/renderFingerprint";
 import { deleteSessionFile, deleteSessionFileByShellPid } from "./dashboard/sessionFiles";
 import { getDashboardShell } from "./dashboard/shell";
 import { ActivityEvent, CatalogItem, StreamEntry } from "./dashboard/types";
@@ -40,6 +41,7 @@ export class DashboardPanel {
   private _boundSessionId: string | null = null;
   private _lastDelegateKey = ""; // "<role>|<task>" dedup
   private _lastDelegateTs = 0;   // epoch ms of last handled delegate
+  private _lastRenderFingerprint = "";
   // nick → terminal name cache so focusTerminal can match by session nick
   private _sessionTerminalMap = new Map<string, string>(); // nick → terminal.name
 
@@ -248,9 +250,10 @@ export class DashboardPanel {
         if (!DashboardPanel._bootstrappedPanels.has(sid)) {
           // First push in this extension run — set HTML to ensure fresh JS is loaded
           sp._panel.webview.html = sp._getShell(spPayload, sp._panel.webview);
+          sp._lastRenderFingerprint = dashboardRenderFingerprint(spPayload);
           DashboardPanel._bootstrappedPanels.add(sid);
         } else {
-          void sp._panel.webview.postMessage(spPayload);
+          void sp._postPayloadIfChanged(spPayload);
         }
       }
     }
@@ -267,6 +270,13 @@ export class DashboardPanel {
       };
     }
 
+    await this._postPayloadIfChanged(postPayload);
+  }
+
+  private async _postPayloadIfChanged(postPayload: object): Promise<void> {
+    const fingerprint = dashboardRenderFingerprint(postPayload);
+    if (fingerprint === this._lastRenderFingerprint) return;
+    this._lastRenderFingerprint = fingerprint;
     const delivered = await this._panel.webview.postMessage(postPayload);
     if (!delivered) {
       this._panel.webview.html = this._getShell(postPayload, this._panel.webview);

@@ -9,7 +9,7 @@ repo_ids: [repo-primary]
 base_branch: develop
 git_branch: feature/codex-dashboard-support
 created_at: 2026-06-20
-updated_at: 2026-06-27
+updated_at: 2026-06-28
 closure_approved: false
 ---
 
@@ -181,14 +181,20 @@ Codex wrapper fallback
 ## Resume state
 _Overwritten by `ab checkpoint` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
-- **Last updated:** 2026-06-27 by danilulmashev
-- **What just happened:** Fixed VS Code refactor-new context action so it asks for Codex/Claude/Gemini instead of hard-coding Claude, and hot-applied compiled extension files for local dogfooding.
+- **Last updated:** 2026-06-28 by danilulmashev
+- **What just happened:** Finished dogfood fixes for dashboard flicker, file tooltip/size-badge popover, explicit provider refactor actions, and partial-stream migration so checkpoint works in vibe-music-ai.
 - **Current focus:** —
-- **Next action:** Reload the Agentboard panel and verify Refactor in new session opens a provider picker; choose Codex and confirm it launches Codex Code Cleanup through .platform/scripts/codex-ab.
+- **Next action:** Pull latest on the other computer, run ab update in target projects, reload VS Code Agentboard, and verify cross-repo sessions, refactor provider menu, badge hiding, and ab migrate/checkpoint.
 - **Blockers:** none
 
 ## Progress log
 _Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._
+
+2026-06-28 07:42 — Finished dogfood fixes for dashboard flicker, file tooltip/size-badge popover, explicit provider refactor actions, and partial-stream migration so checkpoint works in vibe-music-ai.
+
+2026-06-27 14:38 — Fixed ab migrate so active partial stream files like core-editing.md get v1 frontmatter instead of being silently ignored before checkpoint.
+
+2026-06-27 13:47 — Fixed dashboard flicker caused by heartbeat-only refreshes and synthetic untracked-file rows getting fresh timestamps every poll.
 
 2026-06-27 13:12 — Fixed VS Code refactor-new context action so it asks for Codex/Claude/Gemini instead of hard-coding Claude, and hot-applied compiled extension files for local dogfooding.
 
@@ -203,9 +209,3 @@ _Append-only. Auto-trimmed by `ab checkpoint` to last 10 entries._
 2026-06-27 08:42 — Fixed stale HUD ghost status: dashboard ignores workspace/global HUD snapshots older than 30 minutes, preventing old Opus/Claude status from showing as live.
 
 2026-06-27 08:09 — Fixed live dashboard UI state reset by persisting stream/section/KPI/session fold state in VS Code webview state and hot-updated the installed extension copy.
-
-2026-06-27 07:55 — Installed the rebuilt VS Code extension runtime locally and added session-tab disposal so sessions from another workspace cannot linger after root filtering.
-
-2026-06-27 07:45 — Fixed VS Code dashboard cross-project session leak: active sessions from ~/.agentboard/sessions are now filtered by canonical workspace root before rendering.
-
-2026-06-27 07:36 — Fixed dashboard session activity Git enrichment so untracked created files are expanded individually, emitted as synthetic new rows, and sorted into the visible feed.

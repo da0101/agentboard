@@ -12,6 +12,7 @@ const { buildFileActivity, buildSessionAgentActivity, buildSessionAgents } = req
 const { applyGitStatus } = require("../out/dashboard/gitActivity");
 const { buildExplainChangePrompt, buildRefactorPrompt, escapeForDoubleQuotedCli } = require("../out/dashboard/prompts");
 const { buildProviderLaunchCommand, normalizeProvider, providerWrapperScript } = require("../out/dashboard/providerLaunch");
+const { dashboardRenderFingerprint } = require("../out/dashboard/renderFingerprint");
 const { applySessionCatalogUsage, dedupeClearedSessions } = require("../out/dashboard/sessionSummary");
 const { runtimeDirForRoot, sessionsDirForRoot, sessionRootMatchesWorkspace } = require("../out/dashboard/sessionFiles");
 const { isHudFresh } = require("../out/dashboard/hudFreshness");
@@ -212,6 +213,46 @@ test("applyGitStatus adds missing new files as activity rows", () => {
   assert.strictEqual(added.isNew, true);
   assert.strictEqual(added.lastTs, "2026-01-01T00:01:00Z");
   assert.strictEqual(activity[0].file, "extensions/vscode/src/dashboard/new-helper.ts");
+});
+
+test("applyGitStatus uses stable timestamps for synthetic status rows", () => {
+  const activity = [];
+  applyGitStatus(activity, "?? new.ts\n", "2026-01-01T00:01:00Z", () => "2026-01-01T00:00:30Z");
+  assert.strictEqual(activity.length, 1);
+  assert.strictEqual(activity[0].file, "new.ts");
+  assert.strictEqual(activity[0].lastTs, "2026-01-01T00:00:30Z");
+});
+
+test("dashboardRenderFingerprint ignores heartbeat-only session fields", () => {
+  const base = {
+    activeSessions: [{
+      sessionId: "s1",
+      lastUpdated: "2026-01-01T00:00:00Z",
+      ageSeconds: 1,
+      sessionTime: "1s",
+      activity: [{ file: "a.ts", lastTs: "2026-01-01T00:00:00Z" }],
+    }],
+  };
+  const heartbeat = {
+    activeSessions: [{
+      sessionId: "s1",
+      lastUpdated: "2026-01-01T00:00:05Z",
+      ageSeconds: 6,
+      sessionTime: "6s",
+      activity: [{ file: "a.ts", lastTs: "2026-01-01T00:00:00Z" }],
+    }],
+  };
+  const changed = {
+    activeSessions: [{
+      sessionId: "s1",
+      lastUpdated: "2026-01-01T00:00:05Z",
+      ageSeconds: 6,
+      sessionTime: "6s",
+      activity: [{ file: "b.ts", lastTs: "2026-01-01T00:00:05Z" }],
+    }],
+  };
+  assert.strictEqual(dashboardRenderFingerprint(base), dashboardRenderFingerprint(heartbeat));
+  assert.notStrictEqual(dashboardRenderFingerprint(base), dashboardRenderFingerprint(changed));
 });
 
 test("prompt builders include target file and cleanup phase gate", () => {

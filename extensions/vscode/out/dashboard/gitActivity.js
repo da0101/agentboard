@@ -8,7 +8,7 @@ const child_process_1 = require("child_process");
 const NUMSTAT_TTL = 30000;
 const LINE_COUNT_TTL = 60000;
 const COMMITTED_TTL = 30000;
-function applyGitStatus(activity, statusOut, nowIso = new Date().toISOString()) {
+function applyGitStatus(activity, statusOut, nowIso = new Date().toISOString(), timestampForFile) {
     const statusMap = new Map();
     for (const line of statusOut.split("\n")) {
         if (line.length < 4)
@@ -35,7 +35,7 @@ function applyGitStatus(activity, statusOut, nowIso = new Date().toISOString()) 
             file,
             tool: xy[0] === "D" || xy[1] === "D" ? "Delete" : "Write",
             count: 1,
-            lastTs: nowIso,
+            lastTs: timestampForFile?.(file, xy) || nowIso,
             isNew: xy === "??" || xy[0] === "A" || xy[1] === "A",
             isDeleted: xy[0] === "D" || xy[1] === "D",
         });
@@ -47,7 +47,17 @@ function enrichActivityWithGit(root, activity, caches, now = Date.now()) {
     enrichDiffStats(root, activity, caches.numstatCache, now);
     try {
         const statusOut = (0, child_process_1.execSync)(`git -C "${root}" status --porcelain --untracked-files=all 2>/dev/null`, { timeout: 3000, encoding: "utf8" });
-        applyGitStatus(activity, statusOut, new Date(now).toISOString());
+        const fallbackTs = new Date(now).toISOString();
+        applyGitStatus(activity, statusOut, fallbackTs, (file, xy) => {
+            if (xy[0] === "D" || xy[1] === "D")
+                return fallbackTs;
+            try {
+                return fs.statSync(path.join(root, file)).mtime.toISOString();
+            }
+            catch {
+                return fallbackTs;
+            }
+        });
     }
     catch {
         // git unavailable
