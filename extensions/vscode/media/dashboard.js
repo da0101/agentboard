@@ -2,83 +2,33 @@
 /* global acquireVsCodeApi */
 
 const vscode = acquireVsCodeApi();
-window._vscode = vscode; // make accessible to inline onclick attributes
-const AB_CORE = window.AgentboardDashboard.core;
-function _loadUiState(){try{return (vscode.getState&&vscode.getState())||{};}catch(e){return{};}}
-function _savedUi(){return _loadUiState().ui||{};}
-function _savedSet(name){var v=_savedUi()[name];return new Set(Array.isArray(v)?v:[]);}
-function _saveUiState(){
-  try{
-    var prev=_loadUiState();
-    vscode.setState(Object.assign({},prev,{ui:{
-      streamOpen:window._streamOpenState||{},
-      sectionFolded:Array.from(window._sectionFolded||[]),
-      kpiFolded:Array.from(window._kpiFolded||[]),
-      agentExpanded:Array.from(window._agentExpanded||[]),
-      workflowExpanded:Array.from(window._workflowExpanded||[]),
-      actCollapsed:Array.from(window._actCollapsed||[]),
-      catExpanded:Array.from(window._catExpanded||[])
-    }}));
-  }catch(e){}
-}
-window._streamOpenState = window._streamOpenState || Object.assign({}, _savedUi().streamOpen || {});
-window._sectionFolded = window._sectionFolded || _savedSet('sectionFolded');
-window._kpiFolded = window._kpiFolded || _savedSet('kpiFolded');
-window._agentExpanded = window._agentExpanded || _savedSet('agentExpanded');
-window._workflowExpanded = window._workflowExpanded || _savedSet('workflowExpanded');
-window._actCollapsed = window._actCollapsed || _savedSet('actCollapsed');
-window._catExpanded = window._catExpanded || _savedSet('catExpanded');
-const TYPE_COLOR=AB_CORE.TYPE_COLOR;
-const TOOL_ICON=AB_CORE.TOOL_ICON;
-const esc=AB_CORE.esc;
-const html=AB_CORE.html;
-const streamDetailId=AB_CORE.streamDetailId;
+window._vscode = vscode; // expose for inline onclick attributes and submodules
 
-function renderStreams(streams, activeStream) {
-  if (!streams || !streams.length) return '<div class="em">No active streams</div>';
-  return streams.map(function(s, i) {
-    const isA = s.slug === activeStream;
-    const key = s.slug || String(i);
-    const explicit = Object.prototype.hasOwnProperty.call(window._streamOpenState || {}, key);
-    const isOpen = explicit ? !!window._streamOpenState[key] : isA;
-    const detailId = streamDetailId(key, i);
-    const c = TYPE_COLOR[s.type] || '#888';
-    const statColor = {active:'#4caf50','in-progress':'#4caf50','awaiting-verification':'#ff9800',blocked:'#f44336',paused:'#888'}[s.status] || '#888';
-    const doneCount = s.doneCriteria ? s.doneCriteria.filter(function(x){return x.done;}).length : 0;
-    const totalCount = s.doneCriteria ? s.doneCriteria.length : 0;
-    const pct = totalCount > 0 ? Math.round(doneCount / totalCount * 100) : null;
-    var header = '<div class="sr-hdr" data-toggle-id="'+esc(detailId)+'" data-stream-slug="'+esc(key)+'" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 4px;border-radius:4px;transition:background .15s">'
-      + '<span style="width:7px;height:7px;border-radius:50%;background:'+(isA?'#4caf50':c)+';flex-shrink:0"></span>'
-      + '<span style="font-size:12px;font-weight:'+(isA?'600':'400')+';color:'+(isA?'#4caf84':'#ccc')+';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(s.slug)+'</span>'
-      + (pct!==null?'<span style="font-size:10px;opacity:.45">'+doneCount+'/'+totalCount+'</span>':'')
-      + '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:'+c+'22;color:'+c+'">'+esc(s.type)+'</span>'
-      + '<span style="font-size:10px;opacity:.4">'+(isOpen?'▾':'▸')+'</span>'
-      + '</div>';
-    var detail = '<div id="'+esc(detailId)+'" data-stream-detail-slug="'+esc(key)+'" style="display:'+(isOpen?'block':'none')+';padding:0 4px 8px 18px;border-left:2px solid '+c+'44;margin-left:3px">';
-    detail += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
-      + '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:'+statColor+'22;color:'+statColor+'">'+esc(s.status)+'</span>'
-      + (s.role?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#9c6af722;color:#9c6af7">'+esc(s.role)+'</span>':'')
-      + (s.branch?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#4a9eff22;color:#4a9eff;font-family:monospace">'+esc(s.branch)+'</span>':'')
-      + '</div>';
-    if (s.objective) detail += '<div style="font-size:11px;opacity:.65;margin-bottom:6px;line-height:1.5">'+esc(s.objective.slice(0,200))+'</div>';
-    if (s.doneCriteria && s.doneCriteria.length) {
-      detail += '<div style="font-size:10px;opacity:.35;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Done criteria</div>';
-      detail += s.doneCriteria.map(function(cr){
-        return '<div style="display:flex;gap:5px;font-size:11px;margin-bottom:3px;'+(cr.done?'opacity:.4':'opacity:.8')+'">'
-          + '<span style="flex-shrink:0;color:'+(cr.done?'#4caf50':'#666')+'">'+(cr.done?'✓':'○')+'</span>'
-          + '<span style="'+(cr.done?'text-decoration:line-through':'')+'">'+esc(cr.text)+'</span>'
-          + '</div>';
-      }).join('');
-    }
-    if (s.nextAction) detail += '<div style="margin-top:6px;font-size:10px;opacity:.35;text-transform:uppercase;letter-spacing:.06em">Next action</div>'
-      + '<div style="font-size:11px;color:#ff9800;margin-top:2px">→ '+esc(s.nextAction)+'</div>';
-    detail += '<div style="margin-top:8px"><button data-open-stream="'+esc(s.filePath)+'" style="font-size:10px;padding:3px 10px;border-radius:4px;background:#4a9eff22;color:#4a9eff;border:1px solid #4a9eff44;cursor:pointer">Open stream file ↗</button></div>';
-    detail += '</div>';
-    return '<div class="sr-item">'+header+detail+'</div>';
-  }).join('');
-}
+// Namespace aliases (modules loaded before this file via shell.ts script order)
+const AB       = window.AgentboardDashboard;
+const AB_CORE  = AB.core;
+const esc      = AB_CORE.esc;
+const html     = AB_CORE.html;
+const txt      = AB_CORE.txt;
+const relTime  = AB_CORE.relTime;
+const ctxBar   = AB_CORE.ctxBar;
+const streamDetailId = AB_CORE.streamDetailId;
+
+// Persistent UI state — initialised from saved webview state
+const { savedUi, savedSet, saveUiState } = AB.uiState;
+window._streamOpenState  = window._streamOpenState  || Object.assign({}, savedUi().streamOpen || {});
+window._sectionFolded    = window._sectionFolded    || savedSet('sectionFolded');
+window._agentExpanded    = window._agentExpanded    || savedSet('agentExpanded');
+window._workflowExpanded = window._workflowExpanded || savedSet('workflowExpanded');
+window._actCollapsed     = window._actCollapsed     || savedSet('actCollapsed');
+window._catExpanded      = window._catExpanded      || savedSet('catExpanded');
+window._trendWin         = window._trendWin         || savedUi().trendWin || '1h';
+window._trendHidden      = window._trendHidden      || savedSet('trendHidden');
+window._selectedRole     = window._selectedRole     || null;
+window._rolesData        = window._rolesData        || [];
 
 // Deterministic pet name from session ID (like Docker: "swift-falcon")
+// Arrays must stay in sync with dashboardPanel.ts and codex-hook-bridge.js (verified by nickname-hash.test.js)
 const _SN_ADJ=['bold','calm','swift','bright','sharp','keen','wild','quiet','brave','cool','warm','soft','fast','wise','pure','deft','lean','sage','red','blue','gold','jade','iron','amber','violet','azure','coral','frost','storm','sand','ember','cedar','steel','nova','oak','ivy','clay','moss','dawn','rust'];
 const _SN_NON=['falcon','tiger','wolf','eagle','raven','fox','bear','hawk','lynx','crane','otter','pike','heron','wren','viper','bison','moose','ibis','kite','wasp','colt','finch','puma','cobra','gecko','quail','trout','mink','stork','stoat','dingo','snipe','marten','condor','osprey','ferret','oriole','magpie','jaguar','marlin'];
 function sessionNickname(id) {
@@ -86,586 +36,88 @@ function sessionNickname(id) {
   for (var i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0;
   return _SN_ADJ[h % _SN_ADJ.length] + '-' + _SN_NON[(h >>> 8) % _SN_NON.length];
 }
-const txt=AB_CORE.txt;
-function switchTab(id,btn){
+
+function switchTab(id, btn) {
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  document.getElementById(id).classList.add('on');btn.classList.add('on');
+  document.getElementById(id).classList.add('on'); btn.classList.add('on');
 }
-const relTime=AB_CORE.relTime;
-function toggleStream(id, slug){
-  const el=document.getElementById(id);
-  if(!el)return;
-  const open=el.style.display==='block';
-  window._streamOpenState = window._streamOpenState || {};
-  document.querySelectorAll('[data-stream-detail-slug]').forEach(function(e){
-    e.style.display='none';
-    window._streamOpenState[e.dataset.streamDetailSlug||'']=false;
-  });
-  if(!open){
-    el.style.display='block';
-    window._streamOpenState[slug||el.dataset.streamDetailSlug||id]=true;
-  } else {
-    window._streamOpenState[slug||el.dataset.streamDetailSlug||id]=false;
-  }
-  _saveUiState();
-}
-function openStream(fp){vscode.postMessage({command:'openStream',filePath:fp});}
-const ctxBar=AB_CORE.ctxBar;
-function applySectionFoldState(){
+
+function applySectionFoldState() {
   window._sectionFolded = window._sectionFolded || new Set();
-  document.querySelectorAll('.sec').forEach(function(sec){
+  document.querySelectorAll('.sec').forEach(function(sec) {
     var key = sec.id || ((sec.querySelector('.sec-ttl')||{}).textContent || '');
-    if(!key)return;
+    if (!key) return;
     sec.classList.toggle('folded', window._sectionFolded.has(key));
   });
 }
-// Role launcher — selectable role cards with linked skills + launch button
-window._selectedRole = window._selectedRole || null;
-window._rolesData   = window._rolesData   || [];
 
-function renderRolesCol(listId, roles, accentColor) {
-  window._catExpanded = window._catExpanded || new Set();
-  var selected = window._selectedRole;
-  var h = roles.slice(0, 200).map(function(role, idx) {
-    var eid = listId + '-' + idx;
-    var isOpen = window._catExpanded.has(eid);
-    var hasMore = role.fullDescription && role.fullDescription.length > 10;
-    var isSelected = selected === (role.slug || role.name);
-    var usedBy = role.usedBy && role.usedBy.length ? role.usedBy : null;
-    var linked = role.linkedSkills && role.linkedSkills.length ? role.linkedSkills : [];
-
-    var cardStyle = 'cursor:pointer;border-radius:5px;padding:2px 4px;margin:-2px -4px;transition:background .1s;';
-    if (isSelected) cardStyle += 'background:rgba(156,106,247,.1);outline:1px solid rgba(156,106,247,.35);';
-
-    var row = '<div class="ci" style="'+cardStyle+'" data-role-select="'+esc(role.slug||role.name)+'" data-role-name="'+esc(role.name)+'" data-cat-toggle="'+eid+'">';
-    row += '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">';
-    row += '<span class="ci-name">'+esc(role.name)+'</span>';
-    if (hasMore) row += '<span style="font-size:9px;opacity:.25">'+(isOpen?'▾':'▸')+'</span>';
-    if (usedBy) row += usedBy.map(function(n){return '<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:'+accentColor+'22;color:'+accentColor+';white-space:nowrap">'+esc(n)+'</span>';}).join('');
-    row += '</div>';
-    if (role.description) row += '<span class="ci-desc">'+esc(role.description.slice(0,120))+'</span>';
-    if (hasMore) row += '<div id="'+eid+'-body" style="display:'+(isOpen?'block':'none')+';font-size:11px;opacity:.55;line-height:1.6;margin-top:4px;white-space:pre-wrap;border-left:2px solid '+accentColor+'44;padding-left:8px">'+esc(role.fullDescription||'')+'</div>';
-    // Launch panel — only when selected
-    if (isSelected) {
-      row += '<div style="margin-top:8px;padding:8px;background:rgba(156,106,247,.06);border-radius:4px;border:1px solid rgba(156,106,247,.18)">';
-      if (linked.length) {
-        row += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px">';
-        row += linked.map(function(sk){return '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:#4a9eff18;color:#4a9eff;border:1px solid #4a9eff33">'+esc(sk)+'</span>';}).join('');
-        row += '</div>';
-      }
-      row += '<button data-launch-role="'+esc(role.slug||role.name)+'" data-launch-role-name="'+esc(role.name)+'" style="width:100%;background:#9c6af7;color:#fff;border:none;border-radius:4px;padding:6px 10px;font-size:12px;cursor:pointer;font-family:inherit">▶  Launch Claude as '+esc(role.name)+'</button>';
-      row += '</div>';
-    }
-    row += '</div>';
-    return row;
-  }).join('');
-  html(listId, h);
-}
-
-function renderCatalogCol(listId, items, accentColor) {
-  const MAX = 200;
-  window._catExpanded = window._catExpanded || new Set();
-  let h = items.slice(0, MAX).map(function(item, idx) {
-    var eid = listId + '-' + idx;
-    var isOpen = window._catExpanded.has(eid);
-    var hasMore = item.fullDescription && item.fullDescription !== item.description && item.fullDescription.length > 10;
-    var usedBy = item.usedBy && item.usedBy.length ? item.usedBy : null;
-
-    var row = '<div class="ci" style="cursor:' + (hasMore ? 'pointer' : 'default') + '" data-cat-toggle="' + eid + '">';
-    row += '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">';
-    row += '<span class="ci-name">' + esc(item.name) + '</span>';
-    if (hasMore) row += '<span style="font-size:9px;opacity:.25">' + (isOpen ? '▾' : '▸') + '</span>';
-    if (usedBy) {
-      row += usedBy.map(function(nick) {
-        return '<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:' + (accentColor||'#4a9eff') + '22;color:' + (accentColor||'#4a9eff') + ';white-space:nowrap">' + esc(nick) + '</span>';
-      }).join('');
-    }
-    row += '</div>';
-    if (item.description) row += '<span class="ci-desc">' + esc(item.description.slice(0, 120)) + '</span>';
-    if (hasMore) row += '<div id="' + eid + '-body" style="display:' + (isOpen ? 'block' : 'none') + ';font-size:11px;opacity:.55;line-height:1.6;margin-top:4px;white-space:pre-wrap;border-left:2px solid ' + (accentColor||'#4a9eff') + '44;padding-left:8px">' + esc(item.fullDescription || '') + '</div>';
-    row += '</div>';
-    return row;
-  }).join('');
-  if (items.length > MAX) h += '<div class="more">+' + (items.length - MAX) + ' more</div>';
-  html(listId, h);
-}
-
-function computeKPIs(d) {
-  var sessions = d.activeSessions || [];
-  var streams = d.streams || [];
-
-  // Sessions
-  var totalCostUsd = sessions.reduce(function(s, sess) { return s + (sess.costUsd || 0); }, 0);
-  var ctxVals = sessions.map(function(s) {
-    return s.ctxPct !== null && s.ctxPct !== undefined ? Math.round(100 - s.ctxPct) : null;
-  }).filter(function(v) { return v !== null; });
-  var avgCtx = ctxVals.length ? Math.round(ctxVals.reduce(function(a,b){return a+b;},0) / ctxVals.length) : null;
-  var highCtx = ctxVals.filter(function(v) { return v >= 80; }).length;
-  var allAgents = sessions.reduce(function(arr, s) { return arr.concat(s.agents || []); }, []);
-  var runningAgents = allAgents.filter(function(a) { return !a.done; }).length;
-
-  // Code activity — aggregate across all sessions (richest data source)
-  var allFiles = sessions.reduce(function(arr, s) { return arr.concat(s.activity || []); }, []);
-  var edited = allFiles.filter(function(f) { return f.tool === 'Edit' || f.tool === 'Write' || f.tool === 'MultiEdit'; });
-  var totalAdded = edited.reduce(function(s, f) { return s + (f.added || 0); }, 0);
-  var totalDeleted = edited.reduce(function(s, f) { return s + (f.deleted || 0); }, 0);
-  var totalEdits = edited.reduce(function(s, f) { return s + (f.count || 1); }, 0);
-  var newFiles = edited.filter(function(f) { return f.isNew; }).length;
-  var deletedFiles = edited.filter(function(f) { return f.isDeleted; }).length;
-  var commandCount = allFiles.filter(function(f) { return f.file && f.file.startsWith('$ '); }).length;
-
-  // Code health
-  var redFiles = allFiles.filter(function(f) { return (f.lineCount || 0) >= 1000; }).length;
-  var amberFiles = allFiles.filter(function(f) { var lc = f.lineCount || 0; return lc >= 500 && lc < 1000; }).length;
-  var bigEdits = edited.filter(function(f) { return (f.added || 0) + (f.deleted || 0) >= 50; }).length;
-
-  // Streams
-  var streamsByType = {};
-  streams.forEach(function(s) {
-    var t = s.type || 'task';
-    streamsByType[t] = (streamsByType[t] || 0) + 1;
-  });
-  var awaitingQA = streams.filter(function(s) { return s.status === 'awaiting-verification'; }).length;
-  var totalDC = streams.reduce(function(s, st) { return s + ((st.doneCriteria && st.doneCriteria.length) || 0); }, 0);
-  var checkedDC = streams.reduce(function(s, st) {
-    return s + (st.doneCriteria ? st.doneCriteria.filter(function(c) { return c.done; }).length : 0);
-  }, 0);
-
-  return {
-    sessions: sessions.length, totalCostUsd: totalCostUsd, avgCtx: avgCtx, highCtx: highCtx,
-    runningAgents: runningAgents, totalAgents: allAgents.length,
-    totalUniqueFiles: d.totalUniqueFiles || allFiles.length,
-    totalAdded: totalAdded, totalDeleted: totalDeleted, totalEdits: totalEdits,
-    newFiles: newFiles, deletedFiles: deletedFiles, commandCount: commandCount,
-    redFiles: redFiles, amberFiles: amberFiles, bigEdits: bigEdits,
-    streams: streams.length, streamsByType: streamsByType, awaitingQA: awaitingQA,
-    totalDC: totalDC, checkedDC: checkedDC,
-    skills: d.skillCount || 0, roles: d.roleCount || 0, commands: (d.commands || []).length,
-  };
-}
-
-function renderKPIGrid(kpi) {
-  function tile(val, lbl, color, tip) {
-    return '<div class="kpi-tile"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>'
-      + '<div class="kpi-val"' + (color ? ' style="color:' + color + '"' : '') + '>' + val + '</div>'
-      + '<div class="kpi-lbl">' + lbl + '</div>'
-      + '</div>';
-  }
-  function group(lbl, tiles, scope) {
-    var key = lbl.toLowerCase().replace(/[^a-z]/g,'-').replace(/-+$/,'');
-    var folded = window._kpiFolded && window._kpiFolded.has(key);
-    var scopeHtml = scope ? '<span style="font-size:9px;opacity:.3;font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px">' + scope + '</span>' : '';
-    return '<div class="kpi-group'+(folded?' folded':'')+'" data-kpi-group="'+key+'">'
-      +'<div class="kpi-group-lbl">'+lbl+scopeHtml+'</div>'
-      +'<div class="kpi-row"'+(folded?' style="display:none"':'')+'>'+tiles+'</div>'
-      +'</div>';
-  }
-  var g = '';
-
-  // Sessions — live snapshot, no time scope needed
-  var sessTiles = ''
-    + tile(kpi.sessions, 'Active', kpi.sessions > 0 ? '#4caf50' : '#666')
-    + tile('$' + kpi.totalCostUsd.toFixed(2), 'Total Cost', '#4caf50')
-    + (kpi.avgCtx !== null ? tile(kpi.avgCtx + '%', 'Avg Ctx', kpi.avgCtx >= 80 ? '#f44336' : kpi.avgCtx >= 50 ? '#ff9800' : '#4caf50', 'Average context window used across sessions') : '')
-    + (kpi.highCtx > 0 ? tile(kpi.highCtx, 'High Ctx', '#f44336', 'Sessions above 80% context — consider compacting') : '')
-    + tile(kpi.runningAgents, 'Agents Running', kpi.runningAgents > 0 ? '#4a9eff' : '#555')
-    + (kpi.totalAgents > 0 ? tile(kpi.totalAgents, 'Agents Total', '#888') : '');
-  g += group('Sessions', sessTiles, 'live');
-
-  // Code Activity — scoped to events visible in the current active sessions
-  var actTiles = ''
-    + tile(kpi.totalUniqueFiles, 'Files Touched', '#e8e8e8')
-    + (kpi.totalEdits > 0 ? tile(kpi.totalEdits, 'Total Edits', '#e8e8e8') : '')
-    + (kpi.totalAdded > 0 ? tile('+' + kpi.totalAdded.toLocaleString(), 'Lines Added', '#4caf50') : '')
-    + (kpi.totalDeleted > 0 ? tile('−' + kpi.totalDeleted.toLocaleString(), 'Lines Deleted', '#f44336') : '')
-    + (kpi.totalAdded > 0 || kpi.totalDeleted > 0 ? (function(){
-        var net = kpi.totalAdded - kpi.totalDeleted;
-        return tile((net >= 0 ? '+' : '') + net.toLocaleString(), 'Net Delta', net >= 0 ? '#4caf50' : '#ff9800', 'Net lines added minus deleted');
-      })() : '')
-    + (kpi.newFiles > 0 ? tile(kpi.newFiles, 'New Files', '#4caf84') : '')
-    + (kpi.deletedFiles > 0 ? tile(kpi.deletedFiles, 'Deleted', '#f44336') : '')
-    + (kpi.commandCount > 0 ? tile(kpi.commandCount, 'Commands', '#f0b429') : '');
-  if (kpi.totalUniqueFiles > 0) g += group('Code Activity', actTiles, 'this session');
-
-  // Code Health — derived from same session activity window
-  if (kpi.redFiles > 0 || kpi.amberFiles > 0 || kpi.bigEdits > 0) {
-    var healthTiles = ''
-      + (kpi.redFiles > 0 ? tile(kpi.redFiles, 'Monoliths', '#ef5350', 'Files with 1000+ lines touched this session') : '')
-      + (kpi.amberFiles > 0 ? tile(kpi.amberFiles, 'Large Files', '#f0b429', 'Files with 500–999 lines touched this session') : '')
-      + (kpi.bigEdits > 0 ? tile(kpi.bigEdits, 'Big Edits', '#ff9800', 'Files where 50+ lines were changed') : '');
-    g += group('Code Health ⚠', healthTiles, 'this session');
-  }
-
-  return g;
-}
-
-function renderSessionHdr(s, d) {
-  var el = document.getElementById('session-hdr');
-  if (!el) return;
-  var nick = s.nick || sessionNickname(s.sessionId || '');
-  var isLive = typeof s.ageSeconds === 'number' && s.ageSeconds < 120;
-  var dotColor = isLive ? '#4caf50' : '#888';
-  var dotAnim = isLive ? 'animation:pulse 1.5s ease-in-out infinite;' : '';
-  var siblings = (window._stSiblings || []);
-  var statsLine = [
-    s.model ? '<span style="opacity:.55;font-size:11px">' + esc(s.model) + '</span>' : '',
-    s.cost ? '<span style="color:#4caf50;font-size:11px">' + esc(s.cost) + '</span>' : '',
-    s.sessionTime ? '<span style="opacity:.4;font-size:11px">' + esc(s.sessionTime) + '</span>' : '',
-    (s.ctxPct !== null && s.ctxPct !== undefined) ? '<span>' + ctxBar(s.ctxPct) + '</span>' : '',
-  ].filter(Boolean).join('<span style="opacity:.2;margin:0 4px">·</span>');
-  var contextLine = [
-    s.branch ? '<span style="font-family:monospace;opacity:.4;font-size:11px">' + esc(s.branch) + '</span>' : '',
-    s.stream ? '<span style="color:#4a9eff;font-size:11px">' + esc(s.stream) + '</span>' : '',
-    s.projectName ? '<span style="opacity:.3;font-size:11px">' + esc(s.projectName) + '</span>' : '',
-  ].filter(Boolean).join('<span style="opacity:.18;margin:0 5px">·</span>');
-  var sibHtml = siblings.map(function(sib) {
-    var sibNick = sib.nick || sessionNickname(sib.sessionId || '');
-    return '<span class="sib-pill" data-focus-sibling="' + esc(sib.sessionId) + '">' + esc(sibNick) + ' ↗</span>';
-  }).join(' ');
-  el.innerHTML =
-    '<div style="display:flex;align-items:center;gap:8px;padding:9px 14px 5px;flex-wrap:wrap">'
-    + '<span style="width:7px;height:7px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;' + dotAnim + '"></span>'
-    + '<span style="font-weight:700;font-size:13px;letter-spacing:.02em;color:#e8e8e8">' + esc(nick) + '</span>'
-    + (statsLine ? '<span style="opacity:.2;margin:0 2px">·</span>' + statsLine : '')
-    + '</div>'
-    + (contextLine ? '<div style="padding:0 14px 5px">' + contextLine + '</div>' : '')
-    + '<div style="display:flex;align-items:center;gap:8px;padding:5px 14px 8px;border-top:1px solid rgba(255,255,255,.06);flex-wrap:wrap">'
-    + '<button data-chat-btn="1" data-shell-pid="' + (s.shellPid || 0) + '" data-session-nick="' + esc(nick) + '" data-session-root="' + esc(s.root || '') + '" data-session-id="' + esc(s.sessionId || '') + '" style="padding:3px 10px;border-radius:4px;border:1px solid #4a9eff55;background:rgba(74,158,255,.1);color:#4a9eff;cursor:pointer;font-size:11px;font-weight:600">↗ Open Chat</button>'
-    + (siblings.length ? '<span style="opacity:.28;font-size:10px;margin-left:4px">also open:</span> ' + sibHtml : '')
-    + '<button data-refresh-btn="1" style="margin-left:auto;background:transparent;border:1px solid var(--vscode-panel-border);color:inherit;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px">↻</button>'
-    + '</div>';
-}
-
-function applyUpdate(d){
-  // Sync ignored-size set from payload so context menu can toggle state
+function applyUpdate(d) {
+  window._lastD = d;
   window._ignoredSizeFiles = new Set(d.ignoredSizeFiles || []);
 
-  // SESSION TAB MODE: own identity bar, stacked layout, session-specific stats
-  if (d.isSessionTab) {
-    var s0 = d.activeSessions && d.activeSessions[0];
-    document.body.classList.add('session-tab');
-    if (s0) {
-      window._stSession = s0;
-      window._stSiblings = (d.sessionTabSiblings || []).filter(function(x) { return x.sessionId !== s0.sessionId; });
-      // Override top-level global fields with session-specific values so all downstream code is correct
-      var _s0act = s0.activity || [];
-      var _s0act0 = _s0act[0] || null;
-      d = Object.assign({}, d, {
-        model: s0.model || d.model,
-        cost: s0.cost || d.cost,
-        sessionTime: s0.sessionTime || d.sessionTime,
-        ctxPct: s0.ctxPct !== undefined ? s0.ctxPct : d.ctxPct,
-        branch: s0.branch || d.branch,
-        activeStream: s0.streamPinned ? (s0.stream || '') : (s0.stream || d.activeStream || ''),
-        projectName: s0.projectName || d.projectName,
-	    hasLive: typeof s0.ageSeconds === 'number' ? s0.ageSeconds < 120 : d.hasLive,
-	    fileActivity: _s0act.length ? _s0act : d.fileActivity,
-	    recentAgents: s0.agents || [],
-	    agentActivity: s0.agentActivity || [],
-	    lastEventLabel: _s0act0 ? _s0act0.file : '',
-        lastEventTs: _s0act0 ? _s0act0.lastTs : null,
-        streamDesc: s0.streamDesc || d.streamDesc,
-        isInLongOp: false,
-        // Per-session workflow — override global activeWorkflow with this session's workflow data
-        activeWorkflow: (s0.hasWorkflow && s0.workflowLabel)
-          ? { label: s0.workflowLabel, agentCount: s0.workflowAgentCount || 0, ts: s0.lastUpdated || '' }
-          : d.activeWorkflow,
-      });
-      renderSessionHdr(s0, d);
-    }
-    // Force Live tab active, suppress Catalog
-    var liveEl = document.getElementById('live');
-    if (liveEl && !liveEl.classList.contains('on')) { liveEl.classList.add('on'); }
-    var catEl = document.getElementById('catalog');
-    if (catEl) { catEl.classList.remove('on'); catEl.style.display = 'none'; }
-    // Hide KPI grid and now-stats — session tab has its own identity bar
-    var kpiElST = document.getElementById('kpi-grid');
-    if (kpiElST) kpiElST.style.display = 'none';
-    var nsEl = document.getElementById('now-stats');
-    if (nsEl) nsEl.style.display = 'none';
-  } else {
-    document.body.classList.remove('session-tab');
-    var shdrEl = document.getElementById('session-hdr');
-    if (shdrEl) shdrEl.style.display = 'none';
-    var nsEl2 = document.getElementById('now-stats');
-    if (nsEl2) nsEl2.style.display = '';
-    var catEl2 = document.getElementById('catalog');
-    if (catEl2) catEl2.style.display = '';
-    // KPI grid — main hub only
-    var kpiEl = document.getElementById('kpi-grid');
-    if (kpiEl) {
-      kpiEl.style.display = 'flex';
-      kpiEl.innerHTML = renderKPIGrid(computeKPIs(d));
-    }
-  }
+  // Session tab setup (mutates d with per-session overrides, applies DOM mode)
+  d = AB.sessionHeader.applySessionTabMode(d);
 
-  // header
-  txt('h-proj',d.projectName||'—');
-  const br=document.getElementById('h-br'),sep=document.getElementById('h-sep2');
-  if(br&&sep){br.textContent=d.branch||'';sep.style.display=d.branch?'':'none';}
-
-  // tabs
-  const tc=document.getElementById('tab-catalog');
-  if(tc)tc.textContent='Catalog · '+(d.skillCount+d.roleCount);
-
-  // NOW block — multi-session: show summary. single-session: show live status.
-  const nowEl=document.getElementById('now');
-  const dot=document.getElementById('now-dot');
-  const stateEl=document.getElementById('now-state');
-  const ctxNow=d.ctxPct!==null&&d.ctxPct!==undefined?Math.round(100-d.ctxPct):0;
-  const isWorkflow=!!(d.activeWorkflow);
-  // Main hub always shows global summary (even with 1 session); session tabs show per-session detail
-  const isMultiNow = !d.isSessionTab && d.activeSessions && d.activeSessions.length > 0;
-  if(isMultiNow){
-    // Multi-session summary banner
-    nowEl.classList.remove('idle');dot.classList.remove('idle');
-    var liveSessions = d.activeSessions.filter(function(s){ return s.lastUpdated && (Date.now()-new Date(s.lastUpdated).getTime()<180000); });
-    var totalCost = d.activeSessions.reduce(function(sum,s){ return sum+(s.costUsd||0); },0);
-    stateEl.textContent = liveSessions.length + ' ACTIVE';
-    stateEl.style.color='#4caf50';
-    dot.style.background='#4caf50';dot.style.animation='pulse 1.5s ease-in-out infinite';
-    var summaryParts=[d.activeSessions.length+' sessions'];
-    if(totalCost>0) summaryParts.push('$'+totalCost.toFixed(2)+' total');
-    if(d.branch) summaryParts.push(d.branch);
-    txt('now-stats',summaryParts.join(' · '));
-  } else if(d.hasLive){
-    nowEl.classList.remove('idle');dot.classList.remove('idle');
-    if(isWorkflow){
-      stateEl.textContent='WORKFLOW';stateEl.style.color='#4a9eff';
-      dot.style.background='#4a9eff';dot.style.animation='pulse 0.6s ease-in-out infinite';
+  // Header: project name + branch selector
+  txt('h-proj', d.projectName || '—');
+  var _hbrWrap = document.getElementById('h-br-wrap'), _hSep = document.getElementById('h-sep2');
+  if (_hbrWrap && _hSep) {
+    _hSep.style.display = d.branch ? '' : 'none';
+    var _avail = d.availableBranches || [];
+    if (_avail.length > 1) {
+      var _opts = '';
+      _avail.forEach(function(b){ _opts += '<option value="'+esc(b)+'"'+(b===d.branch?' selected':'')+'>'+esc(b)+'</option>'; });
+      var _sid   = (d.activeSessions&&d.activeSessions[0]&&d.activeSessions[0].sessionId) || '';
+      var _sroot = (d.activeSessions&&d.activeSessions[0]&&d.activeSessions[0].root)      || '';
+      _hbrWrap.innerHTML = '<select id="h-br-sel" data-session-id="'+esc(_sid)+'" data-session-root="'+esc(_sroot)+'" style="background:#1e1e2e;color:#e8e8e8;border:1px solid #ffffff22;border-radius:4px;font-size:11px;font-family:monospace;padding:1px 4px;cursor:pointer;outline:none;max-width:140px">'+_opts+'</select>';
     } else {
-      stateEl.textContent='LIVE';stateEl.style.color='#4caf50';
-      dot.style.background='#4caf50';dot.style.animation='pulse 1.5s ease-in-out infinite';
-    }
-  } else {
-    nowEl.classList.add('idle');dot.classList.add('idle');
-    stateEl.textContent='IDLE';stateEl.style.color='#666';dot.style.background='#666';
-  }
-  if(!isMultiNow) txt('now-stats',[d.model,d.cost,d.sessionTime].filter(Boolean).join(' · '));
-  // Tool/file line and long-op warning: only show in single-session mode
-  const nowFileRow = document.getElementById('now-file-row');
-  const lopEl = document.getElementById('now-longop');
-  if(isMultiNow){
-    if(nowFileRow) nowFileRow.style.display='none';
-    if(lopEl){ lopEl.className='now-longop'; lopEl.textContent=''; }
-    txt('now-desc','');
-  } else {
-    if(nowFileRow) nowFileRow.style.display='';
-    if(d.lastEventLabel){
-      const fa0=d.fileActivity&&d.fileActivity[0];
-      const isSkill=fa0&&fa0.tool==='Skill';
-      const isWaiting=d.lastEventLabel==='AskUserQuestion'||d.lastEventLabel==='AskUser';
-      const nowFile=document.getElementById('now-file');
-      const nowTool=document.getElementById('now-tool');
-      if(nowFile){
-        nowFile.textContent=isWaiting?'Waiting for your reply':d.lastEventLabel;
-        nowFile.style.color=isWaiting?'#888':isSkill?'#4caf84':'#e8e8e8';
-      }
-      txt('now-ago',relTime(d.lastEventTs));
-      if(nowTool){
-        if(isWaiting){
-          nowTool.textContent='';nowTool.style.background='none';
-        } else {
-          nowTool.textContent=isSkill?'⚡ skill':fa0?fa0.tool:'';
-          nowTool.style.background=isSkill?'rgba(76,175,132,.15)':'rgba(255,255,255,.08)';
-          nowTool.style.color=isSkill?'#4caf84':'inherit';
-        }
-      }
-    }
-    txt('now-desc',d.streamDesc||'');
-    if(lopEl){
-      lopEl.className='now-longop'+(d.isInLongOp?' on':'');
-      lopEl.textContent='⟳ Running long operation — last tool call completed >90s ago';
-      lopEl.style.color='#ff9800';
+      _hbrWrap.innerHTML = '<span class="br" style="font-family:monospace">'+esc(d.branch||'')+'</span>';
     }
   }
 
-  // file activity — use rich session data (with isNew/isDeleted/added/deleted) when available
-  var _singleSess = (d.activeSessions && d.activeSessions.length === 1) ? d.activeSessions[0] : null;
+  // Catalog tab count
+  const tc = document.getElementById('tab-catalog');
+  if (tc) tc.textContent = 'Catalog · ' + (d.skillCount + d.roleCount);
+
+  // NOW block
+  const isMultiNow  = !d.isSessionTab && d.activeSessions && d.activeSessions.length > 0;
+  const isWorkflow  = !!(d.activeWorkflow);
+  AB.nowBlock.updateNowBlock(d, isMultiNow, isWorkflow);
+
+  // File activity list (single-session path)
+  var _singleSess   = (d.activeSessions && d.activeSessions.length === 1) ? d.activeSessions[0] : null;
   var _richActivity = _singleSess ? (_singleSess.activity || null) : null;
-  var _singleRoot = _singleSess ? (_singleSess.root || '') : '';
-  var _actFiles = _richActivity || d.fileActivity || [];
-  var _totalFiles = d.totalUniqueFiles || _actFiles.length || 0;
-  var _shownFiles = _actFiles.length || 0;
-  var _actLabel = 'Activity this session';
+  var _singleRoot   = _singleSess ? (_singleSess.root || '') : '';
+  var _actFiles     = _richActivity || d.fileActivity || [];
+  var _totalFiles   = d.totalUniqueFiles || _actFiles.length || 0;
+  var _actLabel     = 'Activity this session';
   if (_totalFiles > 0) {
     _actLabel += ' · ' + _totalFiles + ' file' + (_totalFiles !== 1 ? 's' : '');
-    if (_shownFiles < _totalFiles) _actLabel += ' (showing ' + _shownFiles + ')';
+    if (_actFiles.length < _totalFiles) _actLabel += ' (showing ' + _actFiles.length + ')';
   }
   txt('fa-ttl', _actLabel);
-  html('fa-list', _actFiles.length ? _actFiles.map(function(f){
-    const TOOL_ICON_SS={Edit:'✏',Write:'✏',Bash:'$',Read:'👁',WebSearch:'⌕',WebFetch:'⌕',Agent:'◈',Skill:'⚡'};
-    const icon = TOOL_ICON_SS[f.tool] || TOOL_ICON[f.tool] || '·';
-    const isCmd = f.file.startsWith('$ ');
-    const isEdited = (f.tool === 'Edit' || f.tool === 'Write' || f.tool === 'MultiEdit') && !isCmd;
-    const ago = relTime(f.lastTs);
-    var totalChanged = (f.added || 0) + (f.deleted || 0);
-    var editWarn = '';
-    if (isEdited && totalChanged >= 50) {
-      var warnColor = AB_CORE.editWarnColor(totalChanged);
-      editWarn = '<span title="'+totalChanged+' lines changed" style="color:'+warnColor+';font-size:11px;flex-shrink:0;margin-right:2px">⚠</span>';
-    }
-    var sizeBadge = '';
-    if (f.lineCount && !(window._ignoredSizeFiles && window._ignoredSizeFiles.has(f.file))) {
-      var lc = f.lineCount;
-      var sizeColor = AB_CORE.sizeColor(lc);
-      if (sizeColor) {
-        var sizeLabel = AB_CORE.sizeLabel(lc);
-        sizeBadge = '<span class="fa-size-badge" title="'+lc+' lines" style="font-size:9px;padding:1px 5px;border-radius:8px;background:'+sizeColor+'22;color:'+sizeColor+';border:1px solid '+sizeColor+'44;flex-shrink:0;cursor:default">'+sizeLabel+'L</span>';
-      }
-    }
-    var rowBg = f.isNew ? 'background:rgba(40,200,80,.07);border-left:2px solid rgba(40,200,80,.35);padding-left:4px;' : f.isDeleted ? 'background:rgba(220,60,60,.07);border-left:2px solid rgba(220,60,60,.35);padding-left:4px;' : '';
-    var hasMenu2 = isEdited || (f.lineCount || 0) >= 500;
-    var diffAttrs = hasMenu2
-      ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(_singleRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')
-        +' data-line-count="'+(f.lineCount||0)+'"'
-        +' data-added="'+(f.added||0)+'" data-deleted="'+(f.deleted||0)+'" data-total-changed="'+totalChanged+'"'
-        +' data-session-id="'+esc((_singleSess&&_singleSess.sessionId)||'')+'"'
-        +' data-shell-pid="'+((_singleSess&&_singleSess.shellPid)||0)+'"'
-        +' data-session-nick="'+esc((_singleSess&&_singleSess.nick)||'')+'"'
-        +' data-session-provider="'+esc((_singleSess&&(_singleSess.provider||_singleSess.model))||'')+'"'
-        +' title="Click for options" style="cursor:pointer;'+rowBg+'"'
-      : (rowBg ? ' style="'+rowBg+'"' : '');
-    return '<div class="fa"'+diffAttrs+'>'
-      + '<span class="fa-icon">'+icon+'</span>'
-      + '<div class="fa-body">'
-      + '<span class="fa-file" title="'+esc(f.file)+'"'+(isEdited?' onmouseover="this.style.color=\'#7cbfff\'" onmouseout="this.style.color=\'\'"':'')+' style="color:'+(isCmd?'#f0b429':'inherit')+'">'+esc(f.file)+'</span>'
-      + (isEdited && (f.added != null || f.deleted != null)
-        ? '<span style="font-size:10px;white-space:nowrap;flex-shrink:0">'
-          + (f.added  ? '<span style="color:#4caf50">+'+f.added+'</span>' : '')
-          + (f.added && f.deleted ? '<span style="opacity:.3"> / </span>' : '')
-          + (f.deleted ? '<span style="color:#f44336">-'+f.deleted+'</span>' : '')
-          + '</span>'
-        : '')
-      + (f.count > 1 ? '<span class="fa-cnt">×'+f.count+'</span>' : '')
-      + '<span class="fa-t">'+ago+'</span>'
-      + sizeBadge + editWarn
-      + (f.committed && f.added == null && f.deleted == null ? '<span title="Committed to branch" style="color:#4caf50;font-size:11px;flex-shrink:0;margin-left:2px">✓</span>' : '')
-      + '</div>'
-      + '</div>';
-  }).join('') : '<div class="em">No edits or commands yet this session</div>');
+  html('fa-list', _actFiles.length
+    ? _actFiles.map(function(f){ return AB.activityRow.renderActivityRow(f, _singleRoot, _singleSess); }).join('')
+    : '<div class="em">No edits or commands yet this session</div>');
 
-  // agents / workflow panel
-  const agentsEl=document.getElementById('agents-list');
-  const agentsTtl=document.getElementById('agents-ttl');
-  const wp=(d.activeSessions&&d.activeSessions.length===1)?d.activeSessions[0].workflowPlan:null;
-  const hasWf=wp||(d.activeWorkflow&&d.activeWorkflow.label);
+  // Agents / workflow panel
+  const agentsEl  = document.getElementById('agents-list');
+  const agentsTtl = document.getElementById('agents-ttl');
+  const wp    = (d.activeSessions && d.activeSessions.length === 1) ? d.activeSessions[0].workflowPlan : null;
+  const hasWf = wp || (d.activeWorkflow && d.activeWorkflow.label);
+  AB.agentsPanel.updateAgentsPanel(d, agentsEl, agentsTtl, wp, hasWf);
 
-  function renderAgentCard(a,i){
-    const done=a.status==='done';
-    const pulse=done
-      ?'<span style="width:6px;height:6px;border-radius:50%;background:#4caf50;display:inline-block;flex-shrink:0;margin-top:3px"></span>'
-      :'<span class="ag-pulse" style="margin-top:3px"></span>';
-    const roleTag=a.role?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#9c6af722;color:#9c6af7">'+esc(a.role)+'</span>':'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#88888820;color:#888">no role</span>';
-    const skillTag=a.skill?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#4caf8422;color:#4caf84">'+esc(a.skill)+'</span>':'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#88888820;color:#888">no skill</span>';
-    const modelRaw=a.model||'';
-    const modelLabel=modelRaw.replace('claude-','').replace(/-\d{8}$/,'').replace('-latest','');
-    const modelColor=modelRaw.includes('opus')?'#9c6af7':modelRaw.includes('haiku')?'#4a9eff':'#ff9800';
-    const modelTag=modelLabel?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:'+modelColor+'22;color:'+modelColor+'">'+esc(modelLabel)+'</span>':'';
-    const phaseTag=a.phase?'<span style="font-size:10px;opacity:.35;padding:1px 4px">'+esc(a.phase)+'</span>':'';
-    const num='<span style="font-size:10px;opacity:.25;flex-shrink:0;min-width:18px;margin-top:1px">'+(i+1)+'</span>';
-    return '<div class="ag-row" style="align-items:flex-start;gap:5px;padding:6px 0;border-bottom:1px solid rgba(128,128,128,.07)">'
-      +num+pulse
-      +'<div style="flex:1;min-width:0">'
-      +'<div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px;'+(done?'text-decoration:line-through;opacity:.4':'')+'">'+esc(a.label)+'</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:3px">'+roleTag+skillTag+modelTag+phaseTag+'</div>'
-      +'</div>'
-      +'</div>';
-  }
-
-  if(agentsEl&&hasWf){
-    // activeWorkflow from events is the authoritative "still running" signal.
-    // Also treat workflowPlan as "still running" if ended_at - started_at < 30s
-    // (background launch — PostToolUse fires instantly, actual workflow runs for hours)
-    const liveRunning = !!(d.activeWorkflow && d.activeWorkflow.label);
-    const bgLaunch = wp && wp.status === 'done' && wp.ended_at && wp.started_at
-      && (new Date(wp.ended_at).getTime() - new Date(wp.started_at).getTime() < 30000);
-    const isDone = wp && wp.status === 'done' && !liveRunning && !bgLaunch;
-    const wfName = wp ? wp.name : (d.activeWorkflow ? d.activeWorkflow.label : 'workflow');
-    const agentCount = wp ? wp.total : (d.activeWorkflow ? d.activeWorkflow.agentCount : 0);
-    const dotColor = isDone ? '#4caf50' : '#4a9eff';
-    const stateLabel = isDone ? '✓ WORKFLOW DONE' : '⟳ WORKFLOW';
-    var wfNameLabel = (wfName && wfName.toLowerCase() !== 'workflow') ? ' <span style="font-weight:400;opacity:.35;font-size:10px;text-transform:none;letter-spacing:0;margin-left:4px">'+esc(wfName)+'</span>' : '';
-    if(agentsTtl)agentsTtl.innerHTML='<span style="color:'+dotColor+';font-weight:700">'+stateLabel+'</span>'
-      +(agentCount?' <span style="color:'+dotColor+';font-weight:700"> · '+agentCount+' agents</span>':'')
-      +wfNameLabel;
-    let phasePills='';
-    if(wp&&wp.phases&&wp.phases.length){
-      phasePills='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'
-        +wp.phases.map(function(p){
-          const phDone=wp.agents&&wp.agents.filter(function(a){return a.phase===p;}).every(function(a){return a.status==='done';})&&wp.agents.some(function(a){return a.phase===p;});
-          return '<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:#4a9eff'+(phDone?'44':'22')+';color:#4a9eff;border:1px solid #4a9eff44">'+(phDone?'✓ ':'')+esc(p)+'</span>';
-        }).join('')+'</div>';
-    }
-    let cards='';
-    if(wp&&wp.agents&&wp.agents.length){
-      cards=wp.agents.map(renderAgentCard).join('');
-    } else if(liveRunning && agentCount) {
-      // Workflow running but no labels extracted — show live count with skeleton rows
-      const elapsed = d.activeWorkflow ? relTime(d.activeWorkflow.ts) : '';
-      cards = '<div style="font-size:11px;color:#4a9eff;opacity:.7;padding:4px 0 8px">'+agentCount+' agents running since '+elapsed+'</div>'
-        + Array.from({length: Math.min(agentCount, 8)}, function(_,i) {
-          return '<div class="ag-row" style="align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid rgba(128,128,128,.07)">'
-            +'<span class="ag-pulse"></span>'
-            +'<span style="flex:1;height:10px;border-radius:4px;background:rgba(255,255,255,.07);animation:pulse 1.8s ease-in-out infinite;animation-delay:'+(i*0.15)+'s"></span>'
-            +'</div>';
-        }).join('')
-        +'<div style="font-size:10px;opacity:.3;margin-top:8px">Add <code>label: "role:X · skill:Y · task"</code> to agent() calls for details</div>';
-    } else {
-      cards='<div style="font-size:11px;opacity:.4;padding:6px 0">No agents this workflow</div>';
-    }
-    agentsEl.innerHTML=phasePills+cards;
-  } else if(agentsEl&&d.recentAgents&&d.recentAgents.length){
-    const attributed=(d.agentActivity||[]).reduce(function(map,a){
-      map[a.agentId||a.label]=a;
-      return map;
-    },{});
-    const running=d.recentAgents.filter(function(a){return !a.done;});
-    const done2=d.recentAgents.filter(function(a){return a.done;});
-    if(agentsTtl)agentsTtl.innerHTML='Agents'
-      +(running.length?' <span style="color:#4caf50;font-weight:700">'+running.length+' running</span>':'')
-      +(done2.length?' <span style="opacity:.4;font-size:11px"> '+done2.length+' done</span>':'')
-      +'<span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none"> · this session</span>';
-    agentsEl.innerHTML=d.recentAgents.map(function(a){
-      const pulse=a.done?'<span style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;flex-shrink:0"></span>':'<span class="ag-pulse"></span>';
-      const roleTag=a.role?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#9c6af722;color:#9c6af7">'+esc(a.role)+'</span>':'';
-      const skillTag=a.skill?'<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#4caf8422;color:#4caf84">'+esc(a.skill)+'</span>':'';
-      const activity=(attributed[a.agentId||a.label]&&attributed[a.agentId||a.label].activity)||[];
-      const activityHtml=activity.length
-        ? '<div style="margin-left:14px;margin-top:4px;border-left:1px solid rgba(255,255,255,.08);padding-left:8px">'
-          + activity.slice(0,5).map(function(item){
-            const icon = item.file && item.file.startsWith('$ ') ? '$' : (TOOL_ICON[item.tool] || '·');
-            return '<div style="display:flex;gap:6px;align-items:center;min-width:0;font-size:10px;opacity:.68;padding:1px 0">'
-              + '<span style="color:#f0b429;flex-shrink:0">'+esc(icon)+'</span>'
-              + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+esc(item.file)+'</span>'
-              + (item.count>1?'<span style="opacity:.45;flex-shrink:0">×'+item.count+'</span>':'')
-              + '<span style="opacity:.45;flex-shrink:0">'+relTime(item.lastTs)+'</span>'
-              + '</div>';
-          }).join('')
-          + '</div>'
-        : '';
-      return '<div style="border-bottom:1px solid rgba(128,128,128,.07);padding:4px 0">'
-        + '<div class="ag-row">'+pulse+'<span class="ag-label" style="'+(a.done?'opacity:.4':'')+'">'+esc(a.label)+'</span>'+roleTag+skillTag+'<span class="ag-t">'+relTime(a.ts)+'</span></div>'
-        + activityHtml
-        + '</div>';
-    }).join('');
-  } else if(agentsEl){
-    if(agentsTtl)agentsTtl.innerHTML='Agents <span style="font-weight:400;opacity:.5;font-size:10px;letter-spacing:0;text-transform:none">· this session</span>';
-    agentsEl.innerHTML='<div class="em">No sub-agents</div>';
-  }
-
-  // Layout mode: main hub = always global session-card view; session tabs = single-session detail
-  const multiSession = !d.isSessionTab;
-  const liveBody = document.getElementById('live-body');
-  const sessionColsEl = document.getElementById('session-cols');
-  const streamsRowEl = document.getElementById('streams-row');
+  // Layout: multi-session grid vs single-session columns
+  const multiSession   = !d.isSessionTab;
+  const liveBody       = document.getElementById('live-body');
+  const sessionColsEl  = document.getElementById('session-cols');
+  const streamsRowEl   = document.getElementById('streams-row');
   const colL = document.querySelector('.col-l');
   const colR = document.querySelector('.col-r');
 
   if (multiSession && liveBody && sessionColsEl) {
     liveBody.classList.add('multi');
-    // Show the sessions foldable section wrapper
     var secMultiSessEl = document.getElementById('sec-multi-sessions');
     if (secMultiSessEl) secMultiSessEl.style.display = '';
     sessionColsEl.style.display = 'flex';
@@ -673,778 +125,105 @@ function applyUpdate(d){
     if (colL) colL.style.display = 'none';
     if (colR) colR.style.display = 'none';
 
-    // 1 session = 100%, 2 = 50%, 3+ = 33.33%. flex-grow fills row if fewer than 3 on it.
     var totalSess = d.activeSessions.length;
-    var colBasis = totalSess <= 1 ? '100%' : totalSess === 2 ? '50%' : '33.333%';
-    // Preserve scroll positions of all inner-scrollable sections before re-render
+    var colBasis  = totalSess <= 1 ? '100%' : totalSess === 2 ? '50%' : '33.333%';
+
+    // Preserve scroll positions before re-render
     var _scrollState = {};
-    sessionColsEl.querySelectorAll('[id^="act-body-"],[id^="wf-body-"],[id^="agents-body-"]').forEach(function(el){
-      if(el.scrollTop > 0) _scrollState[el.id] = el.scrollTop;
+    sessionColsEl.querySelectorAll('[id^="act-body-"],[id^="wf-body-"],[id^="agents-body-"]').forEach(function(el) {
+      if (el.scrollTop > 0) _scrollState[el.id] = el.scrollTop;
     });
+
     var _activeSessions = d.activeSessions || [];
-    // Update sessions section title
     var multiSessTtl = document.getElementById('multi-sessions-ttl');
     if (multiSessTtl) multiSessTtl.textContent = 'Sessions (' + _activeSessions.length + ')';
+
     if (!_activeSessions.length) {
       sessionColsEl.innerHTML = '<div style="padding:32px 20px;opacity:.3;font-size:12px;text-align:center;width:100%">No active sessions</div>';
-    } else
-    sessionColsEl.innerHTML = _activeSessions.map(function(s) { try {
-      // Green dot = this session received a status update within the last 90s (status-bridge fires every turn)
-      var lastUpdatedMs = s.lastUpdated ? new Date(s.lastUpdated).getTime() : 0;
-      var isLive = lastUpdatedMs > 0 && (Date.now() - lastUpdatedMs < 180000);
-      const nick = sessionNickname(s.sessionId);
-      const displayName = (s.projectName || s.sessionId.slice(0, 8)) + ' · ' + nick;
-      const age = s.ageSeconds < 60 ? s.ageSeconds + 's ago'
-        : s.ageSeconds < 3600 ? Math.floor(s.ageSeconds / 60) + 'm ago'
-        : Math.floor(s.ageSeconds / 3600) + 'h ago';
-      const mc = s.model.toLowerCase();
-      const modelColor = mc.includes('opus') ? '#9c6af7' : mc.includes('haiku') ? '#4a9eff' : '#ff9800';
-      const dotColor = isLive ? '#4caf50' : '#555';
-      const ctxUsed = s.ctxPct !== null && s.ctxPct !== undefined ? Math.round(100 - s.ctxPct) : null;
-      const ctxFill = ctxUsed !== null ? Math.max(0,Math.min(10,Math.floor(ctxUsed / 10))) : 0;
-      const ctxColor = ctxUsed === null ? '#555' : ctxUsed < 50 ? '#4caf50' : ctxUsed < 75 ? '#ff9800' : '#f44336';
-      const ctxBar = ctxUsed !== null
-        ? '<span style="color:' + ctxColor + ';font-size:10px">'
-          + '█'.repeat(ctxFill) + '░'.repeat(10 - ctxFill) + ' ' + ctxUsed + '%</span>'
-        : '';
-      // Header
-      const hdr = '<div class="sess-col-hdr">'
-        + '<div class="sess-col-name">'
-        + '<span style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:' + dotColor + (isLive ? ';box-shadow:0 0 5px ' + dotColor + ';animation:pulse 1.5s ease-in-out infinite' : '') + '"></span>'
-        + '<span style="font-size:12px;font-weight:' + (isLive ? '600' : '400') + ';color:' + (isLive ? '#e8e8e8' : '#aaa') + ';flex:1">' + esc(displayName) + '</span>'
-        + '<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:' + modelColor + '22;color:' + modelColor + '">' + esc(s.model) + '</span>'
-        + '<button data-focus-terminal="1" data-session-root="' + esc(s.root||'') + '" data-session-nick="' + esc(nick) + '" data-shell-pid="' + (s.shellPid||0) + '" data-session-started-at="' + esc(s.startedAt||'') + '" title="Open chat for ' + esc(nick) + '" style="background:#ffffff0d;border:1px solid #ffffff18;cursor:pointer;padding:2px 8px;border-radius:4px;color:#aaa;font-size:10px;line-height:1.6;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap" onmouseover="this.style.background=\'#ffffff1a\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'#ffffff0d\';this.style.color=\'#aaa\'">⌨ chat</button>'
-        + '<button data-open-session-tab="' + esc(s.sessionId||'') + '" title="Open session tab for ' + esc(nick) + '" style="background:#4a9eff0d;border:1px solid #4a9eff33;cursor:pointer;padding:2px 8px;border-radius:4px;color:#4a9eff;font-size:10px;line-height:1.6;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap" onmouseover="this.style.background=\'#4a9eff22\'" onmouseout="this.style.background=\'#4a9eff0d\'">↗ tab</button>'
-        + '<button data-close-session="' + esc(s.sessionId||'') + '" title="Dismiss session from dashboard" style="background:transparent;border:none;cursor:pointer;color:#ff453a;font-size:13px;line-height:1;padding:2px 4px;opacity:.5;flex-shrink:0" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'.5\'">×</button>'
-        + '</div>'
-        + '<div class="sess-col-grid">'
-        + (function(){
-            // streamPinned=true → user explicitly chose (even "none") — never override with d.activeStream
-            // streamPinned=false → no manual choice → fall back to workspace active stream
-            var effStream = s.streamPinned ? (s.stream || '') : (s.stream || d.activeStream || '');
-            var avail = s.availableStreams || [];
-            var opts = '<option value="">— none —</option>';
-            avail.forEach(function(slug) {
-              opts += '<option value="' + esc(slug) + '"' + (slug === effStream ? ' selected' : '') + '>' + esc(slug) + '</option>';
-            });
-            if (effStream && !avail.includes(effStream)) {
-              opts += '<option value="' + esc(effStream) + '" selected>' + esc(effStream) + ' ⚠</option>';
-            }
-            var autoLabel = (!s.streamPinned && effStream) ? '<span title="Auto from workspace BRIEF.md" style="font-size:9px;opacity:.35;flex-shrink:0">auto</span>' : '';
-            var closeBtn = effStream ? '<button data-close-stream-btn="1" data-stream-slug="' + esc(effStream) + '" data-session-root="' + esc(s.root||'') + '" style="flex-shrink:0;background:#ff453a18;border:1px solid #ff453a44;color:#ff453a;border-radius:4px;font-size:9px;padding:1px 7px;cursor:pointer;white-space:nowrap" onmouseover="this.style.background=\'#ff453a33\'" onmouseout="this.style.background=\'#ff453a18\'">Close</button>' : '';
-            return '<span style="opacity:.4;align-self:center">Stream</span>'
-              + '<span style="display:flex;align-items:center;gap:5px;min-width:0">'
-              + '<select data-sess-stream-select="1" data-session-id="' + esc(s.sessionId||'') + '" data-session-root="' + esc(s.root||'') + '" style="flex:1;min-width:0;max-width:150px;background:#1e1e2e;color:' + (effStream ? '#4a9eff' : '#666') + ';border:1px solid #4a9eff33;border-radius:4px;font-size:10px;padding:1px 5px;cursor:pointer;outline:none">' + opts + '</select>'
-              + autoLabel + closeBtn + '</span>';
-          })()
-        + (s.cost ? '<span style="opacity:.4">Cost</span><span>' + esc(s.cost) + '</span>' : '')
-        + (s.sessionTime ? '<span style="opacity:.4">Time</span><span>' + esc(s.sessionTime) + '</span>' : '')
-        + (ctxBar ? '<span style="opacity:.4">Context</span><span>' + ctxBar + '</span>' : '')
-        + (s.branch ? '<span style="opacity:.4">Branch</span><span style="font-family:monospace;font-size:10px">' + esc(s.branch) + '</span>' : '')
-        + '<span style="opacity:.4">Last</span><span style="opacity:.5">' + age + '</span>'
-        + (s.sessionLastRole ? '<span style="opacity:.4">Role</span><span style="color:#9c6af7;font-size:10px">◈ ' + esc(s.sessionLastRole) + '</span>' : '')
-        + (s.sessionLastSkill ? '<span style="opacity:.4">Skill</span><span style="color:#4caf84;font-size:10px">/ ' + esc(s.sessionLastSkill) + '</span>' : '')
-        + '</div>'
-        + '</div>';
-      // Agents panel (shown when agents active in last 30 min)
-      var agentsHtml = '';
-      if (s.agents && s.agents.length) {
-        var runningAgents = s.agents.filter(function(a) { return !a.done; });
-        var totalAgents = s.agents.length;
-        var sid = s.sessionId;
-        var expanded = window._agentExpanded && window._agentExpanded.has(sid);
-        var chevron = expanded ? '▾' : '▸';
-        var runBadge = runningAgents.length
-          ? '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:#4caf5022;color:#4caf50;font-weight:700">' + runningAgents.length + ' running</span>'
-          : '';
-        var doneBadge = (totalAgents - runningAgents.length) > 0
-          ? '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,.06);color:#888">' + (totalAgents - runningAgents.length) + ' done</span>'
-          : '';
-        var RECENT_MS = 5 * 60 * 1000; // 5 min — done agents older than this collapse to summary
-        var now = Date.now();
-        var recentDone = s.agents.filter(function(a){ return a.done && a.ts && (now - new Date(a.ts).getTime()) < RECENT_MS; });
-        var oldDone = s.agents.filter(function(a){ return a.done && (!a.ts || (now - new Date(a.ts).getTime()) >= RECENT_MS); });
-        var visibleAgents = runningAgents.concat(recentDone);
-        var agentRows = visibleAgents.map(function(a) {
-          var label = (a.label || 'agent').replace(/^role:[^·]+·\s*skill:[^·]+·\s*/i, '').trim() || (a.label || 'agent');
-          var roleColor = (a.role||'').toLowerCase().includes('debug') ? '#f44336' : (a.role||'').toLowerCase().includes('research') ? '#9c6af7' : '#4a9eff';
-          var pulse = a.done
-            ? '<span style="width:6px;height:6px;border-radius:50%;background:#4caf50;flex-shrink:0;display:inline-block;opacity:.5"></span>'
-            : '<span style="width:6px;height:6px;border-radius:50%;background:#4caf50;flex-shrink:0;display:inline-block;animation:pulse 1.5s ease-in-out infinite"></span>';
-          return '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;' + (a.done ? 'opacity:.4' : '') + '">'
-            + pulse
-            + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(label) + '</span>'
-            + (a.role ? '<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:' + roleColor + '22;color:' + roleColor + '">' + esc(a.role) + '</span>' : '')
-            + '<span style="font-size:9px;opacity:.3;white-space:nowrap">' + relTime(a.ts) + '</span>'
-            + '</div>';
-        }).join('');
-        if (oldDone.length) {
-          agentRows += '<div style="font-size:9px;opacity:.25;padding:4px 0;border-top:1px solid rgba(255,255,255,.05)">✓ ' + oldDone.length + ' done earlier</div>';
-        }
-        agentsHtml = '<div style="border-bottom:1px solid rgba(128,128,128,.1)">'
-          + '<div data-agents-toggle="' + esc(sid) + '" style="display:flex;align-items:center;gap:6px;padding:8px 14px;cursor:pointer;user-select:none" title="Toggle sub-agents">'
-          + '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#888">◈ Sub-agents</span>'
-          + '<span style="font-size:10px;font-weight:700;color:#888">· ' + totalAgents + '</span>'
-          + runBadge + doneBadge
-          + '<span style="margin-left:auto;font-size:11px;opacity:.4">' + chevron + '</span>'
-          + '</div>'
-          + '<div id="agents-body-' + esc(sid) + '" style="padding:' + (expanded ? '0 14px 8px' : '0') + ';display:' + (expanded ? 'block' : 'none') + '">'
-          + agentRows
-          + '</div>'
-          + '</div>';
-      }
+    } else {
+      sessionColsEl.innerHTML = _activeSessions.map(function(s) {
+        return AB.sessionCard.renderSessionCard(s, d, colBasis);
+      }).join('');
+    }
 
-      // Workflow panel — collapsible, shown when THIS session launched a workflow
-      var workflowHtml = '';
-      if (s.hasWorkflow) {
-        var wp2 = s.workflowPlan || null;
-        var wfSid = 'wf-' + s.sessionId;
-        var wfExpanded = window._workflowExpanded && window._workflowExpanded.has(wfSid);
-        var bgLaunch2 = wp2 && wp2.status === 'done' && wp2.ended_at && wp2.started_at
-          && (new Date(wp2.ended_at).getTime() - new Date(wp2.started_at).getTime() < 30000);
-        // Running if: no plan yet (workflow launched but parser didn't capture it), OR plan is not done, OR bg launch
-        var wfRunning = !wp2 || wp2.status !== 'done' || !!bgLaunch2;
-        var wfColor = wfRunning ? '#4a9eff' : '#4caf50';
-        var wfIcon = wfRunning ? '⟳' : '✓';
-        var wfLabel = (wp2 && wp2.name && wp2.name.toLowerCase() !== 'workflow') ? wp2.name : (s.workflowLabel && s.workflowLabel.toLowerCase() !== 'workflow' ? s.workflowLabel : '');
-
-        // Agents: transcript (journal-derived) > workflowPlan > AgentStart events
-        var txAgents = (s.workflowTranscriptAgents && s.workflowTranscriptAgents.length) ? s.workflowTranscriptAgents : null;
-        var wfAgents = txAgents || ((wp2 && wp2.agents && wp2.agents.length) ? wp2.agents : null);
-
-        // Accurate 3-state counts: running (journal started, no result) | standby (dispatched, not yet in journal) | done
-        var txRunning = txAgents ? txAgents.filter(function(a){return a.status!=='done';}).length : 0;
-        var txDone    = txAgents ? txAgents.filter(function(a){return a.status==='done';}).length  : 0;
-        var evNotDone = s.agents  ? s.agents.filter(function(a){return !a.done;}).length : 0;
-        // standby = dispatched by harness (AgentStart in events) but not yet started in journal
-        var standbyCount = txAgents ? Math.max(0, evNotDone - txRunning) : 0;
-
-        var wfRunningCount, wfDoneCount, wfAgentCount;
-        if (txAgents) {
-          wfRunningCount = txRunning;
-          wfDoneCount    = txDone;
-          wfAgentCount   = txRunning + txDone + standbyCount;
-        } else if (wfAgents) {
-          wfRunningCount = wfAgents.filter(function(a){return a.status!=='done';}).length;
-          wfDoneCount    = wfAgents.filter(function(a){return a.status==='done';}).length;
-          wfAgentCount   = wfAgents.length;
-          standbyCount   = 0;
-        } else {
-          wfRunningCount = evNotDone;
-          wfDoneCount    = s.agents ? s.agents.filter(function(a){return a.done;}).length : 0;
-          wfAgentCount   = s.agents ? s.agents.length : (s.workflowAgentCount || 0);
-          standbyCount   = 0;
-        }
-
-        // Header badges
-        var wfRunBadge     = wfRunningCount ? '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:'+wfColor+'22;color:'+wfColor+';font-weight:700">'+wfRunningCount+' running</span>' : '';
-        var wfStandbyBadge = standbyCount   ? '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:#ff980022;color:#ff9800;font-weight:700">'+standbyCount+' standby</span>' : '';
-        var wfDoneBadge    = wfDoneCount    ? '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,.06);color:#888">'+wfDoneCount+' done</span>' : '';
-        var wfChevron = wfExpanded ? '▾' : '▸';
-
-        workflowHtml = '<div style="border-bottom:1px solid rgba(128,128,128,.1)">'
-          + '<div data-workflow-toggle="'+esc(wfSid)+'" style="display:flex;align-items:center;gap:6px;padding:8px 14px;cursor:pointer;user-select:none">'
-          + '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:'+wfColor+'">'+wfIcon+' WORKFLOW</span>'
-          + (wfAgentCount ? '<span style="font-size:10px;color:'+wfColor+';opacity:.6">· '+wfAgentCount+'</span>' : '')
-          + wfRunBadge + wfStandbyBadge + wfDoneBadge
-          + (wfLabel ? '<span style="font-size:10px;opacity:.25;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(wfLabel)+'</span>' : '<span style="flex:1"></span>')
-          + '<span style="font-size:11px;opacity:.4">'+wfChevron+'</span>'
-          + '</div>';
-
-        // Expanded body
-        workflowHtml += '<div id="wf-body-'+esc(wfSid)+'" style="display:'+(wfExpanded?'block':'none')+';padding:'+(wfExpanded?'0 14px 10px':'0')+';max-height:260px;overflow-y:auto;scrollbar-width:thin">';
-
-        // Phase pills
-        if(wp2 && wp2.phases && wp2.phases.length) {
-          workflowHtml += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px">';
-          wp2.phases.forEach(function(p) {
-            var pAgents = wfAgents ? wfAgents.filter(function(a){return a.phase===p;}) : [];
-            var pDone = pAgents.length > 0 && pAgents.every(function(a){return a.status==='done';});
-            var pRunning = pAgents.some(function(a){return a.status!=='done';});
-            var pColor = pDone ? '#4caf50' : pRunning ? '#4a9eff' : '#888';
-            workflowHtml += '<span style="font-size:9px;padding:2px 7px;border-radius:8px;background:'+pColor+'18;color:'+pColor+';border:1px solid '+pColor+'33">'
-              +(pDone?'✓ ':pRunning?'⟳ ':'')+esc(p)+'</span>';
-          });
-          workflowHtml += '</div>';
-        }
-
-        // Agent rows — show running agents in detail; collapse done into summary
-        window._wfAgentExpanded = window._wfAgentExpanded || new Set();
-        if(wfAgents && wfAgents.length) {
-          var runningWfAgents = wfAgents.filter(function(a){ return a.status !== 'done'; });
-          var doneWfAgents = wfAgents.filter(function(a){ return a.status === 'done'; });
-          workflowHtml += runningWfAgents.map(function(a, ai) {
-            var mc = (a.model||'').toLowerCase();
-            var mColor = mc.includes('opus')?'#9c6af7':mc.includes('haiku')?'#4a9eff':'#ff9800';
-            var mLabel = a.model || '';
-            if(!txAgents) mLabel = mLabel.replace(/^claude-/,'').replace(/-\d{8}$/,'').replace(/-latest$/,'');
-            var taskLabel = (a.label||'agent').replace(/^role:[^·]+·\s*skill:[^·]+·\s*/i,'').trim()||(a.label||'agent');
-            var subDetail = txAgents ? (a.currentTool ? 'using '+a.currentTool : '') : (a.phase || '');
-            var agKey = wfSid+'-'+ai;
-            var agExpanded = window._wfAgentExpanded.has(agKey);
-            var labelStyle = agExpanded
-              ? 'flex:1;word-break:break-word;cursor:pointer;font-size:10px'
-              : 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;font-size:10px';
-            var chevronStr = agExpanded ? ' ▾' : ' ▸';
-            return '<div data-wf-agent-expand="'+agKey+'" style="display:flex;flex-direction:column;gap:1px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" title="Click to expand/collapse">'
-              +'<div style="display:flex;align-items:flex-start;gap:5px">'
-              +'<span title="Running" style="width:6px;height:6px;border-radius:50%;background:'+wfColor+';flex-shrink:0;display:inline-block;margin-top:3px;animation:pulse 1.2s ease-in-out infinite"></span>'
-              +'<span style="'+labelStyle+'">'+esc(taskLabel)+'<span style="opacity:.3">'+chevronStr+'</span></span>'
-              +'<span style="font-size:9px;color:'+wfColor+';opacity:.8;flex-shrink:0;font-weight:600">running</span>'
-              +(mLabel?'<span style="font-size:9px;padding:1px 5px;border-radius:6px;background:'+mColor+'22;color:'+mColor+';font-weight:600;flex-shrink:0">'+esc(mLabel)+'</span>':'')
-              +'</div>'
-              +(subDetail?'<div style="font-size:9px;opacity:.3;padding-left:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(subDetail)+'</div>':'')
-              +'</div>';
-          }).join('');
-          // Standby row — agents dispatched by harness but not yet started in journal
-          if(standbyCount > 0) {
-            workflowHtml += '<div style="display:flex;align-items:center;gap:5px;padding:4px 0;border-top:1px solid rgba(255,255,255,.04)">'
-              +'<span style="width:6px;height:6px;border-radius:50%;background:#ff9800;flex-shrink:0;display:inline-block;opacity:.6"></span>'
-              +'<span style="flex:1;font-size:10px;color:#ff9800;opacity:.7">'+standbyCount+' agent'+(standbyCount!==1?'s':'')+' on standby</span>'
-              +'<span style="font-size:9px;color:#ff9800;opacity:.5;font-weight:600">standby</span>'
-              +'</div>';
-          }
-          if(doneWfAgents.length) {
-            var doneModels=[];
-            doneWfAgents.forEach(function(a){var m=(a.model||'').trim();if(m&&doneModels.indexOf(m)<0)doneModels.push(m);});
-            workflowHtml += '<div style="font-size:9px;opacity:.28;padding:6px 0 2px;border-top:1px solid rgba(255,255,255,.05)">'
-              +'✓ '+doneWfAgents.length+' done'
-              +(doneModels.length?' · '+doneModels.join(', '):'')
-              +'</div>';
-          }
-        } else if(s.agents && s.agents.length) {
-          // Fall back to AgentStart events — show running only, summarize done
-          var runningEvAgents = s.agents.filter(function(a){ return !a.done; });
-          var doneEvAgents = s.agents.filter(function(a){ return a.done; });
-          workflowHtml += runningEvAgents.map(function(a) {
-            var label = (a.label||'agent').replace(/^role:[^·]+·\s*skill:[^·]+·\s*/i,'').trim()||(a.label||'agent');
-            var roleColor = (a.role||'').toLowerCase().includes('debug')?'#f44336':(a.role||'').toLowerCase().includes('research')?'#9c6af7':'#4a9eff';
-            return '<div style="display:flex;align-items:center;gap:5px;padding:3px 0;font-size:10px">'
-              +'<span style="width:5px;height:5px;border-radius:50%;background:'+wfColor+';flex-shrink:0;display:inline-block;animation:pulse 1.2s ease-in-out infinite"></span>'
-              +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(label)+'</span>'
-              +(a.role?'<span style="font-size:9px;padding:1px 5px;border-radius:6px;background:'+roleColor+'22;color:'+roleColor+'">'+esc(a.role)+'</span>':'')
-              +'<span style="font-size:9px;color:'+wfColor+';opacity:.7;font-weight:600">running</span>'
-              +'</div>';
-          }).join('');
-          if(doneEvAgents.length) {
-            workflowHtml += '<div style="font-size:9px;opacity:.28;padding:6px 0 2px;border-top:1px solid rgba(255,255,255,.05)">✓ '+doneEvAgents.length+' done</div>';
-          }
-        } else {
-          // Background workflow: harness returns immediately, agents run in background process
-          // — no hook events fire per-agent, only the total count (if parser found it) is known
-          var isBgWf = wp2 && wp2.status === 'done' && !!bgLaunch2;
-          var skelCount = (wp2 && wp2.total) || s.workflowAgentCount || 0;
-          if(isBgWf) {
-            workflowHtml += '<div style="font-size:10px;opacity:.5;padding:2px 0">Background workflow</div>'
-              + '<div style="font-size:9px;opacity:.3;margin-top:4px;line-height:1.5">'
-              + 'Agents run inside the workflow harness — individual tracking unavailable for background launches.'
-              + '</div>';
-          } else if(skelCount > 0) {
-            workflowHtml += '<div style="font-size:10px;opacity:.35;margin-bottom:6px">'+skelCount+' agent'+(skelCount!==1?'s':'')+' — waiting for details</div>';
-            for(var wi=0;wi<Math.min(skelCount,8);wi++) {
-              workflowHtml += '<div style="display:flex;align-items:center;gap:6px;padding:3px 0">'
-                +'<span style="width:5px;height:5px;border-radius:50%;background:'+wfColor+';flex-shrink:0;display:inline-block;animation:pulse 1.2s ease-in-out infinite;animation-delay:'+(wi*0.15)+'s"></span>'
-                +'<span style="flex:1;height:8px;border-radius:3px;background:rgba(255,255,255,.06)"></span>'
-                +'</div>';
-            }
-          } else {
-            workflowHtml += '<div style="font-size:10px;opacity:.35;padding:4px 0">Workflow running — agent count unknown</div>';
-          }
-        }
-        workflowHtml += '</div></div>';
-      }
-
-      // Activity feed
-      const TOOL_ICON_LOCAL={Edit:'✏',Write:'✏',Bash:'$',Read:'👁',WebSearch:'⌕',WebFetch:'⌕',Agent:'◈',Skill:'⚡'};
-      var sessRoot = s.root || '';
-      const acts = (s.activity || []).map(function(f) {
-        const icon = TOOL_ICON_LOCAL[f.tool] || '·';
-        const isCmd = f.file.startsWith('$ ');
-        const isEdited = (f.tool === 'Edit' || f.tool === 'Write' || f.tool === 'MultiEdit') && !isCmd;
-        const ago = relTime(f.lastTs);
-
-        // Large-edit warning: total lines changed >= 50
-        var totalChanged = (f.added || 0) + (f.deleted || 0);
-        var editWarn = '';
-        if (isEdited && totalChanged >= 50) {
-          var warnColor = AB_CORE.editWarnColor(totalChanged);
-          editWarn = '<span title="'+totalChanged+' lines changed" style="color:'+warnColor+';font-size:11px;flex-shrink:0;margin-right:2px">⚠</span>';
-        }
-
-        // File-size badge: line count tiers
-        var sizeBadge = '';
-        if (f.lineCount && !(window._ignoredSizeFiles && window._ignoredSizeFiles.has(f.file))) {
-          var lc = f.lineCount;
-          var sizeColor = AB_CORE.sizeColor(lc);
-          if (sizeColor) {
-            var sizeLabel = AB_CORE.sizeLabel(lc);
-            sizeBadge = '<span class="fa-size-badge" title="'+lc+' lines — '+AB_CORE.sizeDescription(lc)+'" style="font-size:9px;padding:1px 5px;border-radius:8px;background:'+sizeColor+'22;color:'+sizeColor+';border:1px solid '+sizeColor+'44;flex-shrink:0;cursor:default">'+sizeLabel+'L</span>';
-          }
-        }
-
-        var rowBg = f.isNew ? 'background:rgba(40,200,80,.07);border-left:2px solid rgba(40,200,80,.35);padding-left:4px;' : f.isDeleted ? 'background:rgba(220,60,60,.07);border-left:2px solid rgba(220,60,60,.35);padding-left:4px;' : '';
-        var hasMenu = isEdited || (f.lineCount || 0) >= 500;
-        const diffAttrs = hasMenu
-          ? ' data-open-diff="'+esc(f.file)+'" data-session-root="'+esc(sessRoot)+'"'+(f.isNew?' data-is-new="1"':'')+(f.isDeleted?' data-is-deleted="1"':'')
-            +' data-line-count="'+(f.lineCount||0)+'"'
-            +' data-added="'+(f.added||0)+'" data-deleted="'+(f.deleted||0)+'" data-total-changed="'+totalChanged+'"'
-            +' data-session-id="'+esc(s.sessionId||'')+'"'
-            +' data-shell-pid="'+(s.shellPid||0)+'"'
-            +' data-session-nick="'+esc(s.nick||'')+'"'
-            +' data-session-provider="'+esc(s.provider||s.model||'')+'"'
-            +' title="Click for options" style="cursor:pointer;'+rowBg+'"'
-          : (rowBg ? ' style="'+rowBg+'"' : '');
-        return '<div class="fa"'+diffAttrs+'>'
-          + '<span class="fa-icon">' + icon + '</span>'
-          + '<div class="fa-body">'
-          + '<span class="fa-file" title="'+esc(f.file)+'"'+(isEdited?' onmouseover="this.style.color=\'#7cbfff\'" onmouseout="this.style.color=\'\'"':'')+' style="color:' + (isCmd ? '#f0b429' : 'inherit') + '">' + esc(f.file) + '</span>'
-          + (isEdited && (f.added != null || f.deleted != null)
-            ? '<span style="font-size:10px;white-space:nowrap;flex-shrink:0">'
-              + (f.added  ? '<span style="color:#4caf50">+' + f.added  + '</span>' : '')
-              + (f.added && f.deleted ? '<span style="opacity:.3"> / </span>' : '')
-              + (f.deleted ? '<span style="color:#f44336">-' + f.deleted + '</span>' : '')
-              + '</span>'
-            : '')
-          + (f.count > 1 ? '<span class="fa-cnt">×' + f.count + '</span>' : '')
-          + '<span class="fa-t">' + ago + '</span>'
-          + sizeBadge
-          + editWarn
-          + (f.committed && f.added == null && f.deleted == null ? '<span title="Committed to branch" style="color:#4caf50;font-size:11px;flex-shrink:0;margin-left:2px">✓</span>' : '')
-          + '</div>'
-          + '</div>';
-      }).join('') || '<div class="em" style="padding:8px 14px">No activity yet</div>';
-      var actSid = 'act-' + s.sessionId;
-      var actExpanded = !window._actCollapsed || !window._actCollapsed.has(actSid); // default open
-      var actChevron = actExpanded ? '▾' : '▸';
-      var actCount = s.activity ? s.activity.length : 0;
-      var actHdr = '<div data-act-toggle="'+esc(actSid)+'" style="display:flex;align-items:center;gap:6px;padding:6px 14px;cursor:pointer;border-top:1px solid rgba(128,128,128,.1);user-select:none">'
-        + '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.35">Activity</span>'
-        + (actCount ? '<span style="font-size:10px;opacity:.25">'+actCount+'</span>' : '')
-        + '<span style="margin-left:auto;font-size:11px;opacity:.3">'+actChevron+'</span>'
-        + '</div>';
-      var actBody = '<div id="act-body-'+esc(actSid)+'" style="display:'+(actExpanded?'block':'none')+';padding:4px 14px;max-height:260px;overflow-y:auto;scrollbar-width:thin">' + acts + '</div>';
-      return '<div class="sess-col" style="flex:1 1 ' + colBasis + '">' + hdr + '</div>';
-    } catch(e) { return '<div class="sess-col" style="padding:12px;opacity:.4;font-size:11px">Error rendering session: '+(e&&e.message||e)+'</div>'; }
-    }).join('');
-    // Restore scroll positions after re-render
-    Object.keys(_scrollState).forEach(function(id){
-      var el=document.getElementById(id);
-      if(el) el.scrollTop=_scrollState[id];
+    // Restore scroll positions
+    Object.keys(_scrollState).forEach(function(id) {
+      var el = document.getElementById(id); if (el) el.scrollTop = _scrollState[id];
     });
 
-    // Streams in bottom row — collapsible
-    const srTtl2 = document.getElementById('sr-ttl2');
+    // Streams in bottom row
+    const srTtl2  = document.getElementById('sr-ttl2');
     const srList2 = document.getElementById('sr-list2');
-    if (srTtl2) {
-      srTtl2.textContent = 'Active streams (' + d.streams.length + ')';
-      srTtl2.removeAttribute('data-toggle-id');
-    }
-    if (srList2) srList2.innerHTML = renderStreams(d.streams, d.activeStream);
+    if (srTtl2) { srTtl2.textContent = 'Active streams (' + d.streams.length + ')'; srTtl2.removeAttribute('data-toggle-id'); }
+    if (srList2) srList2.innerHTML = AB.streams.renderStreams(d.streams, d.activeStream);
   } else {
-    // Single-session: restore original layout
     if (liveBody) liveBody.classList.remove('multi');
     var secMultiSessEl2 = document.getElementById('sec-multi-sessions');
     if (secMultiSessEl2) secMultiSessEl2.style.display = 'none';
     if (sessionColsEl) sessionColsEl.style.display = 'none';
-    if (streamsRowEl) streamsRowEl.style.display = 'none';
+    if (streamsRowEl)  streamsRowEl.style.display = 'none';
     if (colL) colL.style.display = '';
     if (colR) colR.style.display = '';
-
-    // Show/hide single-session blocks
-    const sessionsSecEl = document.getElementById('sec-sessions');
-    const singleSecEl = document.getElementById('sec-session-single');
+    var sessionsSecEl = document.getElementById('sec-sessions');
+    var singleSecEl   = document.getElementById('sec-session-single');
     if (sessionsSecEl) sessionsSecEl.style.display = 'none';
-    // Session tabs already show model/cost/time/context/branch in the identity header — hide the redundant SESSION block
-    if (singleSecEl) singleSecEl.style.display = d.isSessionTab ? 'none' : '';
+    if (singleSecEl)   singleSecEl.style.display = d.isSessionTab ? 'none' : '';
   }
 
-  // streams (single-session path)
+  // Streams (single-session path)
   if (!multiSession) {
-  txt('sr-ttl','Active streams ('+d.streams.length+')');
-  if(!d.streams.length){html('sr-list','<div class="em">No active streams</div>');}
-  else {
-    const srList=document.getElementById('sr-list');
-    if(srList){srList.innerHTML=renderStreams(d.streams,d.activeStream);}
+    txt('sr-ttl', 'Active streams (' + d.streams.length + ')');
+    if (!d.streams.length) { html('sr-list', '<div class="em">No active streams</div>'); }
+    else { const srList = document.getElementById('sr-list'); if (srList) srList.innerHTML = AB.streams.renderStreams(d.streams, d.activeStream); }
   }
-  } // end if(!multiSession) streams block
 
-  // session stats (single-session only)
-  txt('sv-model',d.model||'—');
-  txt('sv-stream',d.activeStream||'—');
-  txt('sv-cost',d.cost||'—');
-  txt('sv-time',d.sessionTime||'—');
-  const svCtx=document.getElementById('sv-ctx');if(svCtx)svCtx.innerHTML=ctxBar(d.ctxPct);
-  txt('sv-branch',d.branch||'—');
+  // Session stats (single-session only)
+  txt('sv-model',  d.model       || '—');
+  txt('sv-stream', d.activeStream|| '—');
+  txt('sv-cost',   d.cost        || '—');
+  txt('sv-time',   d.sessionTime || '—');
+  const svCtx = document.getElementById('sv-ctx'); if (svCtx) svCtx.innerHTML = ctxBar(d.ctxPct);
+  txt('sv-branch', d.branch      || '—');
 
-  const secRole=document.getElementById('sec-role');
-  const rg=document.getElementById('role-grid');
-  const rows=[];
-  if(d.activeRole)rows.push('<span class="sk">Role</span><span class="sv sv-role">'+esc(d.activeRole)+'</span>');
-  if(d.lastSkill)rows.push('<span class="sk">Skill</span><span class="sv sv-skill">/'+esc(d.lastSkill)+'</span>');
-  if(secRole&&rg){secRole.style.display=rows.length?'':'none';rg.innerHTML=rows.join('');}
+  // Role / skill display
+  const secRole = document.getElementById('sec-role');
+  const rg      = document.getElementById('role-grid');
+  const rows    = [];
+  if (d.activeRole) rows.push('<span class="sk">Role</span><span class="sv sv-role">' + esc(d.activeRole) + '</span>');
+  if (d.lastSkill)  rows.push('<span class="sk">Skill</span><span class="sv sv-skill">/' + esc(d.lastSkill) + '</span>');
+  if (secRole && rg) { secRole.style.display = rows.length ? '' : 'none'; rg.innerHTML = rows.join(''); }
 
-  // catalog
-  txt('cnt-skills',String(d.skillCount));
-  txt('cnt-roles',String(d.roleCount));
-  txt('cnt-cmds',String(d.commands.length));
-  renderCatalogCol('list-skills',d.skills,'#4a9eff');
+  // Catalog
+  txt('cnt-skills', String(d.skillCount));
+  txt('cnt-roles',  String(d.roleCount));
+  txt('cnt-cmds',   String(d.commands.length));
+  AB.catalog.renderCatalogCol('list-skills', d.skills,   '#4a9eff');
   window._rolesData = d.roles;
-  renderRolesCol('list-roles',d.roles,'#9c6af7');
-  renderCatalogCol('list-cmds',d.commands,'#888');
+  AB.catalog.renderRolesCol('list-roles',   d.roles,    '#9c6af7');
+  AB.catalog.renderCatalogCol('list-cmds',  d.commands, '#888');
 
-  // footer — global counts only (session-specific data is shown on each session card)
-  html('footer','<span style="opacity:.25;font-size:10px">'+d.skillCount+' skills · '+d.roleCount+' roles · '+d.streams.length+' streams</span>');
+  // Footer
+  html('footer', '<span style="opacity:.25;font-size:10px">' + d.skillCount + ' skills · ' + d.roleCount + ' roles · ' + d.streams.length + ' streams</span>');
   applySectionFoldState();
 }
 
-window.addEventListener('message',function(e){
-  const d=e.data;if(d.type!=='update')return;
+window.addEventListener('message', function(e) {
+  const d = e.data; if (d.type !== 'update') return;
   applyUpdate(d);
 });
 
 // Tell the extension this webview is live — triggers a fresh data push.
-// Handles the case where the extension reloaded/reinstalled after this panel was already open.
 vscode.postMessage({command:'webviewReady'});
 
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){var m=document.getElementById('_file-menu');if(m)m.style.display='none';}
-});
-
-// Stream select — manual session→stream pin (change event)
-document.addEventListener('change',function(e){
-  var sel = e.target.closest('[data-sess-stream-select]');
-  if(!sel) return;
-  vscode.postMessage({command:'setSessionStream', sessionId:sel.dataset.sessionId||'', streamSlug:sel.value, sessionRoot:sel.dataset.sessionRoot||''});
-});
-
-// Event delegation — handles tabs, stream toggles, open-stream, refresh, agents toggle
-document.addEventListener('click',function(e){
-  const t=e.target;
-  // KPI group fold toggle
-  var kpiLbl = t.closest('.kpi-group-lbl');
-  if (kpiLbl) {
-    var kpiGrp = kpiLbl.closest('.kpi-group');
-    if (kpiGrp) {
-      window._kpiFolded = window._kpiFolded || new Set();
-      var kpiKey = kpiGrp.dataset.kpiGroup || '';
-      if (window._kpiFolded.has(kpiKey)) { window._kpiFolded.delete(kpiKey); } else { window._kpiFolded.add(kpiKey); }
-      kpiGrp.classList.toggle('folded');
-      var kpiRow = kpiGrp.querySelector('.kpi-row');
-      if (kpiRow) kpiRow.style.display = kpiGrp.classList.contains('folded') ? 'none' : '';
-      _saveUiState();
-    }
-    return;
-  }
-  // Foldable section toggle
-  var foldHdr = t.closest('.sec-ttl.foldable');
-  if (foldHdr && !t.closest('[data-toggle-id]') && !t.closest('[data-view]')) {
-    var foldSec = foldHdr.closest('.sec');
-    if (foldSec) {
-      var foldKey = foldSec.id || foldHdr.textContent || '';
-      window._sectionFolded = window._sectionFolded || new Set();
-      foldSec.classList.toggle('folded');
-      if (foldSec.classList.contains('folded')) window._sectionFolded.add(foldKey);
-      else window._sectionFolded.delete(foldKey);
-      _saveUiState();
-    }
-    return;
-  }
-  // Session tab: Open Chat button
-  var chatBtn = t.closest('[data-chat-btn]');
-  if (chatBtn) {
-    vscode.postMessage({command:'focusTerminal', shellPid:parseInt(chatBtn.dataset.shellPid||'0',10), sessionNick:chatBtn.dataset.sessionNick||'', sessionRoot:chatBtn.dataset.sessionRoot||'', sessionId:chatBtn.dataset.sessionId||''});
-    return;
-  }
-  // Session tab: sibling session pill
-  var sibBtn = t.closest('[data-focus-sibling]');
-  if (sibBtn) {
-    vscode.postMessage({command:'focusSessionTab', targetSessionId:sibBtn.dataset.focusSibling||''});
-    return;
-  }
-  // Main hub: "↗ tab" button on session card
-  var openTabBtn = t.closest('[data-open-session-tab]');
-  if (openTabBtn) {
-    vscode.postMessage({command:'focusSessionTab', targetSessionId:openTabBtn.dataset.openSessionTab||''});
-    return;
-  }
-  // Session tab: refresh button (inside session-hdr)
-  var rhdrBtn = t.closest('[data-refresh-btn]');
-  if (rhdrBtn) { vscode.postMessage({command:'refresh'}); return; }
-  // Refresh button
-  if(t.id==='refresh-btn'||t.closest('#refresh-btn')){
-    var rbtn=document.getElementById('refresh-btn');
-    if(rbtn){rbtn.textContent='↻ Refreshing…';rbtn.disabled=true;setTimeout(function(){rbtn.textContent='↻ Refresh';rbtn.disabled=false;},1200);}
-    vscode.postMessage({command:'refresh'});return;
-  }
-  // File options menu (diff / copy path)
-  if(t.closest('#_file-menu')){
-    if(t.closest('[data-menu-close]')){
-      const menu=document.getElementById('_file-menu');
-      if(menu) menu.style.display='none';
-      e.stopPropagation(); return;
-    }
-    const fm=t.closest('[data-fm]');
-    if(fm){
-      const menu=document.getElementById('_file-menu');
-      const fp=menu._filePath||''; const sr=menu._sessionRoot||'';
-      if(fm.dataset.fm==='diff'){
-        vscode.postMessage({command:'openDiff',filePath:fp,sessionRoot:sr,isNew:menu._isNew||false});
-      } else if(fm.dataset.fm==='copy'){
-        vscode.postMessage({command:'copyPath',filePath:fp,sessionRoot:sr});
-      } else if(fm.dataset.fm==='explain-change'){
-        vscode.postMessage({command:'explainChange',filePath:fp,sessionRoot:sr,added:menu._added||0,deleted:menu._deleted||0,totalChanged:menu._totalChanged||0,shellPid:menu._shellPid||0,sessionNick:menu._sessionNick||'',sessionId:menu._sessionId||''});
-      } else if(fm.dataset.fm==='refactor-here'){
-        vscode.postMessage({command:'refactorInSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0,shellPid:menu._shellPid||0,sessionNick:menu._sessionNick||'',sessionId:menu._sessionId||''});
-      } else if(fm.dataset.fm==='refactor-new-codex'||fm.dataset.fm==='refactor-new-claude'||fm.dataset.fm==='refactor-new-gemini'||fm.dataset.fm==='refactor-new'){
-        var agentProvider = fm.dataset.provider || fm.dataset.fm.replace('refactor-new-','');
-        if(agentProvider==='refactor-new') agentProvider='';
-        vscode.postMessage({command:'refactorNewSession',filePath:fp,sessionRoot:sr,lineCount:menu._lineCount||0,sessionProvider:menu._sessionProvider||'',agentProvider:agentProvider});
-      } else if(fm.dataset.fm==='ignore-size'){
-        window._ignoredSizeFiles = window._ignoredSizeFiles || new Set();
-        if(window._ignoredSizeFiles.has(fp)){
-          window._ignoredSizeFiles.delete(fp);
-        } else {
-          window._ignoredSizeFiles.add(fp);
-          if(menu._sourceEl){
-            var badge=menu._sourceEl.querySelector('.fa-size-badge');
-            if(badge) badge.remove();
-          }
-        }
-        vscode.postMessage({command:'toggleIgnoreSize',filePath:fp,sessionRoot:sr});
-      }
-      menu.style.display='none';
-    }
-    e.stopPropagation(); return;
-  }
-  // Close file menu on outside click
-  const existMenu=document.getElementById('_file-menu');
-  if(existMenu&&existMenu.style.display!=='none'&&!existMenu.contains(t)){
-    existMenu.style.display='none';
-  }
-  // Open file options menu on click
-  const diffEl = t.closest('[data-open-diff]');
-  if(diffEl){
-    e.stopPropagation();
-    var menu=document.getElementById('_file-menu');
-    if(!menu){
-      menu=document.createElement('div');
-      menu.id='_file-menu';
-      menu.style.cssText='position:fixed;z-index:9999;background:#252526;border:1px solid rgba(255,255,255,.12);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,.6);display:none;flex-direction:column;min-width:200px;overflow:hidden;padding:3px 0';
-      document.body.appendChild(menu);
-    }
-    menu._filePath=diffEl.dataset.openDiff||'';
-    menu._sessionRoot=diffEl.dataset.sessionRoot||'';
-    menu._isNew=diffEl.dataset.isNew==='1';
-    menu._isDeleted=diffEl.dataset.isDeleted==='1';
-    menu._lineCount=parseInt(diffEl.dataset.lineCount||'0',10);
-    menu._added=parseInt(diffEl.dataset.added||'0',10);
-    menu._deleted=parseInt(diffEl.dataset.deleted||'0',10);
-    menu._totalChanged=parseInt(diffEl.dataset.totalChanged||'0',10);
-    menu._sessionId=diffEl.dataset.sessionId||'';
-    menu._shellPid=parseInt(diffEl.dataset.shellPid||'0',10);
-    menu._sessionNick=diffEl.dataset.sessionNick||'';
-    menu._sessionProvider=diffEl.dataset.sessionProvider||'';
-    menu._sourceEl=diffEl;
-    var _sep='<div style="border-top:1px solid rgba(255,255,255,.07);margin:3px 0"></div>';
-    var _fmItem=function(fm,icon,label,color,hint){
-      var c=color||'#d4d4d4';
-      var base='padding:7px 14px;cursor:pointer;font-size:12px;color:'+c+';display:flex;align-items:center;gap:8px;transition:background .12s,border-color .12s;border-left:2px solid transparent;box-sizing:border-box';
-      var over='this.style.background=\'rgba(255,255,255,.1)\';this.style.borderLeftColor=\''+c+'\'';
-      var out='this.style.background=\'\';this.style.borderLeftColor=\'transparent\'';
-      return '<div data-fm="'+fm+'" style="'+base+'" onmouseenter="'+over+'" onmouseleave="'+out+'">'
-        +'<span style="font-size:13px;width:18px;text-align:center;flex-shrink:0;display:inline-block;transition:transform .12s" onmouseenter="this.style.transform=\'scale(1.25)\'" onmouseleave="this.style.transform=\'\'">'+icon+'</span>'
-        +'<span style="flex:1">'+label+'</span>'
-        +(hint?'<span style="font-size:9px;white-space:nowrap">'+hint+'</span>':'')
-        +'</div>';
-    };
-    var _diffHint='';
-    if(menu._added||menu._deleted){
-      _diffHint=(menu._added?'<span style="color:#4caf50">+'+menu._added+'</span>':'')
-        +(menu._added&&menu._deleted?'<span style="opacity:.3"> / </span>':'')
-        +(menu._deleted?'<span style="color:#f44336">-'+menu._deleted+'</span>':'');
-    }
-    var _mHtml = '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px 4px 14px;border-bottom:1px solid rgba(255,255,255,.07)">'
-      + '<span style="flex:1;font-size:10px;opacity:.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(menu._filePath||'')+'">'+esc(menu._filePath||'File actions')+'</span>'
-      + '<button data-menu-close="1" title="Close" style="width:20px;height:20px;line-height:18px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#aaa;border-radius:4px;cursor:pointer;padding:0;font-size:13px">×</button>'
-      + '</div>';
-    _mHtml += _fmItem('diff', menu._isNew||menu._isDeleted?'↗️':'↔️', menu._isNew||menu._isDeleted?'Open file':'Open diff','#d4d4d4',_diffHint);
-    _mHtml += _fmItem('copy','📋','Copy path');
-    if(menu._totalChanged>=50){
-      var _wHint=(menu._added?'<span style="color:#4caf50">+'+menu._added+'</span>':'')
-        +(menu._added&&menu._deleted?'<span style="opacity:.3"> / </span>':'')
-        +(menu._deleted?'<span style="color:#f44336">-'+menu._deleted+'</span>':'');
-      _mHtml += _sep;
-      _mHtml += _fmItem('explain-change','🔍','Explain this change','#89ddff',_wHint);
-    }
-    if(menu._lineCount>=500){
-      var _lcTier=menu._lineCount>=1000?'🔴':menu._lineCount>=800?'🟠':'🟡';
-      var _lcHint='<span style="opacity:.45">'+_lcTier+' '+menu._lineCount+'L</span>';
-      if(menu._totalChanged<50) _mHtml += _sep;
-      _mHtml += _fmItem('refactor-here','⚡','Refactor in this session','#c792ea',_lcHint);
-      _mHtml += _fmItem('refactor-new-codex','✨','Refactor in new Codex session','#82aaff');
-      _mHtml += _fmItem('refactor-new-claude','☄','Refactor in new Claude session','#c792ea');
-      _mHtml += _fmItem('refactor-new-gemini','◇','Refactor in new Gemini session','#8bd5ca');
-      var _alreadyIgnored = window._ignoredSizeFiles && window._ignoredSizeFiles.has(menu._filePath || '');
-      _mHtml += _fmItem('ignore-size', _alreadyIgnored?'🔔':'🔕', _alreadyIgnored?'Show size badge':'Ignore size badge','#888');
-    }
-    menu.innerHTML=_mHtml;
-    var rect=diffEl.getBoundingClientRect();
-    // Measure before showing so we can flip above the row if needed
-    menu.style.visibility='hidden';
-    menu.style.display='flex';
-    var menuH=menu.offsetHeight||180;
-    var spaceBelow=window.innerHeight-rect.bottom-8;
-    var menuTop=spaceBelow>=menuH ? rect.bottom+2 : Math.max(4, rect.top-menuH-2);
-    menu.style.left=Math.min(e.clientX, window.innerWidth-220)+'px';
-    menu.style.top=menuTop+'px';
-    menu.style.visibility='';
-    return;
-  }
-  // Workflow agent label expand/collapse
-  const wfAgentEl = t.closest('[data-wf-agent-expand]');
-  if(wfAgentEl){
-    var agKey2 = wfAgentEl.dataset.wfAgentExpand;
-    window._wfAgentExpanded = window._wfAgentExpanded || new Set();
-    var labelEl = wfAgentEl.querySelector('span[style*="cursor:pointer"]');
-    if(window._wfAgentExpanded.has(agKey2)){
-      window._wfAgentExpanded.delete(agKey2);
-      if(labelEl){ labelEl.style.whiteSpace='nowrap'; labelEl.style.overflow='hidden'; labelEl.style.textOverflow='ellipsis'; labelEl.style.wordBreak=''; }
-    } else {
-      window._wfAgentExpanded.add(agKey2);
-      if(labelEl){ labelEl.style.whiteSpace='normal'; labelEl.style.overflow='visible'; labelEl.style.textOverflow='clip'; labelEl.style.wordBreak='break-word'; }
-    }
-    return;
-  }
-  // Close stream button
-  const closeStreamBtn = t.closest('[data-close-stream-btn]');
-  if(closeStreamBtn){
-    e.stopPropagation();
-    var slug = closeStreamBtn.dataset.streamSlug || '';
-    var sRoot2 = closeStreamBtn.dataset.sessionRoot || '';
-    if(slug && confirm('Run "agentboard close ' + slug + '" in a new terminal?')){
-      vscode.postMessage({command:'closeStream', streamSlug:slug, sessionRoot:sRoot2});
-    }
-    return;
-  }
-  // Close session button
-  const closeSessBtn = t.closest('[data-close-session]');
-  if(closeSessBtn){
-    e.stopPropagation();
-    vscode.postMessage({command:'closeSession',sessionId:closeSessBtn.dataset.closeSession||''});
-    return;
-  }
-  // Focus terminal button
-  const ftBtn = t.closest('[data-focus-terminal]');
-  if(ftBtn){
-    e.stopPropagation();
-    vscode.postMessage({command:'focusTerminal',sessionRoot:ftBtn.dataset.sessionRoot||'',sessionNick:ftBtn.dataset.sessionNick||'',shellPid:parseInt(ftBtn.dataset.shellPid||'0',10),sessionStartedAt:ftBtn.dataset.sessionStartedAt||''});
-    return;
-  }
-  // Workflow toggle
-  const wfToggle=t.closest('[data-workflow-toggle]');
-  if(wfToggle){
-    var wfSid=wfToggle.dataset.workflowToggle;
-    var wfBody=document.getElementById('wf-body-'+wfSid);
-    var wfChevronEl=wfToggle.querySelector('span:last-child');
-    if(wfBody){
-      var wfOpen=wfBody.style.display!=='none';
-      if(wfOpen){
-        wfBody.style.display='none';wfBody.style.padding='0';
-        window._workflowExpanded.delete(wfSid);
-        if(wfChevronEl)wfChevronEl.textContent='▸';
-      } else {
-        wfBody.style.display='block';wfBody.style.padding='0 14px 10px';
-        window._workflowExpanded.add(wfSid);
-        if(wfChevronEl)wfChevronEl.textContent='▾';
-      }
-      _saveUiState();
-    }
-    return;
-  }
-  // Activity toggle
-  const actToggle=t.closest('[data-act-toggle]');
-  if(actToggle){
-    window._actCollapsed=window._actCollapsed||new Set();
-    var actSid=actToggle.dataset.actToggle;
-    var actBody=document.getElementById('act-body-'+actSid);
-    var actChevEl=actToggle.querySelector('span:last-child');
-    if(actBody){
-      var actOpen=actBody.style.display!=='none';
-      if(actOpen){actBody.style.display='none';window._actCollapsed.add(actSid);if(actChevEl)actChevEl.textContent='▸';}
-      else{actBody.style.display='block';window._actCollapsed.delete(actSid);if(actChevEl)actChevEl.textContent='▾';}
-      _saveUiState();
-    }
-    return;
-  }
-  // Sub-agents toggle
-  const agToggle=t.closest('[data-agents-toggle]');
-  if(agToggle){
-    var sid=agToggle.dataset.agentsToggle;
-    var body=document.getElementById('agents-body-'+sid);
-    var chevronEl=agToggle.querySelector('span:last-child');
-    if(body){
-      var open=body.style.display!=='none';
-      if(open){
-        body.style.display='none';body.style.padding='0';
-        window._agentExpanded.delete(sid);
-        if(chevronEl)chevronEl.textContent='▸';
-      } else {
-        body.style.display='block';body.style.padding='0 14px 8px';
-        window._agentExpanded.add(sid);
-        if(chevronEl)chevronEl.textContent='▾';
-      }
-      _saveUiState();
-    }
-    return;
-  }
-  // Role launch button
-  const launchBtn = t.closest('[data-launch-role]');
-  if (launchBtn) {
-    e.stopPropagation();
-    vscode.postMessage({command:'launchRole',slug:launchBtn.dataset.launchRole||'',name:launchBtn.dataset.launchRoleName||''});
-    return;
-  }
-  // Role card selection (toggle)
-  const roleCard = t.closest('[data-role-select]');
-  if (roleCard && !t.closest('[data-launch-role]')) {
-    var slug2 = roleCard.dataset.roleSelect;
-    window._selectedRole = window._selectedRole === slug2 ? null : slug2;
-    renderRolesCol('list-roles', window._rolesData || [], '#9c6af7');
-    // Don't return — still allow data-cat-toggle to fire for expand
-  }
-  // Catalog item expand/collapse
-  const catToggle = t.closest('[data-cat-toggle]');
-  if (catToggle) {
-    window._catExpanded = window._catExpanded || new Set();
-    var cid = catToggle.dataset.catToggle;
-    var cbody = document.getElementById(cid + '-body');
-    var changed = catToggle.querySelector('span[style*="opacity:.25"]');
-    if (cbody) {
-      var copen = cbody.style.display !== 'none';
-      cbody.style.display = copen ? 'none' : 'block';
-      if (changed) changed.textContent = copen ? '▸' : '▾';
-      if (copen) window._catExpanded.delete(cid); else window._catExpanded.add(cid);
-      _saveUiState();
-    }
-    return;
-  }
-  // Tab buttons
-  const tab=t.closest('[data-view]');
-  if(tab){switchTab(tab.dataset.view,tab);return;}
-  // Stream header toggle
-  const hdr=t.closest('[data-toggle-id]');
-  if(hdr){toggleStream(hdr.dataset.toggleId,hdr.dataset.streamSlug||'');return;}
-  // Open stream file button
-  const openBtn=t.closest('[data-open-stream]');
-  if(openBtn){vscode.postMessage({command:'openStream',filePath:openBtn.dataset.openStream});return;}
-});
+// Wire up all event handlers
+AB.events.initEvents(vscode);
 
 // Read initial data from embedded JSON element (avoids inline script CSP issues)
-(function(){
-  const el=document.getElementById('ab-data');
-  if(!el)return;
-  try{
-    const d=JSON.parse(el.textContent||'');
-    if(d&&d.type==='update')applyUpdate(d);
-  }catch(e){}
+(function() {
+  const el = document.getElementById('ab-data');
+  if (!el) return;
+  try {
+    const d = JSON.parse(el.textContent || '');
+    if (d && d.type === 'update') applyUpdate(d);
+  } catch(e) {}
 })();

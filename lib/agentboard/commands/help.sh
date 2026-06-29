@@ -154,6 +154,11 @@ COMMANDS
                              --domains           domains/ only
                              --memory            memory/ only
                              --conventions       conventions/ only
+  synthesize                 Show knowledge synthesis status — how many archived
+                             streams, QA docs, and memory files exist and when
+                             .platform/knowledge/ was last synthesized.
+                             Run /ab-synthesize in Claude Code to actually
+                             generate the 8 knowledge domain docs.
   role [list]                List agent role profiles from .platform/roles/
                              (label, name, mission — colored per role)
   role show <slug>           Print one role profile file in full

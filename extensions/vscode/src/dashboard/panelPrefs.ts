@@ -4,6 +4,7 @@ import * as path from "path";
 
 const ignoreSizes = new Map<string, Set<string>>();
 const streamOverrides = new Map<string, string>();
+const branchOverrides = new Map<string, string>();
 
 function ignoreSizePath(): string {
   return path.join(os.homedir(), ".agentboard", "ignore-sizes.json");
@@ -11,6 +12,10 @@ function ignoreSizePath(): string {
 
 function overridesPath(): string {
   return path.join(os.homedir(), ".agentboard", "session-stream-overrides.json");
+}
+
+function branchOverridesPath(): string {
+  return path.join(os.homedir(), ".agentboard", "session-branch-overrides.json");
 }
 
 export function loadIgnoreSizes(root: string): Set<string> {
@@ -55,6 +60,35 @@ export function loadStreamOverride(root: string, sessionId: string): string | un
   } catch {
     return undefined;
   }
+}
+
+export function loadBranchOverride(root: string, sessionId: string): string | undefined {
+  const key = `${root}::${sessionId}`;
+  if (branchOverrides.has(key)) return branchOverrides.get(key);
+  try {
+    const obj = JSON.parse(fs.readFileSync(branchOverridesPath(), "utf8")) as Record<string, string>;
+    for (const [k, v] of Object.entries(obj)) branchOverrides.set(k, v);
+    return branchOverrides.get(key);
+  } catch {
+    return undefined;
+  }
+}
+
+export function setBranchOverride(root: string, sessionId: string, branch: string): void {
+  const key = `${root}::${sessionId}`;
+  if (branch) {
+    branchOverrides.set(key, branch);
+  } else {
+    branchOverrides.delete(key);
+  }
+  try {
+    const fp = branchOverridesPath();
+    let obj: Record<string, string> = {};
+    try { obj = JSON.parse(fs.readFileSync(fp, "utf8")); } catch { /* new */ }
+    if (branch) { obj[key] = branch; } else { delete obj[key]; }
+    fs.mkdirSync(path.dirname(fp), { recursive: true });
+    fs.writeFileSync(fp, JSON.stringify(obj, null, 2));
+  } catch { /* ignore */ }
 }
 
 export function setStreamOverride(root: string, sessionId: string, slug: string): void {

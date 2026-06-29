@@ -41,11 +41,14 @@ export function applySessionCatalogUsage(
     const nick = sessionNick(sess.sessionId);
     for (const ev of evs) {
       if (ev.tool === "Skill") {
-        const sk = ev.skill || ev.file || "";
+        const sk = (ev.skill || ev.file || "").split("\n")[0].trim();
         if (sk) {
           if (!skillUsage.has(sk)) skillUsage.set(sk, []);
           if (!skillUsage.get(sk)!.includes(nick)) skillUsage.get(sk)!.push(nick);
-          sessionLastSkillMap.set(sess.sessionId, sk);
+          // Only surface as "current" skill if used within last 15 min — same cutoff as lastSkillFromEvents
+          if (Date.now() - new Date(ev.ts).getTime() < 15 * 60 * 1000) {
+            sessionLastSkillMap.set(sess.sessionId, sk);
+          }
         }
       }
       if (ev.tool === "RoleAdopt" && (ev as {role?: string}).role) {

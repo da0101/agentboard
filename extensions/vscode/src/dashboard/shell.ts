@@ -12,6 +12,17 @@ export function getDashboardShell(data: object | undefined, webview: vscode.Webv
     if (webview && extensionUri) {
       const scripts = [
         vscode.Uri.joinPath(extensionUri, "media", "dashboard", "core.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "uiState.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "streams.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "catalog.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "trendChart.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "workflowPanel.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "activityRow.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "agentsPanel.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "sessionCard.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "sessionHeader.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "nowBlock.js"),
+        vscode.Uri.joinPath(extensionUri, "media", "dashboard", "events.js"),
         vscode.Uri.joinPath(extensionUri, "media", "dashboard.js"),
       ];
       scriptTag = scripts
@@ -153,7 +164,7 @@ body.session-tab #sec-streams{display:none!important}
 <div id="session-hdr"></div>
 <div id="hdr">
   <span class="logo">◆ AGENTBOARD</span><span class="sep">·</span>
-  <span class="proj" id="h-proj">—</span><span class="sep" id="h-sep2" style="display:none">·</span><span class="br" id="h-br"></span>
+  <span class="proj" id="h-proj">—</span><span class="sep" id="h-sep2" style="display:none">·</span><span id="h-br-wrap"></span>
   <button class="rbtn" id="refresh-btn">↻ Refresh</button>
 </div>
 

@@ -56,6 +56,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/log_reason.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/search.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/index.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/distill.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/synthesize.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/role.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/rescan.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
@@ -168,6 +169,7 @@ main() {
     search)      cmd_search "$@" ;;
     index)       cmd_index "$@" ;;
     distill)     cmd_distill "$@" ;;
+    synthesize)  cmd_synthesize "$@" ;;
     role)        cmd_role "$@" ;;
     rescan)      cmd_rescan "$@" ;;
     close)       cmd_close "$@" ;;

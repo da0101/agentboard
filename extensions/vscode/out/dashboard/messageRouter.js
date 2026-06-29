@@ -220,6 +220,15 @@ function handleDashboardMessage(msg, ctx) {
         }
         return;
     }
+    if (msg.command === "setSessionBranch") {
+        const { sessionId, branch, sessionRoot } = msg;
+        const root = sessionRoot || ctx.workspaceRoot || os.homedir();
+        if (sessionId) {
+            (0, panelPrefs_1.setBranchOverride)(root, sessionId, branch ?? "");
+            ctx.update();
+        }
+        return;
+    }
     if (msg.command === "closeStream") {
         const { streamSlug, sessionRoot } = msg;
         if (!streamSlug)

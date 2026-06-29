@@ -60,8 +60,16 @@ async function findSessionTerminal(options) {
         });
         if (cwdMatches.length === 1)
             return cwdMatches[0];
+        if (cwdMatches.length > 1) {
+            // Prefer terminals with "claude" in name (most specific); fall back to newest (last in array)
+            const claudeMatches = cwdMatches.filter(t => t.name.toLowerCase().includes("claude"));
+            const pool = claudeMatches.length ? claudeMatches : cwdMatches;
+            return pool[pool.length - 1];
+        }
     }
-    return undefined;
+    // Last resort: newest terminal in the workspace whose name includes "claude"
+    const fallback = [...terminals].reverse().find(t => t.name.toLowerCase().includes("claude"));
+    return fallback;
 }
 async function sendTextToSessionTerminal(text, options) {
     const target = await findSessionTerminal(options);

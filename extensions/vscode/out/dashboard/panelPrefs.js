@@ -3,17 +3,23 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.loadIgnoreSizes = loadIgnoreSizes;
 exports.saveIgnoreSizes = saveIgnoreSizes;
 exports.loadStreamOverride = loadStreamOverride;
+exports.loadBranchOverride = loadBranchOverride;
+exports.setBranchOverride = setBranchOverride;
 exports.setStreamOverride = setStreamOverride;
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const ignoreSizes = new Map();
 const streamOverrides = new Map();
+const branchOverrides = new Map();
 function ignoreSizePath() {
     return path.join(os.homedir(), ".agentboard", "ignore-sizes.json");
 }
 function overridesPath() {
     return path.join(os.homedir(), ".agentboard", "session-stream-overrides.json");
+}
+function branchOverridesPath() {
+    return path.join(os.homedir(), ".agentboard", "session-branch-overrides.json");
 }
 function loadIgnoreSizes(root) {
     if (ignoreSizes.has(root))
@@ -65,6 +71,46 @@ function loadStreamOverride(root, sessionId) {
     catch {
         return undefined;
     }
+}
+function loadBranchOverride(root, sessionId) {
+    const key = `${root}::${sessionId}`;
+    if (branchOverrides.has(key))
+        return branchOverrides.get(key);
+    try {
+        const obj = JSON.parse(fs.readFileSync(branchOverridesPath(), "utf8"));
+        for (const [k, v] of Object.entries(obj))
+            branchOverrides.set(k, v);
+        return branchOverrides.get(key);
+    }
+    catch {
+        return undefined;
+    }
+}
+function setBranchOverride(root, sessionId, branch) {
+    const key = `${root}::${sessionId}`;
+    if (branch) {
+        branchOverrides.set(key, branch);
+    }
+    else {
+        branchOverrides.delete(key);
+    }
+    try {
+        const fp = branchOverridesPath();
+        let obj = {};
+        try {
+            obj = JSON.parse(fs.readFileSync(fp, "utf8"));
+        }
+        catch { /* new */ }
+        if (branch) {
+            obj[key] = branch;
+        }
+        else {
+            delete obj[key];
+        }
+        fs.mkdirSync(path.dirname(fp), { recursive: true });
+        fs.writeFileSync(fp, JSON.stringify(obj, null, 2));
+    }
+    catch { /* ignore */ }
 }
 function setStreamOverride(root, sessionId, slug) {
     const key = `${root}::${sessionId}`;

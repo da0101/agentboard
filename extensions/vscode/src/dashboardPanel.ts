@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import * as http from "http";
+import { execSync } from "child_process";
 import { buildDashboardDataSync } from "./dashboard/dataBuilder";
 import { handleDelegateFile } from "./dashboard/delegateFile";
 import { handleDashboardMessage } from "./dashboard/messageRouter";
@@ -37,6 +38,8 @@ export class DashboardPanel {
   private _lineCountCache = new Map<string, { ts: number; count: number }>();
   private _branchCommittedCache = new Map<string, { ts: number; files: Set<string> }>();
   private _rawCodexProcessCache: RawCodexProcessCache = { ts: 0, processes: [] };
+  private _localBranchesCache: { ts: number; branches: string[] } = { ts: 0, branches: [] };
+  private _worktreeBranchCache = new Map<string, { ts: number; value: string }>();
   private _httpFailStreak = 0;
   private _boundSessionId: string | null = null;
   private _lastDelegateKey = ""; // "<role>|<task>" dedup
@@ -136,6 +139,12 @@ export class DashboardPanel {
     this._boundSessionId = boundSessionId ?? null;
     this._workspaceRoot = workspaceRoot;
     this._panel = panel;
+    // Pre-populate branch cache synchronously so the very first render uses the
+    // real git branch, not whatever stale value the HUD file has.
+    try {
+      const b = execSync("git rev-parse --abbrev-ref HEAD", { cwd: workspaceRoot, timeout: 800 }).toString().trim();
+      if (b) this._branchCache = { value: b, ts: Date.now() };
+    } catch { /* git unavailable — async poll will fill it in */ }
     const initialData = this._buildDataSync() as Record<string, unknown>;
     let initialDisplay: object = initialData;
     if (this._boundSessionId) {
@@ -198,6 +207,8 @@ export class DashboardPanel {
       branchCommittedCache: this._branchCommittedCache,
       rawCodexProcessCache: this._rawCodexProcessCache,
       setRawCodexProcessCache: (cache) => { this._rawCodexProcessCache = cache; },
+      localBranchesCache: this._localBranchesCache,
+      worktreeBranchCache: this._worktreeBranchCache,
     });
   }
 

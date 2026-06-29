@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DashboardPanel = void 0;
 const vscode = require("vscode");
 const http = require("http");
+const child_process_1 = require("child_process");
 const dataBuilder_1 = require("./dashboard/dataBuilder");
 const delegateFile_1 = require("./dashboard/delegateFile");
 const messageRouter_1 = require("./dashboard/messageRouter");
@@ -118,6 +119,8 @@ class DashboardPanel {
         this._lineCountCache = new Map();
         this._branchCommittedCache = new Map();
         this._rawCodexProcessCache = { ts: 0, processes: [] };
+        this._localBranchesCache = { ts: 0, branches: [] };
+        this._worktreeBranchCache = new Map();
         this._httpFailStreak = 0;
         this._boundSessionId = null;
         this._lastDelegateKey = ""; // "<role>|<task>" dedup
@@ -128,6 +131,14 @@ class DashboardPanel {
         this._boundSessionId = boundSessionId ?? null;
         this._workspaceRoot = workspaceRoot;
         this._panel = panel;
+        // Pre-populate branch cache synchronously so the very first render uses the
+        // real git branch, not whatever stale value the HUD file has.
+        try {
+            const b = (0, child_process_1.execSync)("git rev-parse --abbrev-ref HEAD", { cwd: workspaceRoot, timeout: 800 }).toString().trim();
+            if (b)
+                this._branchCache = { value: b, ts: Date.now() };
+        }
+        catch { /* git unavailable — async poll will fill it in */ }
         const initialData = this._buildDataSync();
         let initialDisplay = initialData;
         if (this._boundSessionId) {
@@ -193,6 +204,8 @@ class DashboardPanel {
             branchCommittedCache: this._branchCommittedCache,
             rawCodexProcessCache: this._rawCodexProcessCache,
             setRawCodexProcessCache: (cache) => { this._rawCodexProcessCache = cache; },
+            localBranchesCache: this._localBranchesCache,
+            worktreeBranchCache: this._worktreeBranchCache,
         });
     }
     _handleDelegateFile() {

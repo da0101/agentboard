@@ -8,11 +8,12 @@ import { detectWorkspaceRootFromFolders } from "../workspaceRoot";
 import { buildFileActivity, buildRecentAgents, buildSessionAgentActivity, buildSessionAgents, sessionNick } from "./activityBuilders";
 import { readActiveStream, readRoles, readSessionStream, readSkills, readStreamRole, readStreams } from "./catalogStore";
 import { AB_CLI_COMMANDS, MODEL_NAMES } from "./constants";
-import { readRecentEvents, lastSkillFromEvents } from "./eventStore";
+import { readRecentEvents, readTrendEvents, lastSkillFromEvents } from "./eventStore";
+import { buildTrendData } from "./trendBuilder";
 import { elapsedStr, fmtModel, relTime } from "./formatters";
 import { enrichActivityWithGit } from "./gitActivity";
 import { isHudFresh } from "./hudFreshness";
-import { loadIgnoreSizes, loadStreamOverride } from "./panelPrefs";
+import { loadBranchOverride, loadIgnoreSizes, loadStreamOverride } from "./panelPrefs";
 import { getRawCodexProcesses, rawCodexProcessToSession, RawCodexProcessCache } from "./rawCodexProcesses";
 import { applySessionCatalogUsage, dedupeClearedSessions } from "./sessionSummary";
 import { readWorkflowPlan, readSessionWorkflowState } from "./workflowStore";
@@ -35,6 +36,8 @@ export interface DashboardDataState {
   branchCommittedCache: Map<string, { ts: number; files: Set<string> }>;
   rawCodexProcessCache: RawCodexProcessCache;
   setRawCodexProcessCache(cache: RawCodexProcessCache): void;
+  localBranchesCache: { ts: number; branches: string[] };
+  worktreeBranchCache: Map<string, { ts: number; value: string }>;
 }
 
 export function buildDashboardDataSync(state: DashboardDataState): object {
@@ -68,11 +71,36 @@ export function buildDashboardDataSync(state: DashboardDataState): object {
     }
 
     // Branch: prefer HUD (already has it). Fallback: cached value refreshed at most every 30s via async exec.
-    const branch = hud?.context?.branch ?? state.branchCache.value;
-    if (!hud?.context?.branch && Date.now() - state.branchCache.ts > 30_000) {
-      state.branchCache.ts = Date.now(); // debounce
+    // Prefer the live git branch from the workspace root over the HUD branch.
+    // The HUD may carry a worktree branch from a Claude session running in a
+    // different checkout — that should show on the session card, not the header.
+    const branch = state.branchCache.value || (hud?.context?.branch ?? "");
+    // Refresh local branch list every 60 s for the branch selector dropdowns.
+    // Use plain `git branch` — the %(refname:short) format string confuses /bin/sh
+    // job-control expansion when passed through exec(), causing silent failure.
+    if (Date.now() - state.localBranchesCache.ts > 60_000) {
+      state.localBranchesCache.ts = Date.now();
+      exec("git branch", { cwd: state.workspaceRoot, timeout: 2000 }, (_err: Error | null, stdout: string) => {
+        if (stdout) {
+          state.localBranchesCache.branches = stdout.trim().split("\n")
+            .map((b: string) => b.replace(/^[*+ ]+/, "").trim())
+            .filter((b: string) => b && !b.startsWith("("));
+          state.localBranchesCache.ts = Date.now();
+        }
+      });
+    }
+
+    // Always poll git — never skip just because the HUD has a branch.
+    // The HUD branch can be stale (deleted branch, worktree mismatch, etc).
+    // Mutate the cache object in place: reassigning state.branchCache would only
+    // update the local state reference, not the DashboardPanel._branchCache field.
+    if (Date.now() - state.branchCache.ts > 30_000) {
+      state.branchCache.ts = Date.now(); // debounce — mutates the shared object
       exec("git rev-parse --abbrev-ref HEAD", { cwd: state.workspaceRoot, timeout: 1500 }, (_err: Error | null, stdout: string) => {
-        if (stdout) state.branchCache = { value: stdout.trim(), ts: Date.now() };
+        if (stdout) {
+          state.branchCache.value = stdout.trim();
+          state.branchCache.ts = Date.now();
+        }
       });
     }
     const worktrees: string[] = []; // removed blocking execSync git worktree — not worth the cost
@@ -188,6 +216,16 @@ export function buildDashboardDataSync(state: DashboardDataState): object {
           const costUsd = ((s.cost as Record<string, unknown>)?.session_usd as number) ?? 0;
           const sRoot = (s._root as string) || "";
           if (!sessionRootMatchesWorkspace(sRoot, state.workspaceRoot)) continue;
+          // For worktree sessions (different root), poll git in their directory.
+          if (sRoot && sRoot !== state.workspaceRoot) {
+            const cached = state.worktreeBranchCache.get(sRoot);
+            if (!cached || Date.now() - cached.ts > 30_000) {
+              state.worktreeBranchCache.set(sRoot, { ts: Date.now(), value: cached?.value ?? "" });
+              exec("git rev-parse --abbrev-ref HEAD", { cwd: sRoot, timeout: 1500 }, (_err: Error | null, stdout: string) => {
+                if (stdout) state.worktreeBranchCache.set(sRoot, { ts: Date.now(), value: stdout.trim() });
+              });
+            }
+          }
           const sStartedAt = (ctx.started_at as string) || (agents[0]?.started_at as string) || "";
           const sCtxPct = (ctx.context_remaining_pct as number | null) ?? null;
           const sElapsed = sStartedAt ? (() => {
@@ -229,7 +267,23 @@ export function buildDashboardDataSync(state: DashboardDataState): object {
             model: rawModel ? fmtModel(rawModel) : "",
             costUsd,
             cost: costUsd > 0 ? `$${costUsd.toFixed(3)}` : "",
-            branch: (ctx.branch as string) || "",
+            // Branch resolution priority:
+            // 1. Manual override (user pinned a branch via the selector)
+            // 2. Live git branch when session is in the same workspace
+            // 3. Session file's recorded branch (for cross-root worktree sessions)
+            branch: (() => {
+              const sId2 = (s._session_id as string) || (ctx.session_id as string) || f.replace(".json", "");
+              const override = loadBranchOverride(sRoot, sId2);
+              if (override) return override;
+              // Same-workspace session: use live git branch
+              if (sessionRootMatchesWorkspace(sRoot, state.workspaceRoot) && state.branchCache.value) return state.branchCache.value;
+              // Worktree session: use per-worktree git poll result
+              const wtBranch = state.worktreeBranchCache.get(sRoot)?.value;
+              if (wtBranch) return wtBranch;
+              return (ctx.branch as string) || "";
+            })(),
+            branchPinned: !!loadBranchOverride(sRoot, (s._session_id as string) || (ctx.session_id as string) || f.replace(".json", "")),
+            availableBranches: state.localBranchesCache.branches,
             root: sRoot,
             shellPid: (s._shell_pid as number) || 0,
             projectName: sRoot ? path.basename(sRoot) : "",
@@ -258,6 +312,53 @@ export function buildDashboardDataSync(state: DashboardDataState): object {
       activeSessions.length = 0;
       activeSessions.push(...dedupedSessions);
     } catch { /* sessions dir doesn't exist yet */ }
+
+    // Synthesize a session entry from HUD data when no session files exist.
+    // This happens when the project hasn't run `ab start` / the status bridge
+    // hasn't written a session file yet, but the HUD hook is active.
+    if (activeSessions.length === 0 && hasLive && hud) {
+      const hudBranch = state.branchCache.value || (hud.context?.branch ?? "");
+      const hudActivity = buildFileActivity(sessionEvents, 15).fileActivity;
+      enrichActivityWithGit(state.workspaceRoot, hudActivity, {
+        numstatCache: state.numstatCache,
+        lineCountCache: state.lineCountCache,
+        branchCommittedCache: state.branchCommittedCache,
+      });
+      const hudAgents = buildSessionAgents(sessionEvents, 0);
+      const hudAgentActivity = buildSessionAgentActivity(sessionEvents, hudAgents);
+      const hudWorkflow = readSessionWorkflowState(state.workspaceRoot, currentSessionId, getEventsForRoot);
+      activeSessions.push({
+        sessionId: currentSessionId || "hud-live",
+        provider: "claude",
+        model,
+        costUsd: costUsd ?? 0,
+        cost,
+        branch: hudBranch,
+        root: state.workspaceRoot,
+        shellPid: 0,
+        projectName: path.basename(state.workspaceRoot),
+        sessionLastSkill: "", sessionLastRole: "",
+        startedAt: hud.active_agents?.[0]?.started_at ?? "",
+        lastUpdated: hud.last_updated ?? "",
+        ageSeconds: 0,
+        ctxPct,
+        stream: readSessionStream(state.workspaceRoot, currentSessionId, getEventsForRoot(state.workspaceRoot), loadStreamOverride),
+        streamPinned: loadStreamOverride(state.workspaceRoot, currentSessionId) !== undefined,
+        availableStreams: state.streamsCache?.data.map((s: { slug: string }) => s.slug) ?? [],
+        branchPinned: !!loadBranchOverride(state.workspaceRoot, currentSessionId),
+        availableBranches: state.localBranchesCache.branches,
+        sessionTime,
+        activity: hudActivity,
+        agents: hudAgents,
+        agentActivity: hudAgentActivity,
+        hasWorkflow: hudWorkflow.hasWorkflow,
+        workflowAgentCount: hudWorkflow.workflowAgentCount,
+        workflowLabel: hudWorkflow.workflowLabel,
+        workflowTranscriptAgents: hudWorkflow.transcriptAgents,
+        workflowPlan: readWorkflowPlan(state.workspaceRoot),
+        nick: "",
+      });
+    }
 
     const hasBridgedCodexSession = activeSessions.some(sess =>
       sess.provider === "codex" && sessionRootMatchesWorkspace(sess.root, state.workspaceRoot)
@@ -309,5 +410,7 @@ export function buildDashboardDataSync(state: DashboardDataState): object {
       commands: AB_CLI_COMMANDS,
       projectName: path.basename(state.workspaceRoot),
       ignoredSizeFiles: Array.from(loadIgnoreSizes(state.workspaceRoot)),
+      availableBranches: state.localBranchesCache.branches,
+      trendData: buildTrendData(readTrendEvents(state.workspaceRoot, 2000), Date.now()),
     };
 }

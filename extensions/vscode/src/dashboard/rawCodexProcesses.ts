@@ -148,6 +148,8 @@ export function rawCodexProcessToSession(
     stream: options.stream ?? "",
     streamPinned: false,
     availableStreams: readStreams(proc.root).map(st => st.slug),
+    branchPinned: false,
+    availableBranches: [],
     sessionTime: elapsedFromSeconds(proc.elapsedSeconds),
     activity: options.activity ?? [],
     agents: options.agents ?? [],

@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { readRoles } from "./catalogStore";
-import { loadIgnoreSizes, saveIgnoreSizes, setStreamOverride } from "./panelPrefs";
+import { loadIgnoreSizes, saveIgnoreSizes, setBranchOverride, setStreamOverride } from "./panelPrefs";
 import { buildProviderLaunchCommand, normalizeProvider, PROVIDER_CHOICES, providerLabel, providerWrapperScript } from "./providerLaunch";
 import { buildExplainChangePrompt, buildRefactorPrompt, escapeForDoubleQuotedCli } from "./prompts";
 import { findSessionTerminal, sendTextToSessionTerminal } from "./terminalFocus";
@@ -204,6 +204,15 @@ export function handleDashboardMessage(
           const root = sessionRoot || ctx.workspaceRoot || os.homedir();
           if (sessionId !== undefined) {
             setStreamOverride(root, sessionId, streamSlug ?? "");
+            ctx.update();
+          }
+          return;
+        }
+        if (msg.command === "setSessionBranch") {
+          const { sessionId, branch, sessionRoot } = msg as {sessionId?: string; branch?: string; sessionRoot?: string};
+          const root = sessionRoot || ctx.workspaceRoot || os.homedir();
+          if (sessionId) {
+            setBranchOverride(root, sessionId, branch ?? "");
             ctx.update();
           }
           return;

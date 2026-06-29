@@ -110,6 +110,8 @@ export interface DashboardSessionEntry {
   stream: string;
   streamPinned: boolean;
   availableStreams: string[];
+  branchPinned: boolean;
+  availableBranches: string[];
   sessionTime: string;
   activity: SessionActivityItem[];
   agents: AgentEntry[];
