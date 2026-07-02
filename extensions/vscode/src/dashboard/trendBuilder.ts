@@ -3,6 +3,8 @@ import { ActivityEvent } from "./types";
 export interface TrendBucket {
   ts: number;   // bucket start epoch ms
   edits: number;
+  created: number;
+  deleted: number;
   agents: number;
   cmds: number;
   skills: number;
@@ -23,7 +25,7 @@ function bucketize(events: ActivityEvent[], windowMs: number, now: number): Tren
   const windowEnd = Math.ceil(now / bMs) * bMs;
   const start = windowEnd - windowMs;
   const b: TrendBucket[] = Array.from({ length: N }, (_, i) => ({
-    ts: start + i * bMs, edits: 0, agents: 0, cmds: 0, skills: 0, workflows: 0,
+    ts: start + i * bMs, edits: 0, created: 0, deleted: 0, agents: 0, cmds: 0, skills: 0, workflows: 0,
   }));
   // Track workflow spans: a WorkflowStart before or within the window stays active until a
   // WorkflowEnd (or end of window). This makes a multi-hour workflow show across all buckets
@@ -43,6 +45,9 @@ function bucketize(events: ActivityEvent[], windowMs: number, now: number): Tren
     if (t < start || t >= windowEnd) continue;
     const bi = Math.min(Math.floor((t - start) / bMs), N - 1);
     const tool = ev.tool;
+    const lifecycle = ev as ActivityEvent & { isNew?: boolean; isDeleted?: boolean };
+    if (lifecycle.isNew || tool === "Write") b[bi].created++;
+    if (lifecycle.isDeleted || isDeleteTool(tool)) b[bi].deleted++;
     if (tool === "Edit" || tool === "Write" || tool === "MultiEdit") b[bi].edits++;
     else if (tool === "AgentStart") b[bi].agents++;
     else if (tool === "Bash") b[bi].cmds++;
@@ -57,6 +62,10 @@ function bucketize(events: ActivityEvent[], windowMs: number, now: number): Tren
     }
   }
   return b;
+}
+
+function isDeleteTool(tool: string): boolean {
+  return tool === "Delete" || tool === "Remove" || tool === "Rm" || tool === "Unlink" || tool === "FileDelete" || tool === "DeleteFile";
 }
 
 export function buildTrendData(events: ActivityEvent[], now: number): Record<string, TrendBucket[]> {

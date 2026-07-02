@@ -238,7 +238,7 @@
       }
       // Close session button
       var closeSessBtn = t.closest('[data-close-session]');
-      if (closeSessBtn) { e.stopPropagation(); vscode.postMessage({command:'closeSession', sessionId:closeSessBtn.dataset.closeSession||''}); return; }
+      if (closeSessBtn) { e.stopPropagation(); vscode.postMessage({command:'closeSession', sessionId:closeSessBtn.dataset.closeSession||'', sessionRoot:closeSessBtn.dataset.sessionRoot||''}); return; }
       // Focus terminal button
       var ftBtn = t.closest('[data-focus-terminal]');
       if (ftBtn) { e.stopPropagation(); vscode.postMessage({command:'focusTerminal', sessionRoot:ftBtn.dataset.sessionRoot||'', sessionNick:ftBtn.dataset.sessionNick||'', shellPid:parseInt(ftBtn.dataset.shellPid||'0',10), sessionStartedAt:ftBtn.dataset.sessionStartedAt||''}); return; }

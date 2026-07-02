@@ -8,10 +8,15 @@
     var txt = _core().txt;
     var esc = _core().esc;
     var relTime = _core().relTime;
+    var providerUi = root.AgentboardDashboard.providerUi || {};
+    var singleSession = (!isMultiNow && d.activeSessions && d.activeSessions.length === 1) ? d.activeSessions[0] : null;
+    var ui = providerUi.getProviderUi && singleSession ? providerUi.getProviderUi(singleSession) : null;
     var nowEl    = root.document.getElementById('now');
     var dot      = root.document.getElementById('now-dot');
     var stateEl  = root.document.getElementById('now-state');
     if (!nowEl || !dot || !stateEl) return;
+    nowEl.style.borderTop = ui ? '2px solid ' + ui.accent : '';
+    nowEl.style.background = ui ? ui.accentSoft : '';
 
     if (isMultiNow) {
       nowEl.classList.remove('idle'); dot.classList.remove('idle');
@@ -32,14 +37,16 @@
         stateEl.textContent = 'WORKFLOW'; stateEl.style.color = '#4a9eff';
         dot.style.background = '#4a9eff'; dot.style.animation = 'pulse 0.6s ease-in-out infinite';
       } else {
-        stateEl.textContent = 'LIVE'; stateEl.style.color = '#4caf50';
-        dot.style.background = '#4caf50'; dot.style.animation = 'pulse 1.5s ease-in-out infinite';
+        stateEl.textContent = ui ? ui.label.toUpperCase() + ' LIVE' : 'LIVE';
+        stateEl.style.color = ui ? ui.accent : '#4caf50';
+        dot.style.background = ui ? ui.accent : '#4caf50'; dot.style.animation = 'pulse 1.5s ease-in-out infinite';
       }
     } else {
       nowEl.classList.add('idle'); dot.classList.add('idle');
-      stateEl.textContent = 'IDLE'; stateEl.style.color = '#666'; dot.style.background = '#666';
+      stateEl.textContent = ui ? ui.label.toUpperCase() + ' IDLE' : 'IDLE';
+      stateEl.style.color = ui ? ui.accent : '#666'; dot.style.background = ui ? ui.accent : '#666';
     }
-    if (!isMultiNow) txt('now-stats', [d.model, d.cost, d.sessionTime].filter(Boolean).join(' · '));
+    if (!isMultiNow) txt('now-stats', [ui ? ui.label : '', d.model, d.cost, d.sessionTime].filter(Boolean).join(' · '));
 
     var nowFileRow = root.document.getElementById('now-file-row');
     var lopEl = root.document.getElementById('now-longop');
@@ -65,8 +72,8 @@
             nowTool.textContent = ''; nowTool.style.background = 'none';
           } else {
             nowTool.textContent = isSkill ? '⚡ skill' : (fa0 ? fa0.tool : '');
-            nowTool.style.background = isSkill ? 'rgba(76,175,132,.15)' : 'rgba(255,255,255,.08)';
-            nowTool.style.color = isSkill ? '#4caf84' : 'inherit';
+            nowTool.style.background = isSkill ? 'rgba(76,175,132,.15)' : (ui ? ui.accentSoft : 'rgba(255,255,255,.08)');
+            nowTool.style.color = isSkill ? '#4caf84' : (ui ? ui.accent : 'inherit');
           }
         }
       }

@@ -7,6 +7,8 @@
 
   var TS = [
     {k:'edits',  l:'Edits',  c:'#4caf50'},
+    {k:'created',l:'New',    c:'#00bfa5'},
+    {k:'deleted',l:'Deleted',c:'#ff453a'},
     {k:'agents', l:'Agents', c:'#9c6af7'},
     {k:'cmds',   l:'Cmds',   c:'#f0b429'},
     {k:'skills', l:'Skills', c:'#4a9eff'},

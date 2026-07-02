@@ -11,6 +11,7 @@ const activityBuilders_1 = require("./activityBuilders");
 const catalogStore_1 = require("./catalogStore");
 const constants_1 = require("./constants");
 const eventStore_1 = require("./eventStore");
+const eventOnlySessions_1 = require("./eventOnlySessions");
 const trendBuilder_1 = require("./trendBuilder");
 const formatters_1 = require("./formatters");
 const gitActivity_1 = require("./gitActivity");
@@ -390,6 +391,14 @@ function buildDashboardDataSync(state) {
                 activeSessions.push(rawSession);
         }
     }
+    const eventOnlySessions = (0, eventOnlySessions_1.buildEventOnlySessions)(allEvents, {
+        workspaceRoot: state.workspaceRoot,
+        branch,
+        activeStream,
+        availableStreams: state.streamsCache?.data.map((s) => s.slug) ?? [],
+        existingSessionIds: new Set(activeSessions.map(sess => sess.sessionId)),
+    });
+    activeSessions.push(...eventOnlySessions);
     // lastSkill: only from currently active sessions (avoids stale closed-session data in footer)
     const activeSessionIds = new Set(activeSessions.map(s => s.sessionId));
     // Stamp nick onto each session entry so the frontend and tab titles can use it
@@ -415,6 +424,42 @@ function buildDashboardDataSync(state) {
         projectName: path.basename(state.workspaceRoot),
         ignoredSizeFiles: Array.from((0, panelPrefs_1.loadIgnoreSizes)(state.workspaceRoot)),
         availableBranches: state.localBranchesCache.branches,
-        trendData: (0, trendBuilder_1.buildTrendData)((0, eventStore_1.readTrendEvents)(state.workspaceRoot, 2000), Date.now()),
+        trendData: (0, trendBuilder_1.buildTrendData)(buildTrendEventsWithGitStatus(state.workspaceRoot, activeStream, Date.now()), Date.now()),
     };
+}
+function buildTrendEventsWithGitStatus(root, stream, now) {
+    const events = (0, eventStore_1.readTrendEvents)(root, 2000);
+    const nowIso = new Date(now).toISOString();
+    const knownCreated = new Set(events
+        .filter(e => e.file && (e.tool === "Write" || e.isNew))
+        .map(e => e.file));
+    const knownDeleted = new Set(events
+        .filter(e => e.file && (isTrendDeleteTool(e.tool) || e.isDeleted))
+        .map(e => e.file));
+    try {
+        const statusOut = (0, child_process_1.execSync)(`git -C "${root}" status --porcelain --untracked-files=all 2>/dev/null`, { timeout: 3000, encoding: "utf8" });
+        for (const line of statusOut.split("\n")) {
+            if (!line.trim())
+                continue;
+            const xy = line.slice(0, 2);
+            const file = line.slice(3).trim();
+            if (!file)
+                continue;
+            if ((xy === "??" || xy[0] === "A" || xy[1] === "A") && !knownCreated.has(file)) {
+                knownCreated.add(file);
+                events.push({ ts: nowIso, tool: "Write", stream, file });
+            }
+            else if ((xy[0] === "D" || xy[1] === "D") && !knownDeleted.has(file)) {
+                knownDeleted.add(file);
+                events.push({ ts: nowIso, tool: "Delete", stream, file });
+            }
+        }
+    }
+    catch {
+        // git unavailable
+    }
+    return events;
+}
+function isTrendDeleteTool(tool) {
+    return tool === "Delete" || tool === "Remove" || tool === "Rm" || tool === "Unlink" || tool === "FileDelete" || tool === "DeleteFile";
 }

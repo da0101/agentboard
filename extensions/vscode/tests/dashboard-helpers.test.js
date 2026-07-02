@@ -1,4 +1,5 @@
 const assert = require("assert");
+const { execSync } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -6,10 +7,11 @@ const path = require("path");
 const { parseFrontmatter, extractProse } = require("../out/dashboard/markdown");
 const { readStreams, readSessionStream, readStreamRole } = require("../out/dashboard/catalogStore");
 const { readRecentEvents, lastSkillFromEvents } = require("../out/dashboard/eventStore");
+const { buildTrendData } = require("../out/dashboard/trendBuilder");
 const { fmtModel, elapsedStr } = require("../out/dashboard/formatters");
 const { readWorkflowPlan, readWorkflowTranscriptAgents } = require("../out/dashboard/workflowStore");
 const { buildFileActivity, buildSessionAgentActivity, buildSessionAgents } = require("../out/dashboard/activityBuilders");
-const { applyGitStatus } = require("../out/dashboard/gitActivity");
+const { applyGitStatus, enrichActivityWithGit } = require("../out/dashboard/gitActivity");
 const { buildExplainChangePrompt, buildRefactorPrompt, escapeForDoubleQuotedCli } = require("../out/dashboard/prompts");
 const { buildProviderLaunchCommand, normalizeProvider, providerWrapperScript } = require("../out/dashboard/providerLaunch");
 const { dashboardRenderFingerprint } = require("../out/dashboard/renderFingerprint");
@@ -113,10 +115,11 @@ test("readStreamRole returns role or empty string", () => {
 
 test("readRecentEvents returns newest valid json events first", () => {
   const root = tempProject();
+  const recentSkillTs = new Date(Date.now() - 60_000).toISOString();
   fs.writeFileSync(path.join(root, ".platform", "events.jsonl"), [
     JSON.stringify({ ts: "2026-01-01T00:00:00Z", tool: "Edit", stream: "s", file: "a.ts" }),
     "not-json",
-    JSON.stringify({ ts: "2026-01-01T00:01:00Z", tool: "Skill", stream: "s", skill: "ab-review", session_id: "sid" }),
+    JSON.stringify({ ts: recentSkillTs, tool: "Skill", stream: "s", skill: "ab-review", session_id: "sid" }),
   ].join("\n"));
   const events = readRecentEvents(root, 10);
   assert.strictEqual(events.length, 2);
@@ -127,6 +130,17 @@ test("readRecentEvents returns newest valid json events first", () => {
 test("readRecentEvents handles missing events file", () => {
   assert.deepStrictEqual(readRecentEvents(tempProject()), []);
   assert.deepStrictEqual(lastSkillFromEvents([]), { skill: "", sessionId: "" });
+});
+
+test("buildTrendData includes new and deleted file series", () => {
+  const now = new Date("2026-01-01T00:10:00Z").getTime();
+  const data = buildTrendData([
+    { ts: "2026-01-01T00:05:00Z", tool: "Write", stream: "s", file: "new.ts" },
+    { ts: "2026-01-01T00:06:00Z", tool: "Delete", stream: "s", file: "gone.ts" },
+  ], now);
+  const buckets = data["10m"];
+  assert.strictEqual(buckets.reduce((sum, bucket) => sum + bucket.created, 0), 1);
+  assert.strictEqual(buckets.reduce((sum, bucket) => sum + bucket.deleted, 0), 1);
 });
 
 test("fmtModel normalizes common provider model names", () => {
@@ -232,6 +246,30 @@ test("applyGitStatus uses stable timestamps for synthetic status rows", () => {
   assert.strictEqual(activity.length, 1);
   assert.strictEqual(activity[0].file, "new.ts");
   assert.strictEqual(activity[0].lastTs, "2026-01-01T00:00:30Z");
+});
+
+test("enrichActivityWithGit reads line stats for absolute files in sibling repos", () => {
+  const platformRoot = tempProject();
+  const siblingRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ab-vscode-sibling-"));
+  execSync("git init", { cwd: siblingRoot, stdio: "ignore" });
+  execSync("git config user.email test@example.com", { cwd: siblingRoot });
+  execSync("git config user.name Test", { cwd: siblingRoot });
+  fs.mkdirSync(path.join(siblingRoot, "src"), { recursive: true });
+  const absFile = path.join(siblingRoot, "src", "overview.ts");
+  fs.writeFileSync(absFile, "one\n");
+  execSync("git add src/overview.ts && git commit -m initial", { cwd: siblingRoot, stdio: "ignore" });
+  fs.writeFileSync(absFile, "one\ntwo\nthree\n");
+
+  const activity = [{ file: absFile, tool: "Edit", count: 1, lastTs: "2026-01-01T00:00:00Z" }];
+  enrichActivityWithGit(platformRoot, activity, {
+    numstatCache: new Map(),
+    lineCountCache: new Map(),
+    branchCommittedCache: new Map(),
+  });
+
+  assert.strictEqual(activity[0].added, 2);
+  assert.strictEqual(activity[0].deleted, 0);
+  assert.strictEqual(activity[0].lineCount, 4);
 });
 
 test("dashboardRenderFingerprint ignores heartbeat-only session fields", () => {
@@ -387,9 +425,10 @@ test("rawCodexProcessToSession can carry best-effort workspace activity", () => 
 
 test("applySessionCatalogUsage annotates used skills and roles", () => {
   const sessions = [session({ sessionId: "s1" })];
+  const recentTs = new Date(Date.now() - 60_000).toISOString();
   const events = [
-    { ts: "2026-01-01T00:00:00Z", tool: "Skill", stream: "s", skill: "ab-review", session_id: "s1" },
-    { ts: "2026-01-01T00:01:00Z", tool: "RoleAdopt", stream: "s", role: "reviewer", session_id: "s1" },
+    { ts: recentTs, tool: "Skill", stream: "s", skill: "ab-review", session_id: "s1" },
+    { ts: recentTs, tool: "RoleAdopt", stream: "s", role: "reviewer", session_id: "s1" },
   ];
   const result = applySessionCatalogUsage(
     sessions,

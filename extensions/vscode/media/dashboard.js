@@ -87,10 +87,11 @@ function applyUpdate(d) {
 
   // File activity list (single-session path)
   var _singleSess   = (d.activeSessions && d.activeSessions.length === 1) ? d.activeSessions[0] : null;
+  var _singleUi = (AB.providerUi && AB.providerUi.getProviderUi && _singleSess) ? AB.providerUi.getProviderUi(_singleSess) : null;
   var _richActivity = _singleSess ? (_singleSess.activity || null) : null;
   var _singleRoot   = _singleSess ? (_singleSess.root || '') : '';
   var _actFiles     = _richActivity || d.fileActivity || [];
-  var _totalFiles   = d.totalUniqueFiles || _actFiles.length || 0;
+  var _totalFiles   = d.isSessionTab ? _actFiles.length : (d.totalUniqueFiles || _actFiles.length || 0);
   var _actLabel     = 'Activity this session';
   if (_totalFiles > 0) {
     _actLabel += ' · ' + _totalFiles + ' file' + (_totalFiles !== 1 ? 's' : '');
@@ -130,7 +131,7 @@ function applyUpdate(d) {
 
     // Preserve scroll positions before re-render
     var _scrollState = {};
-    sessionColsEl.querySelectorAll('[id^="act-body-"],[id^="wf-body-"],[id^="agents-body-"]').forEach(function(el) {
+    sessionColsEl.querySelectorAll('[id^="wf-body-"],[id^="agents-body-"]').forEach(function(el) {
       if (el.scrollTop > 0) _scrollState[el.id] = el.scrollTop;
     });
 
@@ -167,7 +168,22 @@ function applyUpdate(d) {
     var sessionsSecEl = document.getElementById('sec-sessions');
     var singleSecEl   = document.getElementById('sec-session-single');
     if (sessionsSecEl) sessionsSecEl.style.display = 'none';
-    if (singleSecEl)   singleSecEl.style.display = d.isSessionTab ? 'none' : '';
+    if (singleSecEl) {
+      singleSecEl.style.display = d.isSessionTab ? 'none' : '';
+      if (_singleUi && !d.isSessionTab) {
+        singleSecEl.style.borderTop = '2px solid ' + _singleUi.accent;
+        singleSecEl.style.background = _singleUi.accentSoft;
+        var singleTtl = singleSecEl.querySelector('.sec-ttl');
+        if (singleTtl) {
+          singleTtl.textContent = _singleUi.label + ' session';
+          singleTtl.style.color = _singleUi.accent;
+          singleTtl.style.opacity = '1';
+        }
+      } else {
+        singleSecEl.style.borderTop = '';
+        singleSecEl.style.background = '';
+      }
+    }
   }
 
   // Streams (single-session path)
@@ -184,6 +200,15 @@ function applyUpdate(d) {
   txt('sv-time',   d.sessionTime || '—');
   const svCtx = document.getElementById('sv-ctx'); if (svCtx) svCtx.innerHTML = ctxBar(d.ctxPct);
   txt('sv-branch', d.branch      || '—');
+  var svModel = document.getElementById('sv-model');
+  var svStream = document.getElementById('sv-stream');
+  if (_singleUi) {
+    if (svModel) svModel.style.color = _singleUi.accent;
+    if (svStream) svStream.style.color = _singleUi.accent;
+  } else {
+    if (svModel) svModel.style.color = '';
+    if (svStream) svStream.style.color = '';
+  }
 
   // Role / skill display
   const secRole = document.getElementById('sec-role');

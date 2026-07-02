@@ -1,5 +1,6 @@
 export interface ActivityEvent {
   ts: string;
+  provider?: string;
   tool: string;
   stream: string;
   file?: string;

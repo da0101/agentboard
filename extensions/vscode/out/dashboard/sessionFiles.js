@@ -6,6 +6,7 @@ exports.sessionRootMatchesWorkspace = sessionRootMatchesWorkspace;
 exports.listSessionFiles = listSessionFiles;
 exports.readSessionFile = readSessionFile;
 exports.deleteSessionFile = deleteSessionFile;
+exports.deleteWorkspaceSessionFile = deleteWorkspaceSessionFile;
 exports.deleteSessionFileByShellPid = deleteSessionFileByShellPid;
 const fs = require("fs");
 const path = require("path");
@@ -55,6 +56,13 @@ function deleteSessionFile(workspaceRoot, sessionId) {
         fs.unlinkSync(f);
     }
     catch { /* already gone */ }
+}
+function deleteWorkspaceSessionFile(workspaceRoot, sessionRoot, sessionId) {
+    const root = sessionRoot || workspaceRoot;
+    if (!sessionRootMatchesWorkspace(root, workspaceRoot))
+        return false;
+    deleteSessionFile(root, sessionId);
+    return true;
 }
 function deleteSessionFileByShellPid(workspaceRoot, pid) {
     if (!pid)

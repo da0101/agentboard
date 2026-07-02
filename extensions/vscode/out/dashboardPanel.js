@@ -167,7 +167,7 @@ class DashboardPanel {
             (0, messageRouter_1.handleDashboardMessage)(msg, {
                 workspaceRoot: this._workspaceRoot,
                 update: () => { void this._update(); },
-                deleteSessionFile: (sessionId) => (0, sessionFiles_1.deleteSessionFile)(this._workspaceRoot, sessionId),
+                deleteSessionFile: (sessionId, sessionRoot) => (0, sessionFiles_1.deleteWorkspaceSessionFile)(this._workspaceRoot, sessionRoot ?? "", sessionId),
                 focusSessionTab: (sessionId) => {
                     const sp = DashboardPanel.sessionPanels.get(sessionId);
                     if (sp)

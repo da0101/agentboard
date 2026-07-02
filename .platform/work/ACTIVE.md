@@ -7,6 +7,7 @@
 |---|---|---|---|---|
 | codex-dashboard-support | feature | awaiting-verification | codex | 2026-06-26 |
 | dashboard-js-cleanup | refactor | planning | codex | 2026-06-27 |
+| provider-session-interfaces | feature | awaiting-verification | codex | 2026-06-29 |
 | code-cleanup-skill-role | feature | awaiting-verification | codex | 2026-06-13 |
 | qa-self-heal-maestro | feature | awaiting-verification | codex | 2026-06-14 |
 ---

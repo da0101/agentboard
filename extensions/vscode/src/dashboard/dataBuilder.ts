@@ -2,13 +2,14 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { exec } from "child_process";
+import { exec, execSync } from "child_process";
 import { HudStatus } from "../hudTypes";
 import { detectWorkspaceRootFromFolders } from "../workspaceRoot";
 import { buildFileActivity, buildRecentAgents, buildSessionAgentActivity, buildSessionAgents, sessionNick } from "./activityBuilders";
 import { readActiveStream, readRoles, readSessionStream, readSkills, readStreamRole, readStreams } from "./catalogStore";
 import { AB_CLI_COMMANDS, MODEL_NAMES } from "./constants";
 import { readRecentEvents, readTrendEvents, lastSkillFromEvents } from "./eventStore";
+import { buildEventOnlySessions } from "./eventOnlySessions";
 import { buildTrendData } from "./trendBuilder";
 import { elapsedStr, fmtModel, relTime } from "./formatters";
 import { enrichActivityWithGit } from "./gitActivity";
@@ -385,6 +386,15 @@ export function buildDashboardDataSync(state: DashboardDataState): object {
       }
     }
 
+    const eventOnlySessions = buildEventOnlySessions(allEvents, {
+      workspaceRoot: state.workspaceRoot,
+      branch,
+      activeStream,
+      availableStreams: state.streamsCache?.data.map((s: { slug: string }) => s.slug) ?? [],
+      existingSessionIds: new Set(activeSessions.map(sess => sess.sessionId)),
+    });
+    activeSessions.push(...eventOnlySessions);
+
     // lastSkill: only from currently active sessions (avoids stale closed-session data in footer)
     const activeSessionIds = new Set(activeSessions.map(s => s.sessionId));
     // Stamp nick onto each session entry so the frontend and tab titles can use it
@@ -411,6 +421,42 @@ export function buildDashboardDataSync(state: DashboardDataState): object {
       projectName: path.basename(state.workspaceRoot),
       ignoredSizeFiles: Array.from(loadIgnoreSizes(state.workspaceRoot)),
       availableBranches: state.localBranchesCache.branches,
-      trendData: buildTrendData(readTrendEvents(state.workspaceRoot, 2000), Date.now()),
+      trendData: buildTrendData(buildTrendEventsWithGitStatus(state.workspaceRoot, activeStream, Date.now()), Date.now()),
     };
+}
+
+function buildTrendEventsWithGitStatus(root: string, stream: string, now: number): ActivityEvent[] {
+  const events = readTrendEvents(root, 2000);
+  const nowIso = new Date(now).toISOString();
+  const knownCreated = new Set(events
+    .filter(e => e.file && (e.tool === "Write" || (e as ActivityEvent & { isNew?: boolean }).isNew))
+    .map(e => e.file as string));
+  const knownDeleted = new Set(events
+    .filter(e => e.file && (isTrendDeleteTool(e.tool) || (e as ActivityEvent & { isDeleted?: boolean }).isDeleted))
+    .map(e => e.file as string));
+
+  try {
+    const statusOut = execSync(`git -C "${root}" status --porcelain --untracked-files=all 2>/dev/null`, { timeout: 3000, encoding: "utf8" });
+    for (const line of statusOut.split("\n")) {
+      if (!line.trim()) continue;
+      const xy = line.slice(0, 2);
+      const file = line.slice(3).trim();
+      if (!file) continue;
+      if ((xy === "??" || xy[0] === "A" || xy[1] === "A") && !knownCreated.has(file)) {
+        knownCreated.add(file);
+        events.push({ ts: nowIso, tool: "Write", stream, file });
+      } else if ((xy[0] === "D" || xy[1] === "D") && !knownDeleted.has(file)) {
+        knownDeleted.add(file);
+        events.push({ ts: nowIso, tool: "Delete", stream, file });
+      }
+    }
+  } catch {
+    // git unavailable
+  }
+
+  return events;
+}
+
+function isTrendDeleteTool(tool: string): boolean {
+  return tool === "Delete" || tool === "Remove" || tool === "Rm" || tool === "Unlink" || tool === "FileDelete" || tool === "DeleteFile";
 }

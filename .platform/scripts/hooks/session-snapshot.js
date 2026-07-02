@@ -48,6 +48,14 @@ function firstString(...values) {
   return '';
 }
 
+function safeSessionId(value) {
+  let id = firstString(value);
+  if (!id) return '';
+  id = path.basename(id).replace(/\.(jsonl|json)$/i, '');
+  id = id.replace(/[^a-zA-Z0-9_.:-]+/g, '_').replace(/^_+|_+$/g, '');
+  return id.slice(0, 160);
+}
+
 function findProjectRoot(cwd) {
   let dir = cwd || process.cwd();
   for (let i = 0; i < 30; i++) {
@@ -87,7 +95,7 @@ function gitBranch(root) {
 }
 
 function deriveSessionId(payload, provider) {
-  return firstString(
+  return safeSessionId(firstString(
     payload.session_id,
     payload.sessionId,
     payload.conversation_id,
@@ -96,11 +104,13 @@ function deriveSessionId(payload, provider) {
     payload.threadId,
     payload.transcript_id,
     payload.transcriptId,
+    payload.transcript_path,
+    payload.transcriptPath,
     get(payload, 'session.id'),
     get(payload, 'conversation.id'),
     get(payload, 'thread.id'),
     process.env.AGENTBOARD_SESSION_ID,
-  ) || `${provider || 'agent'}-${process.ppid || process.pid}`;
+  )) || `${provider || 'agent'}-${process.ppid || process.pid}`;
 }
 
 function deriveModel(payload) {

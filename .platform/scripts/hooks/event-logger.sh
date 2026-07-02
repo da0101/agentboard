@@ -44,6 +44,37 @@ _json_first_string_field() {
   return 1
 }
 
+_safe_session_id() {
+  local value="$1"
+  value="${value##*/}"
+  value="${value##*\\}"
+  value="${value%.jsonl}"
+  value="${value%.json}"
+  value="$(printf '%s' "$value" | tr -c '[:alnum:]_.:-' '_')"
+  value="${value##_}"
+  value="${value%%_}"
+  printf '%s' "${value:0:160}"
+}
+
+_derive_session_id() {
+  local raw
+  raw="$(_json_first_string_field \
+    "session_id" "sessionId" \
+    "conversation_id" "conversationId" \
+    "thread_id" "threadId" \
+    "transcript_id" "transcriptId" \
+    "transcript_path" "transcriptPath" 2>/dev/null || true)"
+  if [[ -z "$raw" ]]; then
+    raw="${AGENTBOARD_SESSION_ID:-}"
+  fi
+  raw="$(_safe_session_id "$raw")"
+  if [[ -n "$raw" ]]; then
+    printf '%s\n' "$raw"
+  else
+    printf '%s-ppid-%s\n' "$provider" "$PPID"
+  fi
+}
+
 _jsesc() {
   printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s", $0 }'
 }
@@ -75,7 +106,7 @@ if [[ "$hook_event" == "UserPromptSubmit" ]]; then
     _skill="${_prompt%%[[:space:]]*}"
     _skill="${_skill#/}"
     ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" || exit 0
-    _session_id="$(_json_string_field "session_id")"
+    _session_id="$(_derive_session_id)"
     _refresh_session_snapshot "$_session_id"
     printf '{"ts":"%s","provider":"%s","stream":"","tool":"Skill","skill":"%s","session_id":"%s"}\n' \
       "$ts" "$(_jsesc "$provider")" "$(_jsesc "$_skill")" "$(_jsesc "$_session_id")" >> "$log_file" 2>/dev/null
@@ -148,7 +179,7 @@ _resolve_stream() {
   return 1
 }
 
-session_id="$(_json_string_field "session_id")"
+session_id="$(_derive_session_id)"
 payload_stream="$(_json_string_field "stream")"
 stream="$(_resolve_stream "${AGENTBOARD_STREAM:-$payload_stream}" "$session_id" 2>/dev/null || true)"
 if [[ -n "$stream" && -n "$session_id" ]]; then
@@ -173,6 +204,51 @@ _agent_attrs() {
   [[ -n "${agent_label:-}" ]] && attrs="${attrs},\"agent_label\":\"$(_jsesc "$agent_label")\""
   [[ -n "${parent_session_id:-}" ]] && attrs="${attrs},\"parent_session_id\":\"$(_jsesc "$parent_session_id")\""
   printf '%s' "$attrs"
+}
+
+_append_event_payload() {
+  local payload="$1"
+  if command -v flock >/dev/null 2>&1; then
+    (
+      flock -w 1 9 || exit 0
+      printf '%s\n' "$payload" >&9
+    ) 9>>"$log_file" 2>/dev/null
+  else
+    printf '%s\n' "$payload" >> "$log_file" 2>/dev/null
+  fi
+}
+
+_bash_is_observational() {
+  local cmd="$1"
+  case "$cmd" in
+    git\ status*|git\ diff*|git\ show*|git\ log*|git\ branch*|git\ rev-parse*|\
+    rg\ *|grep\ *|find\ *|ls\ *|pwd|cat\ *|head\ *|tail\ *|sed\ *|awk\ *|\
+    echo\ *|printf\ *|test\ *|\[\ *) return 0 ;;
+  esac
+  return 1
+}
+
+_emit_bash_file_changes() {
+  local cmd="$1"
+  [[ -n "$cmd" ]] || return 0
+  _bash_is_observational "$cmd" && return 0
+  command -v git >/dev/null 2>&1 || return 0
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+  local dirty_files file file_e sid_e attrs
+  dirty_files="$(
+    {
+      git diff --name-only --diff-filter=ACDMRTUXB HEAD -- 2>/dev/null
+      git ls-files --others --exclude-standard 2>/dev/null
+    } | awk 'NF && !seen[$0]++ && $0 !~ /^\.platform\// { print }' | head -80
+  )"
+  [[ -n "$dirty_files" ]] || return 0
+  sid_e="$(_jsesc "${session_id:-}")"
+  attrs="$(_agent_attrs)"
+  while IFS= read -r file; do
+    [[ -n "$file" ]] || continue
+    file_e="$(_jsesc "$file")"
+    _append_event_payload "{\"ts\":\"$ts\",\"provider\":\"$provider_e\",\"stream\":\"$stream_e\",\"hook_event_name\":\"FileChange\",\"tool\":\"Edit\",\"session_id\":\"$sid_e\",\"file_path\":\"$file_e\",\"file\":\"$file_e\"$attrs}"
+  done <<< "$dirty_files"
 }
 
 if [[ "${AGENTBOARD_HOOK_TYPE:-}" == "agent_start" ]]; then
@@ -281,6 +357,7 @@ case "$hook_event" in
         if [[ -n "$_cmd" ]]; then
           detail_key="cmd"
           detail_val="${_cmd:0:120}"
+          _emit_bash_file_changes "$_cmd"
         fi
         ;;
       Skill)

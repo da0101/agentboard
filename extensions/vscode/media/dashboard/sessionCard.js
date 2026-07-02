@@ -3,6 +3,11 @@
   'use strict';
   var AB_CORE;
   function _core() { return AB_CORE || (AB_CORE = root.AgentboardDashboard.core); }
+  function _providerUi(s) {
+    return (root.AgentboardDashboard.providerUi || {}).getProviderUi
+      ? root.AgentboardDashboard.providerUi.getProviderUi(s)
+      : { key: 'unknown', label: 'Agent', accent: '#8a8a8a', accentSoft: 'rgba(255,255,255,.08)', accentBorder: 'rgba(255,255,255,.18)', subagentsLabel: 'Sub-agents', emptyAgents: 'No sub-agents', live: true, stale: false, clearLabel: 'Dismiss', clearTitle: 'Dismiss session from dashboard', statusHint: 'Session snapshot is updating' };
+  }
   function _save() { root.AgentboardDashboard.uiState.saveUiState(); }
 
   var RECENT_AGENT_MS = 5 * 60 * 1000;
@@ -10,7 +15,13 @@
   function _agentRowsHtml(s, d) {
     var esc = _core().esc;
     var relTime = _core().relTime;
-    if (!s.agents || !s.agents.length) return '';
+    var ui = _providerUi(s);
+    if (!s.agents || !s.agents.length) {
+      return '<div style="border-bottom:1px solid rgba(128,128,128,.1);padding:8px 14px">'
+        + '<div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:' + ui.accent + '">' + esc(ui.subagentsLabel) + '</div>'
+        + '<div class="em" style="padding-top:5px">' + esc(ui.emptyAgents) + '</div>'
+        + '</div>';
+    }
 
     var runningAgents = s.agents.filter(function(a){ return !a.done; });
     var totalAgents = s.agents.length;
@@ -48,7 +59,7 @@
 
     return '<div style="border-bottom:1px solid rgba(128,128,128,.1)">'
       + '<div data-agents-toggle="' + esc(sid) + '" style="display:flex;align-items:center;gap:6px;padding:8px 14px;cursor:pointer;user-select:none" title="Toggle sub-agents">'
-      + '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#888">◈ Sub-agents</span>'
+      + '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:' + ui.accent + '">◈ ' + esc(ui.subagentsLabel) + '</span>'
       + '<span style="font-size:10px;font-weight:700;color:#888">· ' + totalAgents + '</span>'
       + runBadge + doneBadge
       + '<span style="margin-left:auto;font-size:11px;opacity:.4">' + chevron + '</span>'
@@ -57,26 +68,6 @@
       + agentRows
       + '</div>'
       + '</div>';
-  }
-
-  function _activityHtml(s, d, sessRoot) {
-    var esc = _core().esc;
-    var relTime = _core().relTime;
-    var renderActivityRow = root.AgentboardDashboard.activityRow.renderActivityRow;
-    var acts = (s.activity || []).map(function(f) {
-      return renderActivityRow(f, sessRoot, s);
-    }).join('') || '<div class="em" style="padding:8px 14px">No activity yet</div>';
-    var actSid = 'act-' + s.sessionId;
-    var actExpanded = !root._actCollapsed || !root._actCollapsed.has(actSid);
-    var actChevron = actExpanded ? '▾' : '▸';
-    var actCount = s.activity ? s.activity.length : 0;
-    var actHdr = '<div data-act-toggle="' + esc(actSid) + '" style="display:flex;align-items:center;gap:6px;padding:6px 14px;cursor:pointer;border-top:1px solid rgba(128,128,128,.1);user-select:none">'
-      + '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.35">Activity</span>'
-      + (actCount ? '<span style="font-size:10px;opacity:.25">' + actCount + '</span>' : '')
-      + '<span style="margin-left:auto;font-size:11px;opacity:.3">' + actChevron + '</span>'
-      + '</div>';
-    var actBody = '<div id="act-body-' + esc(actSid) + '" style="display:' + (actExpanded ? 'block' : 'none') + ';padding:4px 14px;max-height:260px;overflow-y:auto;scrollbar-width:thin">' + acts + '</div>';
-    return actHdr + actBody;
   }
 
   function _streamSelectHtml(s, d, esc) {
@@ -126,14 +117,15 @@
     var relTime = _core().relTime;
     try {
       var lastUpdatedMs = s.lastUpdated ? new Date(s.lastUpdated).getTime() : 0;
-      var isLive = lastUpdatedMs > 0 && (Date.now() - lastUpdatedMs < 180000);
+      var ui = _providerUi(s);
+      var isLive = ui.live || (lastUpdatedMs > 0 && (Date.now() - lastUpdatedMs < 180000));
       var nick = root.sessionNickname(s.sessionId);
       var displayName = (s.projectName || s.sessionId.slice(0,8)) + ' · ' + nick;
       var age = s.ageSeconds < 60 ? s.ageSeconds + 's ago'
         : s.ageSeconds < 3600 ? Math.floor(s.ageSeconds / 60) + 'm ago'
         : Math.floor(s.ageSeconds / 3600) + 'h ago';
       var mc = s.model.toLowerCase();
-      var modelColor = mc.includes('opus') ? '#9c6af7' : mc.includes('haiku') ? '#4a9eff' : '#ff9800';
+      var modelColor = mc.includes('opus') ? '#9c6af7' : mc.includes('haiku') ? '#4a9eff' : ui.accent;
       var dotColor = isLive ? '#4caf50' : '#555';
       var ctxUsed = s.ctxPct !== null && s.ctxPct !== undefined ? Math.round(100 - s.ctxPct) : null;
       var ctxFill = ctxUsed !== null ? Math.max(0, Math.min(10, Math.floor(ctxUsed / 10))) : 0;
@@ -143,14 +135,17 @@
         : '';
       var sessRoot = s.root || '';
 
-      var hdr = '<div class="sess-col-hdr">'
+      var providerBadge = '<span title="' + esc(ui.statusHint) + '" style="font-size:9px;padding:1px 6px;border-radius:8px;background:' + ui.accentSoft + ';border:1px solid ' + ui.accentBorder + ';color:' + ui.accent + ';font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">' + esc(ui.label) + '</span>';
+      var clearBtn = '<button data-close-session="' + esc(s.sessionId||'') + '" data-session-root="' + esc(s.root||'') + '" title="' + esc(ui.clearTitle) + '" style="background:' + (ui.stale ? '#ff453a18' : 'transparent') + ';border:1px solid ' + (ui.stale ? '#ff453a44' : 'transparent') + ';cursor:pointer;color:' + (ui.stale ? '#ff6b61' : '#ff453a') + ';font-size:' + (ui.stale ? '10px' : '13px') + ';line-height:1;padding:' + (ui.stale ? '3px 7px' : '2px 4px') + ';border-radius:4px;opacity:' + (ui.stale ? '1' : '.5') + ';flex-shrink:0;white-space:nowrap" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'' + (ui.stale ? '1' : '.5') + '\'">' + esc(ui.stale ? ui.clearLabel : '×') + '</button>';
+      var hdr = '<div class="sess-col-hdr" style="border-top:2px solid ' + ui.accent + ';background:' + ui.accentSoft + '">'
         + '<div class="sess-col-name">'
         + '<span style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:' + dotColor + (isLive ? ';box-shadow:0 0 5px ' + dotColor + ';animation:pulse 1.5s ease-in-out infinite' : '') + '"></span>'
         + '<span style="font-size:12px;font-weight:' + (isLive ? '600' : '400') + ';color:' + (isLive ? '#e8e8e8' : '#aaa') + ';flex:1">' + esc(displayName) + '</span>'
+        + providerBadge
         + '<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:' + modelColor + '22;color:' + modelColor + '">' + esc(s.model) + '</span>'
-        + '<button data-focus-terminal="1" data-session-root="' + esc(s.root||'') + '" data-session-nick="' + esc(nick) + '" data-shell-pid="' + (s.shellPid||0) + '" data-session-started-at="' + esc(s.startedAt||'') + '" title="Open chat for ' + esc(nick) + '" style="background:#ffffff0d;border:1px solid #ffffff18;cursor:pointer;padding:2px 8px;border-radius:4px;color:#aaa;font-size:10px;line-height:1.6;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap" onmouseover="this.style.background=\'#ffffff1a\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'#ffffff0d\';this.style.color=\'#aaa\'">⌨ chat</button>'
+        + '<button data-focus-terminal="1" data-session-root="' + esc(s.root||'') + '" data-session-nick="' + esc(nick) + '" data-shell-pid="' + (s.shellPid||0) + '" data-session-started-at="' + esc(s.startedAt||'') + '" title="Open chat for ' + esc(nick) + '" style="background:' + ui.accentSoft + ';border:1px solid ' + ui.accentBorder + ';cursor:pointer;padding:2px 8px;border-radius:4px;color:' + ui.accent + ';font-size:10px;line-height:1.6;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap" onmouseover="this.style.opacity=\'.85\'" onmouseout="this.style.opacity=\'1\'">⌨ chat</button>'
         + '<button data-open-session-tab="' + esc(s.sessionId||'') + '" title="Open session tab for ' + esc(nick) + '" style="background:#4a9eff0d;border:1px solid #4a9eff33;cursor:pointer;padding:2px 8px;border-radius:4px;color:#4a9eff;font-size:10px;line-height:1.6;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap" onmouseover="this.style.background=\'#4a9eff22\'" onmouseout="this.style.background=\'#4a9eff0d\'">↗ tab</button>'
-        + '<button data-close-session="' + esc(s.sessionId||'') + '" title="Dismiss session from dashboard" style="background:transparent;border:none;cursor:pointer;color:#ff453a;font-size:13px;line-height:1;padding:2px 4px;opacity:.5;flex-shrink:0" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'.5\'">×</button>'
+        + clearBtn
         + '</div>'
         + '<div class="sess-col-grid">'
         + _streamSelectHtml(s, d, esc)
@@ -166,9 +161,8 @@
 
       var agentsHtml  = _agentRowsHtml(s, d);
       var workflowHtml = root.AgentboardDashboard.workflowPanel.buildWfPanel(s, false);
-      var actHtml = _activityHtml(s, d, sessRoot);
 
-      return '<div class="sess-col" style="flex:1 1 ' + colBasis + '">' + hdr + agentsHtml + workflowHtml + actHtml + '</div>';
+      return '<div class="sess-col" style="flex:1 1 ' + colBasis + '">' + hdr + agentsHtml + workflowHtml + '</div>';
     } catch(e) {
       return '<div class="sess-col" style="padding:12px;opacity:.4;font-size:11px">Error rendering session: ' + (e && e.message || e) + '</div>';
     }

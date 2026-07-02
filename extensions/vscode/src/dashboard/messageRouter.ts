@@ -11,7 +11,7 @@ import { findSessionTerminal, sendTextToSessionTerminal } from "./terminalFocus"
 export interface DashboardMessageContext {
   workspaceRoot: string;
   update(): void;
-  deleteSessionFile(sessionId: string): void;
+  deleteSessionFile(sessionId: string, sessionRoot?: string): boolean;
   focusSessionTab(sessionId: string): void;
   sessionTerminalMap: Map<string, string>;
 }
@@ -82,8 +82,12 @@ export function handleDashboardMessage(
         }
         if (msg.command === "closeSession") {
           const sessionId = (msg as {sessionId?: string}).sessionId ?? "";
+          const sessionRoot = (msg as {sessionRoot?: string}).sessionRoot ?? "";
           if (!sessionId) return;
-          ctx.deleteSessionFile(sessionId);
+          if (!ctx.deleteSessionFile(sessionId, sessionRoot)) {
+            void vscode.window.showWarningMessage("Refused to clear a session from another workspace.");
+            return;
+          }
           ctx.update();
           return;
         }

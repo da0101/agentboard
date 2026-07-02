@@ -84,6 +84,26 @@ test_event_logger_snapshot_works_in_type_module_project() {
   rm -rf "$dir"
 }
 
+test_event_logger_derives_session_from_transcript_path() {
+  local dir
+  dir="$(mktemp -d)"
+  setup_logger_fixture "$dir"
+
+  printf '%s' '{"tool_name":"Bash","command":"npm test","transcript_path":"/Users/test/.claude/projects/repo/claude-visible-01.jsonl"}' \
+    | (cd "$dir"; AGENTBOARD_PROVIDER=claude AGENTBOARD_SESSION_ID=codex-leaked bash "$HOOK")
+
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created for transcript-derived session"
+
+  assert_file_contains "$log" '"provider":"claude"'
+  assert_file_contains "$log" '"tool":"Bash"'
+  assert_file_contains "$log" '"session_id":"claude-visible-01"'
+  assert_file_contains "$dir/.platform/runtime/agentboard/sessions/claude-visible-01.json" '"provider": "claude"'
+  assert_file_contains "$dir/.platform/runtime/agentboard/sessions/claude-visible-01.json" '"_session_id": "claude-visible-01"'
+
+  rm -rf "$dir"
+}
+
 # ---------------------------------------------------------------------------
 # Test 2: RoleAdopt case — Read of .platform/roles/debugger.md
 # ---------------------------------------------------------------------------
@@ -311,11 +331,35 @@ test_tool_event_preserves_agent_identity() {
   rm -rf "$dir"
 }
 
+test_bash_event_records_dirty_files() {
+  local dir
+  dir="$(mktemp -d)"
+  setup_logger_fixture "$dir"
+
+  mkdir -p "$dir/src"
+  printf 'old\n' > "$dir/src/changed.ts"
+  (cd "$dir"; git add src/changed.ts && git commit -m "add changed fixture" >/dev/null 2>&1)
+  printf 'new\n' > "$dir/src/changed.ts"
+
+  _fire "$dir" '{"tool_name":"Bash","command":"npm test","session_id":"sess-bash-dirty"}'
+
+  local log="$dir/.platform/events.jsonl"
+  [[ -f "$log" ]] || fail "events.jsonl not created for Bash dirty-file event"
+
+  assert_file_contains "$log" '"hook_event_name":"FileChange"'
+  assert_file_contains "$log" '"session_id":"sess-bash-dirty"'
+  assert_file_contains "$log" '"file":"src/changed.ts"'
+  assert_file_contains "$log" '"tool":"Bash"'
+
+  rm -rf "$dir"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 test_skill_tool_emits_skill_event
 test_event_logger_snapshot_works_in_type_module_project
+test_event_logger_derives_session_from_transcript_path
 test_role_adopt_from_platform_roles_read
 test_user_prompt_submit_skill_invocation
 test_user_prompt_submit_skill_uses_provider_env
@@ -328,3 +372,4 @@ test_role_adopt_event_has_timestamp
 test_read_of_regular_file_not_logged
 test_skill_tool_type_field_fallback
 test_tool_event_preserves_agent_identity
+test_bash_event_records_dirty_files

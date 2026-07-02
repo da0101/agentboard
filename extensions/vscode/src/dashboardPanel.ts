@@ -6,7 +6,7 @@ import { handleDelegateFile } from "./dashboard/delegateFile";
 import { handleDashboardMessage } from "./dashboard/messageRouter";
 import { RawCodexProcessCache } from "./dashboard/rawCodexProcesses";
 import { dashboardRenderFingerprint } from "./dashboard/renderFingerprint";
-import { deleteSessionFile, deleteSessionFileByShellPid } from "./dashboard/sessionFiles";
+import { deleteSessionFileByShellPid, deleteWorkspaceSessionFile } from "./dashboard/sessionFiles";
 import { getDashboardShell } from "./dashboard/shell";
 import { ActivityEvent, CatalogItem, StreamEntry } from "./dashboard/types";
 
@@ -172,7 +172,7 @@ export class DashboardPanel {
         handleDashboardMessage(msg, {
           workspaceRoot: this._workspaceRoot,
           update: () => { void this._update(); },
-          deleteSessionFile: (sessionId: string) => deleteSessionFile(this._workspaceRoot, sessionId),
+          deleteSessionFile: (sessionId: string, sessionRoot?: string) => deleteWorkspaceSessionFile(this._workspaceRoot, sessionRoot ?? "", sessionId),
           focusSessionTab: (sessionId: string) => {
             const sp = DashboardPanel.sessionPanels.get(sessionId);
             if (sp) try { sp._panel.reveal(undefined, false); } catch { /* disposed */ }

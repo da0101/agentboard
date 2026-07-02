@@ -13,7 +13,7 @@ function bucketize(events, windowMs, now) {
     const windowEnd = Math.ceil(now / bMs) * bMs;
     const start = windowEnd - windowMs;
     const b = Array.from({ length: N }, (_, i) => ({
-        ts: start + i * bMs, edits: 0, agents: 0, cmds: 0, skills: 0, workflows: 0,
+        ts: start + i * bMs, edits: 0, created: 0, deleted: 0, agents: 0, cmds: 0, skills: 0, workflows: 0,
     }));
     // Track workflow spans: a WorkflowStart before or within the window stays active until a
     // WorkflowEnd (or end of window). This makes a multi-hour workflow show across all buckets
@@ -37,6 +37,11 @@ function bucketize(events, windowMs, now) {
             continue;
         const bi = Math.min(Math.floor((t - start) / bMs), N - 1);
         const tool = ev.tool;
+        const lifecycle = ev;
+        if (lifecycle.isNew || tool === "Write")
+            b[bi].created++;
+        if (lifecycle.isDeleted || isDeleteTool(tool))
+            b[bi].deleted++;
         if (tool === "Edit" || tool === "Write" || tool === "MultiEdit")
             b[bi].edits++;
         else if (tool === "AgentStart")
@@ -57,6 +62,9 @@ function bucketize(events, windowMs, now) {
         }
     }
     return b;
+}
+function isDeleteTool(tool) {
+    return tool === "Delete" || tool === "Remove" || tool === "Rm" || tool === "Unlink" || tool === "FileDelete" || tool === "DeleteFile";
 }
 function buildTrendData(events, now) {
     const result = {};

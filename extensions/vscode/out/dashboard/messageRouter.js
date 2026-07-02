@@ -77,9 +77,13 @@ function handleDashboardMessage(msg, ctx) {
     }
     if (msg.command === "closeSession") {
         const sessionId = msg.sessionId ?? "";
+        const sessionRoot = msg.sessionRoot ?? "";
         if (!sessionId)
             return;
-        ctx.deleteSessionFile(sessionId);
+        if (!ctx.deleteSessionFile(sessionId, sessionRoot)) {
+            void vscode.window.showWarningMessage("Refused to clear a session from another workspace.");
+            return;
+        }
         ctx.update();
         return;
     }

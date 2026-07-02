@@ -13,6 +13,37 @@ export interface ActivityGitCaches {
   branchCommittedCache: Map<string, { ts: number; files: Set<string> }>;
 }
 
+interface ActivityFileLocation {
+  absFile: string;
+  gitRoot: string;
+  gitRel: string;
+}
+
+function normalizeGitPath(file: string): string {
+  return file.replace(/\\/g, "/");
+}
+
+function activityFileLocation(root: string, file: string): ActivityFileLocation | null {
+  if (!file || file.startsWith("$ ")) return null;
+  const rawAbsFile = path.isAbsolute(file) ? file : path.join(root, file);
+  const absFile = (() => {
+    try { return fs.realpathSync.native(rawAbsFile); } catch { return path.resolve(rawAbsFile); }
+  })();
+  let gitRoot = (() => {
+    try { return fs.realpathSync.native(root); } catch { return path.resolve(root); }
+  })();
+  try {
+    const dir = fs.existsSync(absFile) && fs.statSync(absFile).isDirectory() ? absFile : path.dirname(absFile);
+    const rawGitRoot = execSync("git rev-parse --show-toplevel", { cwd: dir, timeout: 1000, encoding: "utf8" }).trim() || gitRoot;
+    gitRoot = fs.realpathSync.native(rawGitRoot);
+  } catch {
+    // keep fallback root
+  }
+  const gitRel = normalizeGitPath(path.relative(gitRoot, absFile));
+  if (!gitRel || gitRel.startsWith("..")) return { absFile, gitRoot, gitRel: normalizeGitPath(file) };
+  return { absFile, gitRoot, gitRel };
+}
+
 export function applyGitStatus(
   activity: SessionActivityItem[],
   statusOut: string,
@@ -24,16 +55,16 @@ export function applyGitStatus(
     if (line.length < 4) continue;
     const xy = line.slice(0, 2);
     const fpath = line.slice(3).trim().replace(/^"(.*)"$/, "$1");
-    statusMap.set(fpath, xy);
+    statusMap.set(normalizeGitPath(fpath), xy);
   }
   for (const entry of activity) {
-    const xy = statusMap.get(entry.file) ?? statusMap.get(entry.file.replace(/\\/g, "/")) ?? "";
+    const xy = statusMap.get(normalizeGitPath(entry.file)) ?? "";
     if (xy === "??" || xy[0] === "A" || xy[1] === "A") entry.isNew = true;
     else if (xy[0] === "D" || xy[1] === "D") entry.isDeleted = true;
   }
-  const existing = new Set(activity.map(entry => entry.file.replace(/\\/g, "/")));
+  const existing = new Set(activity.map(entry => normalizeGitPath(entry.file)));
   for (const [file, xy] of statusMap) {
-    const normalized = file.replace(/\\/g, "/");
+    const normalized = normalizeGitPath(file);
     if (existing.has(normalized)) continue;
     if (xy !== "??" && xy[0] !== "A" && xy[1] !== "A" && xy[0] !== "D" && xy[1] !== "D") continue;
     activity.push({
@@ -75,23 +106,29 @@ function enrichDiffStats(
   cache: Map<string, { ts: number; diffMap: Map<string, { added: number; deleted: number }> }>,
   now: number,
 ): void {
-  try {
-    const cached = cache.get(root);
+  const diffMapForRoot = (gitRoot: string): Map<string, { added: number; deleted: number }> => {
+    const cached = cache.get(gitRoot);
     let diffMap: Map<string, { added: number; deleted: number }>;
     if (cached && (now - cached.ts) < NUMSTAT_TTL) {
       diffMap = cached.diffMap;
     } else {
       diffMap = new Map<string, { added: number; deleted: number }>();
-      const numstatOut = execSync("git diff --numstat HEAD", { cwd: root, timeout: 3000, encoding: "utf8" });
+      const numstatOut = execSync("git diff --numstat HEAD", { cwd: gitRoot, timeout: 3000, encoding: "utf8" });
       for (const line of numstatOut.split("\n")) {
         const m = line.match(/^(\d+)\t(\d+)\t(.+)$/);
-        if (m) diffMap.set(m[3].trim(), { added: parseInt(m[1], 10), deleted: parseInt(m[2], 10) });
+        if (m) diffMap.set(normalizeGitPath(m[3].trim()), { added: parseInt(m[1], 10), deleted: parseInt(m[2], 10) });
       }
-      cache.set(root, { ts: now, diffMap });
+      cache.set(gitRoot, { ts: now, diffMap });
     }
+    return diffMap;
+  };
+
+  try {
     for (const entry of activity) {
       if (entry.tool === "Edit" || entry.tool === "Write" || entry.tool === "MultiEdit") {
-        const stats = diffMap.get(entry.file);
+        const loc = activityFileLocation(root, entry.file);
+        if (!loc) continue;
+        const stats = diffMapForRoot(loc.gitRoot).get(loc.gitRel);
         if (stats) {
           entry.added = stats.added;
           entry.deleted = stats.deleted;
@@ -105,15 +142,16 @@ function enrichDiffStats(
 
 function enrichLineCounts(root: string, activity: SessionActivityItem[], cache: Map<string, { ts: number; count: number }>, now: number): void {
   for (const entry of activity) {
-    if (entry.file.startsWith("$ ") || !root) continue;
-    const absFile = path.join(root, entry.file);
+    if (!root) continue;
+    const loc = activityFileLocation(root, entry.file);
+    if (!loc) continue;
     try {
-      const cached = cache.get(absFile);
+      const cached = cache.get(loc.absFile);
       if (cached && (now - cached.ts) < LINE_COUNT_TTL) {
         entry.lineCount = cached.count;
       } else {
-        const lines = fs.readFileSync(absFile, "utf8").split("\n").length;
-        cache.set(absFile, { ts: now, count: lines });
+        const lines = fs.readFileSync(loc.absFile, "utf8").split("\n").length;
+        cache.set(loc.absFile, { ts: now, count: lines });
         entry.lineCount = lines;
       }
     } catch {
@@ -133,14 +171,14 @@ function enrichCommittedMarkers(root: string, activity: SessionActivityItem[], c
       let mergeBase = "";
       for (const base of ["origin/develop", "origin/main", "HEAD~1"]) {
         try {
-          mergeBase = execSync(`git merge-base HEAD ${base}`, { cwd: root, timeout: 3000, encoding: "utf8" }).trim();
+          mergeBase = execSync(`git merge-base HEAD ${base}`, { cwd: root, timeout: 3000, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
           if (mergeBase) break;
         } catch {
           // try next
         }
       }
       if (mergeBase) {
-        const nameOnly = execSync(`git diff --name-only ${mergeBase}..HEAD`, { cwd: root, timeout: 3000, encoding: "utf8" });
+        const nameOnly = execSync(`git diff --name-only ${mergeBase}..HEAD`, { cwd: root, timeout: 3000, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
         for (const line of nameOnly.split("\n")) {
           const f = line.trim();
           if (f) committedFiles.add(f);
@@ -150,7 +188,8 @@ function enrichCommittedMarkers(root: string, activity: SessionActivityItem[], c
     }
     for (const entry of activity) {
       if (entry.tool === "Edit" || entry.tool === "Write" || entry.tool === "MultiEdit") {
-        entry.committed = committedFiles.has(entry.file);
+        const loc = activityFileLocation(root, entry.file);
+        entry.committed = loc ? committedFiles.has(loc.gitRel) : false;
       }
     }
   } catch {

@@ -45,6 +45,13 @@ export function deleteSessionFile(workspaceRoot: string, sessionId: string): voi
   try { fs.unlinkSync(f); } catch { /* already gone */ }
 }
 
+export function deleteWorkspaceSessionFile(workspaceRoot: string, sessionRoot: string, sessionId: string): boolean {
+  const root = sessionRoot || workspaceRoot;
+  if (!sessionRootMatchesWorkspace(root, workspaceRoot)) return false;
+  deleteSessionFile(root, sessionId);
+  return true;
+}
+
 export function deleteSessionFileByShellPid(workspaceRoot: string, pid: number): boolean {
   if (!pid) return false;
   for (const fname of listSessionFiles(workspaceRoot)) {

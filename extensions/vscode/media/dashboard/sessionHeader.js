@@ -3,6 +3,11 @@
   'use strict';
   var AB_CORE;
   function _core() { return AB_CORE || (AB_CORE = root.AgentboardDashboard.core); }
+  function _providerUi(s) {
+    return (root.AgentboardDashboard.providerUi || {}).getProviderUi
+      ? root.AgentboardDashboard.providerUi.getProviderUi(s)
+      : { key: 'unknown', label: 'Agent', accent: '#8a8a8a', accentSoft: 'rgba(255,255,255,.08)', accentBorder: 'rgba(255,255,255,.18)', live: true, stale: false, clearLabel: 'Dismiss', clearTitle: 'Dismiss session from dashboard', statusHint: 'Session snapshot is updating' };
+  }
 
   function renderSessionHdr(s, d) {
     var el = root.document.getElementById('session-hdr');
@@ -10,8 +15,9 @@
     var esc = _core().esc;
     var ctxBar = _core().ctxBar;
     var relTime = _core().relTime;
+    var ui = _providerUi(s);
     var nick = s.nick || root.sessionNickname(s.sessionId || '');
-    var isLive = typeof s.ageSeconds === 'number' && s.ageSeconds < 120;
+    var isLive = ui.live || (typeof s.ageSeconds === 'number' && s.ageSeconds < 120);
     var dotColor = isLive ? '#4caf50' : '#888';
     var dotAnim = isLive ? 'animation:pulse 1.5s ease-in-out infinite;' : '';
     var siblings = (root._stSiblings || []);
@@ -31,14 +37,16 @@
       return '<span class="sib-pill" data-focus-sibling="' + esc(sib.sessionId) + '">' + esc(sibNick) + ' ↗</span>';
     }).join(' ');
     el.innerHTML =
-      '<div style="display:flex;align-items:center;gap:8px;padding:9px 14px 5px;flex-wrap:wrap">'
+      '<div style="display:flex;align-items:center;gap:8px;padding:9px 14px 5px;flex-wrap:wrap;border-top:2px solid ' + ui.accent + ';background:' + ui.accentSoft + '">'
       + '<span style="width:7px;height:7px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;' + dotAnim + '"></span>'
+      + '<span title="' + esc(ui.statusHint) + '" style="font-size:9px;padding:1px 6px;border-radius:8px;background:' + ui.accentSoft + ';border:1px solid ' + ui.accentBorder + ';color:' + ui.accent + ';font-weight:700;text-transform:uppercase;letter-spacing:.04em">' + esc(ui.label) + '</span>'
       + '<span style="font-weight:700;font-size:13px;letter-spacing:.02em;color:#e8e8e8">' + esc(nick) + '</span>'
       + (statsLine ? '<span style="opacity:.2;margin:0 2px">·</span>' + statsLine : '')
       + '</div>'
       + (contextLine ? '<div style="padding:0 14px 5px">' + contextLine + '</div>' : '')
       + '<div style="display:flex;align-items:center;gap:8px;padding:5px 14px 8px;border-top:1px solid rgba(255,255,255,.06);flex-wrap:wrap">'
-      + '<button data-chat-btn="1" data-shell-pid="' + (s.shellPid || 0) + '" data-session-nick="' + esc(nick) + '" data-session-root="' + esc(s.root || '') + '" data-session-id="' + esc(s.sessionId || '') + '" style="padding:3px 10px;border-radius:4px;border:1px solid #4a9eff55;background:rgba(74,158,255,.1);color:#4a9eff;cursor:pointer;font-size:11px;font-weight:600">↗ Open Chat</button>'
+      + '<button data-chat-btn="1" data-shell-pid="' + (s.shellPid || 0) + '" data-session-nick="' + esc(nick) + '" data-session-root="' + esc(s.root || '') + '" data-session-id="' + esc(s.sessionId || '') + '" style="padding:3px 10px;border-radius:4px;border:1px solid ' + ui.accentBorder + ';background:' + ui.accentSoft + ';color:' + ui.accent + ';cursor:pointer;font-size:11px;font-weight:600">↗ Open Chat</button>'
+      + '<button data-close-session="' + esc(s.sessionId || '') + '" data-session-root="' + esc(s.root || '') + '" title="' + esc(ui.clearTitle) + '" style="padding:3px 10px;border-radius:4px;border:1px solid ' + (ui.stale ? '#ff453a44' : 'var(--vscode-panel-border)') + ';background:' + (ui.stale ? '#ff453a18' : 'transparent') + ';color:' + (ui.stale ? '#ff6b61' : 'inherit') + ';cursor:pointer;font-size:11px;font-weight:600">' + esc(ui.clearLabel) + '</button>'
       + (siblings.length ? '<span style="opacity:.28;font-size:10px;margin-left:4px">also open:</span> ' + sibHtml : '')
       + '<button data-refresh-btn="1" style="margin-left:auto;background:transparent;border:1px solid var(--vscode-panel-border);color:inherit;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px">↻</button>'
       + '</div>';
@@ -65,6 +73,7 @@
           projectName: s0.projectName || d.projectName,
           hasLive:     typeof s0.ageSeconds === 'number' ? s0.ageSeconds < 120 : d.hasLive,
           fileActivity:    _s0act.length ? _s0act : d.fileActivity,
+          totalUniqueFiles: _s0act.length,
           recentAgents:    s0.agents || [],
           agentActivity:   s0.agentActivity || [],
           lastEventLabel:  _s0act0 ? _s0act0.file : '',

@@ -20,6 +20,7 @@ function getDashboardShell(data, webview, extensionUri) {
             vscode.Uri.joinPath(extensionUri, "media", "dashboard", "trendChart.js"),
             vscode.Uri.joinPath(extensionUri, "media", "dashboard", "workflowPanel.js"),
             vscode.Uri.joinPath(extensionUri, "media", "dashboard", "activityRow.js"),
+            vscode.Uri.joinPath(extensionUri, "media", "dashboard", "providerUi.js"),
             vscode.Uri.joinPath(extensionUri, "media", "dashboard", "agentsPanel.js"),
             vscode.Uri.joinPath(extensionUri, "media", "dashboard", "sessionCard.js"),
             vscode.Uri.joinPath(extensionUri, "media", "dashboard", "sessionHeader.js"),
@@ -143,10 +144,12 @@ body{background:var(--vscode-editor-background);color:var(--vscode-editor-foregr
 body.session-tab #hdr{display:none}
 body.session-tab .tabs{display:none}
 body.session-tab #session-hdr{display:flex}
-body.session-tab #live{overflow-y:auto;overflow-x:hidden}
-body.session-tab #live-body{flex-direction:column;overflow:visible}
-body.session-tab .col-l{flex:none;width:100%;overflow-y:visible;border-right:none;border-bottom:1px solid var(--vscode-panel-border)}
-body.session-tab .col-r{flex:none;width:100%;overflow-y:visible}
+body.session-tab #live{overflow:hidden;min-height:0}
+body.session-tab #live-body{flex:1;min-height:0;flex-direction:column;overflow:hidden}
+body.session-tab .col-l{flex:1 1 auto;min-height:0;width:100%;overflow:hidden;border-right:none;border-bottom:none;display:flex;flex-direction:column}
+body.session-tab .col-r{flex:0 0 auto;width:100%;overflow:visible}
+body.session-tab #sec-activity{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;border-bottom:none}
+body.session-tab #fa-list{flex:1 1 auto;min-height:0;overflow-y:auto;padding-right:4px}
 body.session-tab #footer{display:none}
 /* Session tab section ordering: 1-Session 2-Agents 3-Activity */
 body.session-tab .col-r{order:1!important}
