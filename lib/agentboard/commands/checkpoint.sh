@@ -29,10 +29,6 @@ _checkpoint_print_migration_blocker() {
 cmd_checkpoint() {
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
-  # --auto mode: auto-detect active stream + pull --what from latest git commit.
-  # Fail-open (returns 0 on any skip condition). Designed to be called from the
-  # post-commit git hook so every commit is an automatic checkpoint regardless
-  # of which provider (Claude / Codex / Gemini) is driving.
   if [[ "${1:-}" == "--auto" ]]; then
     _checkpoint_auto_mode "${2:-}"
     return 0
@@ -100,38 +96,15 @@ cmd_checkpoint() {
         cat <<'EOF'
 Usage: ab checkpoint <stream-slug> --what "..." --next "..." [flags]
 
-Overwrites the stream file's `## Resume state` block so the next agent has
-compact, current context. Also prepends a dated entry to `## Progress log`
-and trims the log to the last 10 entries.
+Updates `## Resume state`, prepends `## Progress log`, and trims to 10 entries.
 
-Required:
-  --what "<1-2 lines>"     What just happened in this session.
-  --next "<one sentence>"  The single next action for whoever resumes.
+Required: --what "<1-2 lines>" --next "<one sentence>"
+Optional: --blocker "<text>" --focus "<file:line|topic>" --diff --dry-run
+Usage: --provider <name> --model <name> [--type <name>] [--complexity <t>]
+       --tokens-in N --tokens-out N
+       --cumulative-in N --cumulative-out N
 
-Optional:
-  --blocker "<text>"       Current blocker. Defaults to "none".
-  --focus "<file:line|topic>"  What file/topic is in focus. Defaults to "—".
-  --diff                   Also append `git diff --stat` to Progress log.
-  --dry-run                Print what would change; don't write.
-
-Usage tracking (auto-log a token segment when provider + tokens given):
-  --tokens-in N            Input tokens consumed THIS segment only (delta).
-  --tokens-out N           Output tokens produced THIS segment only (delta).
-  --cumulative-in N        Running TOTAL input tokens since session start.
-                           CLI computes delta automatically — safe for
-                           mid-session logging without double-counting.
-  --cumulative-out N       Running TOTAL output tokens since session start.
-  --provider <name>        claude | codex | gemini  (or $AGENTBOARD_PROVIDER)
-  --model <name>           model id (or $AGENTBOARD_MODEL)
-  --type <name>            task type for this segment (conversation | research |
-                           design | implementation | debug | audit | review |
-                           handoff | chore)
-  --complexity <t>         trivial | normal | heavy  (helps 'learn' detect overkill)
-
-  Use --tokens-in/out OR --cumulative-in/out, not both.
-
-After running, the next agent (Claude/Codex/Gemini) can resume by running
-`ab handoff <stream-slug>` and reading Resume state first.
+Use token deltas OR cumulative totals, not both. Resume with: ab handoff <stream-slug>
 EOF
         return 0 ;;
       *) die "Unknown flag for checkpoint: $1" ;;
@@ -148,8 +121,6 @@ EOF
   (( explicit_blocker )) || blocker="none"
   (( explicit_focus )) || focus="—"
 
-  # Sanitize single-line fields before validation so any recovery command keeps
-  # the same payload checkpoint would have written.
   what="${what//$'\n'/ }"
   next_action="${next_action//$'\n'/ }"
   blocker="${blocker//$'\n'/ }"
@@ -169,7 +140,6 @@ EOF
   ts="$(date '+%Y-%m-%d %H:%M')"
   agent="${AGENTBOARD_AGENT:-${USER:-agent}}"
 
-  # Build new Resume state block
   local resume_block
   resume_block="$(cat <<EOF
 ## Resume state
@@ -183,7 +153,6 @@ _Overwritten by \`ab checkpoint\` — the compact payload the next agent reads f
 EOF
   )"
 
-  # Build new Progress log entry
   local log_entry
   log_entry="${ts} — ${what}"
   if (( include_diff )); then
@@ -226,10 +195,6 @@ EOF
   _checkpoint_auto_log_usage "$slug" "$tokens_in" "$tokens_out" "$cum_in" "$cum_out" "$provider" "$model" "$complexity" "$task_type" "$what"
 }
 
-# Auto-log a usage segment when token counts + provider are provided.
-# Silently skips if any required field is missing — usage tracking stays optional.
-# Supports two modes: delta (--tokens-in/out) or cumulative (--cumulative-in/out
-# — CLI computes the delta).
 _checkpoint_infer_task_type() {
   local what="$1"
   local lower
@@ -310,9 +275,6 @@ EOF
   return 0
 }
 
-# Apply the three stream-file writes of a checkpoint as one unit. Run under
-# the per-stream advisory lock so a concurrent `ab watch --once` and a manual
-# `ab checkpoint` can't interleave their read-modify-write sequences.
 _checkpoint_apply_writes() {
   local stream_file="$1" resume_block="$2" log_entry="$3" today_str="$4"
   _checkpoint_write_resume_state "$stream_file" "$resume_block"
@@ -381,9 +343,6 @@ _checkpoint_auto_log_usage() {
   fi
 }
 
-# Overwrite or insert the ## Resume state section. If the section exists, it's
-# replaced in place (preserving everything before and after). If it's missing,
-# insert before ## Progress log, or before ## Next action, or append.
 _checkpoint_write_resume_state() {
   local file="$1" new_block="$2"
   local tmp block_file
@@ -440,9 +399,6 @@ _checkpoint_write_resume_state() {
   mv "$tmp" "$file"
 }
 
-# Prepend a dated entry to ## Progress log (creating the section if absent),
-# then keep only the 10 most-recent entries. Entries are delimited by leading
-# date lines (YYYY-MM-DD ...) at column 0.
 _checkpoint_prepend_progress_entry() {
   local file="$1" entry="$2"
   local tmp entry_file
@@ -474,8 +430,6 @@ _checkpoint_prepend_progress_entry() {
       next
     }
     in_log && !inserted {
-      # Insert the new entry before existing log lines. The entry starts with
-      # a YYYY-MM-DD date line so it counts as entry 1 for the 10-entry cap.
       while ((getline line < entry_file) > 0) print line
       close(entry_file)
       print ""
@@ -487,7 +441,6 @@ _checkpoint_prepend_progress_entry() {
       in_log = 0
     }
     in_log {
-      # Count entry headers (YYYY-MM-DD ... at column 0, non-indented)
       if ($0 ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}/) {
         count++
         if (count > 10) { skipping = 1 }

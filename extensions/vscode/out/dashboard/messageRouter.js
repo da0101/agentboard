@@ -5,6 +5,7 @@ const vscode = require("vscode");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const child_process_1 = require("child_process");
 const panelPrefs_1 = require("./panelPrefs");
 const providerLaunch_1 = require("./providerLaunch");
 const prompts_1 = require("./prompts");
@@ -56,8 +57,12 @@ function handleDashboardMessage(msg, ctx) {
         }
         // Check if file is tracked by git before attempting diff
         try {
-            const { execSync: _ex } = require("child_process");
-            const status = _ex(`git -C "${sessRoot}" status --porcelain -- "${relPath}" 2>/dev/null`).toString().trim();
+            const status = (0, child_process_1.execFileSync)("git", ["status", "--porcelain", "--", relPath], {
+                cwd: sessRoot,
+                timeout: 3000,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"],
+            }).trim();
             if (status.startsWith("??")) {
                 // Untracked — no HEAD version, just open the file
                 void vscode.window.showTextDocument(rightUri);
@@ -95,7 +100,7 @@ function handleDashboardMessage(msg, ctx) {
         const terminal = vscode.window.createTerminal({ name: `Claude · ${name}`, cwd: ctx.workspaceRoot });
         terminal.show();
         const prompt = `Adopt the ${name} role for this session. Read .platform/roles/${slug}.md for your full protocol, mission, and responsibilities. Ask me 2–3 focused intake questions to understand what I need, then begin working.`;
-        const escaped = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`");
+        const escaped = (0, prompts_1.escapeForDoubleQuotedCli)(prompt);
         terminal.sendText(`claude "${escaped}"`, true);
         return;
     }

@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { SessionActivityItem } from "./types";
 
 const NUMSTAT_TTL = 30_000;
@@ -34,7 +34,7 @@ function activityFileLocation(root: string, file: string): ActivityFileLocation 
   })();
   try {
     const dir = fs.existsSync(absFile) && fs.statSync(absFile).isDirectory() ? absFile : path.dirname(absFile);
-    const rawGitRoot = execSync("git rev-parse --show-toplevel", { cwd: dir, timeout: 1000, encoding: "utf8" }).trim() || gitRoot;
+    const rawGitRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: dir, timeout: 1000, encoding: "utf8" }).trim() || gitRoot;
     gitRoot = fs.realpathSync.native(rawGitRoot);
   } catch {
     // keep fallback root
@@ -83,7 +83,11 @@ export function applyGitStatus(
 export function enrichActivityWithGit(root: string, activity: SessionActivityItem[], caches: ActivityGitCaches, now = Date.now()): void {
   enrichDiffStats(root, activity, caches.numstatCache, now);
   try {
-    const statusOut = execSync(`git -C "${root}" status --porcelain --untracked-files=all 2>/dev/null`, { timeout: 3000, encoding: "utf8" });
+    const statusOut = execFileSync("git", ["-C", root, "status", "--porcelain", "--untracked-files=all"], {
+      timeout: 3000,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
     const fallbackTs = new Date(now).toISOString();
     applyGitStatus(activity, statusOut, fallbackTs, (file, xy) => {
       if (xy[0] === "D" || xy[1] === "D") return fallbackTs;
@@ -113,7 +117,7 @@ function enrichDiffStats(
       diffMap = cached.diffMap;
     } else {
       diffMap = new Map<string, { added: number; deleted: number }>();
-      const numstatOut = execSync("git diff --numstat HEAD", { cwd: gitRoot, timeout: 3000, encoding: "utf8" });
+      const numstatOut = execFileSync("git", ["diff", "--numstat", "HEAD"], { cwd: gitRoot, timeout: 3000, encoding: "utf8" });
       for (const line of numstatOut.split("\n")) {
         const m = line.match(/^(\d+)\t(\d+)\t(.+)$/);
         if (m) diffMap.set(normalizeGitPath(m[3].trim()), { added: parseInt(m[1], 10), deleted: parseInt(m[2], 10) });
@@ -171,14 +175,14 @@ function enrichCommittedMarkers(root: string, activity: SessionActivityItem[], c
       let mergeBase = "";
       for (const base of ["origin/develop", "origin/main", "HEAD~1"]) {
         try {
-          mergeBase = execSync(`git merge-base HEAD ${base}`, { cwd: root, timeout: 3000, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+          mergeBase = execFileSync("git", ["merge-base", "HEAD", base], { cwd: root, timeout: 3000, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
           if (mergeBase) break;
         } catch {
           // try next
         }
       }
       if (mergeBase) {
-        const nameOnly = execSync(`git diff --name-only ${mergeBase}..HEAD`, { cwd: root, timeout: 3000, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+        const nameOnly = execFileSync("git", ["diff", "--name-only", `${mergeBase}..HEAD`], { cwd: root, timeout: 3000, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
         for (const line of nameOnly.split("\n")) {
           const f = line.trim();
           if (f) committedFiles.add(f);

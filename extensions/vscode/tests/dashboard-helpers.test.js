@@ -7,6 +7,7 @@ const path = require("path");
 const { parseFrontmatter, extractProse } = require("../out/dashboard/markdown");
 const { readStreams, readSessionStream, readStreamRole } = require("../out/dashboard/catalogStore");
 const { readRecentEvents, lastSkillFromEvents } = require("../out/dashboard/eventStore");
+const { buildEventOnlySessions } = require("../out/dashboard/eventOnlySessions");
 const { buildTrendData } = require("../out/dashboard/trendBuilder");
 const { fmtModel, elapsedStr } = require("../out/dashboard/formatters");
 const { readWorkflowPlan, readWorkflowTranscriptAgents } = require("../out/dashboard/workflowStore");
@@ -16,8 +17,9 @@ const { buildExplainChangePrompt, buildRefactorPrompt, escapeForDoubleQuotedCli 
 const { buildProviderLaunchCommand, normalizeProvider, providerWrapperScript } = require("../out/dashboard/providerLaunch");
 const { dashboardRenderFingerprint } = require("../out/dashboard/renderFingerprint");
 const { applySessionCatalogUsage, dedupeClearedSessions } = require("../out/dashboard/sessionSummary");
-const { runtimeDirForRoot, sessionsDirForRoot, sessionRootMatchesWorkspace } = require("../out/dashboard/sessionFiles");
+const { runtimeDirForRoot, sessionsDirForRoot, sessionRootMatchesWorkspace, deleteWorkspaceSessionFile } = require("../out/dashboard/sessionFiles");
 const { isHudFresh } = require("../out/dashboard/hudFreshness");
+const providerUi = require("../media/dashboard/providerUi");
 const {
   parseCodexEffort,
   parseElapsedSeconds,
@@ -312,7 +314,7 @@ test("prompt builders include target file and cleanup phase gate", () => {
 });
 
 test("escapeForDoubleQuotedCli escapes shell-sensitive characters", () => {
-  assert.strictEqual(escapeForDoubleQuotedCli('a"b`c\\d'), 'a\\"b\\`c\\\\d');
+  assert.strictEqual(escapeForDoubleQuotedCli('a"b`c\\d$e$(touch /tmp/pwned)'), 'a\\"b\\`c\\\\d\\$e\\$(touch /tmp/pwned)');
 });
 
 test("provider launch commands prefer Agentboard wrappers where available", () => {
@@ -321,6 +323,21 @@ test("provider launch commands prefer Agentboard wrappers where available", () =
   assert.strictEqual(buildProviderLaunchCommand("gemini", "refactor me", true), 'bash .platform/scripts/gemini-ab "refactor me"');
   assert.strictEqual(buildProviderLaunchCommand("claude", "refactor me", true), 'claude "refactor me"');
   assert.strictEqual(buildProviderLaunchCommand("codex", "refactor me", false), 'codex "refactor me"');
+});
+
+test("providerUi maps provider labels and stale Codex cleanup copy", () => {
+  const codex = providerUi.getProviderUi({ provider: "codex", ageSeconds: 181 });
+  assert.strictEqual(codex.label, "Codex");
+  assert.strictEqual(codex.subagentsLabel, "Workers");
+  assert.strictEqual(codex.clearLabel, "Clear stale Codex");
+  assert.match(codex.clearTitle, /does not terminate Codex/);
+
+  const claude = providerUi.getProviderUi({ provider: "anthropic", ageSeconds: 1 });
+  assert.strictEqual(claude.label, "Claude");
+  assert.strictEqual(claude.subagentsLabel, "Sub-agents");
+
+  const gemini = providerUi.getProviderUi({ provider: "google gemini", ageSeconds: 1 });
+  assert.strictEqual(gemini.label, "Gemini");
 });
 
 test("normalizeProvider infers provider from model or provider labels", () => {
@@ -363,6 +380,40 @@ test("session runtime store is rooted inside the current workspace", () => {
   const root = tempProject();
   assert.strictEqual(runtimeDirForRoot(root), path.join(root, ".platform", "runtime", "agentboard"));
   assert.strictEqual(sessionsDirForRoot(root), path.join(root, ".platform", "runtime", "agentboard", "sessions"));
+});
+
+test("deleteWorkspaceSessionFile rejects path traversal session ids", () => {
+  const root = tempProject();
+  const sessionDir = sessionsDirForRoot(root);
+  fs.mkdirSync(sessionDir, { recursive: true });
+  fs.writeFileSync(path.join(sessionDir, "safe-01.json"), "{}");
+  fs.writeFileSync(path.join(root, ".platform", "runtime", "agentboard", "outside.json"), "{}");
+
+  assert.strictEqual(deleteWorkspaceSessionFile(root, root, "../outside"), false);
+  assert.strictEqual(fs.existsSync(path.join(root, ".platform", "runtime", "agentboard", "outside.json")), true);
+  assert.strictEqual(deleteWorkspaceSessionFile(root, root, "safe-01"), true);
+  assert.strictEqual(fs.existsSync(path.join(sessionDir, "safe-01.json")), false);
+});
+
+test("buildEventOnlySessions uses event stream and skips existing sessions", () => {
+  const now = new Date("2026-01-01T00:20:00Z").getTime();
+  const sessions = buildEventOnlySessions([
+    { ts: "2026-01-01T00:01:00Z", provider: "claude", tool: "Edit", stream: "stream-a", file: "a.ts", session_id: "new-sid" },
+    { ts: "2026-01-01T00:02:00Z", provider: "codex", tool: "Edit", stream: "stream-b", file: "b.ts", session_id: "existing-sid" },
+    { ts: "2025-12-31T23:00:00Z", provider: "claude", tool: "Edit", stream: "old-stream", file: "old.ts", session_id: "old-sid" },
+  ], {
+    workspaceRoot: tempProject(),
+    branch: "develop",
+    activeStream: "fallback-stream",
+    availableStreams: ["stream-a", "fallback-stream"],
+    existingSessionIds: new Set(["existing-sid"]),
+    now,
+  });
+
+  assert.strictEqual(sessions.length, 1);
+  assert.strictEqual(sessions[0].sessionId, "new-sid");
+  assert.strictEqual(sessions[0].stream, "stream-a");
+  assert.strictEqual(sessions[0].provider, "claude");
 });
 
 test("isHudFresh rejects stale local HUD status", () => {

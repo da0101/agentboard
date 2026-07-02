@@ -25,6 +25,7 @@ function buildEventOnlySessions(events, options) {
         const first = sorted[0];
         const last = sorted[sorted.length - 1];
         const provider = [...sorted].reverse().find(ev => ev.provider)?.provider ?? "";
+        const stream = [...sorted].reverse().find(ev => ev.stream)?.stream ?? options.activeStream;
         const activity = (0, activityBuilders_1.buildFileActivity)(sorted, 15).fileActivity;
         const ageMs = now - new Date(last.ts).getTime();
         const agents = (0, activityBuilders_1.buildSessionAgents)(sorted, ageMs, now);
@@ -44,7 +45,7 @@ function buildEventOnlySessions(events, options) {
             lastUpdated: last.ts,
             ageSeconds: Math.max(0, Math.floor(ageMs / 1000)),
             ctxPct: null,
-            stream: options.activeStream,
+            stream,
             streamPinned: false,
             availableStreams: options.availableStreams,
             branchPinned: false,

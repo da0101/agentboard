@@ -437,7 +437,11 @@ function buildTrendEventsWithGitStatus(root, stream, now) {
         .filter(e => e.file && (isTrendDeleteTool(e.tool) || e.isDeleted))
         .map(e => e.file));
     try {
-        const statusOut = (0, child_process_1.execSync)(`git -C "${root}" status --porcelain --untracked-files=all 2>/dev/null`, { timeout: 3000, encoding: "utf8" });
+        const statusOut = (0, child_process_1.execFileSync)("git", ["-C", root, "status", "--porcelain", "--untracked-files=all"], {
+            timeout: 3000,
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "ignore"],
+        });
         for (const line of statusOut.split("\n")) {
             if (!line.trim())
                 continue;

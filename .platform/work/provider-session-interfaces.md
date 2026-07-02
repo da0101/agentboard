@@ -9,7 +9,7 @@ repo_ids: [repo-primary]
 base_branch: develop
 git_branch: feature/provider-session-interfaces
 created_at: 2026-06-29
-updated_at: 2026-06-29
+updated_at: 2026-07-02
 closure_approved: false
 ---
 
@@ -73,15 +73,17 @@ _Append-only. Format: `YYYY-MM-DD — <decision> — <rationale>`_
 ## Resume state
 _Overwritten by `ab checkpoint` — the compact payload the next agent reads first. Keep this block under ~10 lines._
 
-- **Last updated:** 2026-06-29 by danilulmashev
-- **What just happened:** Fixed Claude activity changed-line stats for absolute/sibling-worktree paths: git enrichment now resolves each activity file's own git root before numstat and line-count lookup; installed extension runtime updated.
+- **Last updated:** 2026-07-02 by danilulmashev
+- **What just happened:** Re-audit resolved release blockers: hardened terminal escaping, git process calls, stale-session deletion, event-only stream attribution, hook noise, and checkpoint file-size ratchet; full unit suite passed.
 - **Current focus:** —
-- **Next action:** Reload VS Code and refresh Agentboard; Claude activity rows pointing at frontend worktree files should show +/- changed-line stats when those files are dirty.
+- **Next action:** Manual VS Code dashboard QA remains pending; release tag v2.4.6 can be cut from main after pushing verified commits.
 - **Blockers:** none
 
 ## Progress log
 
 _Append-only. `ab checkpoint` prepends a dated line and auto-trims to the last 10 entries. Format: `YYYY-MM-DD HH:MM — <what happened>`._
+
+2026-07-02 18:07 — Re-audit resolved release blockers: hardened terminal escaping, git process calls, stale-session deletion, event-only stream attribution, hook noise, and checkpoint file-size ratchet; full unit suite passed.
 
 2026-06-29 15:21 — Fixed Claude activity changed-line stats for absolute/sibling-worktree paths: git enrichment now resolves each activity file's own git root before numstat and line-count lookup; installed extension runtime updated.
 
@@ -101,8 +103,77 @@ _Append-only. `ab checkpoint` prepends a dated line and auto-trims to the last 1
 
 2026-06-29 12:50 — Strengthened provider color treatment in the single-session dashboard path so Claude/Codex differences are visible without needing multiple session cards.
 
-2026-06-29 11:51 — Implemented provider-specific session UI, safe stale Codex snapshot cleanup wording, focused tests, decision record, and manual QA artifact.
-
 ## Open questions
 
 - Resolved 2026-06-29 — v1 stale-session cleanup removes only the runtime session snapshot; process termination remains out of scope.
+
+---
+
+## 🔍 Audit — 2026-07-02
+
+> Supersedes previous audit. Run via Stream / Feature Analysis Protocol — 1 parallel agent.
+
+# 📋 Provider Session Interfaces — Audit Snapshot
+
+> **Stream:** `provider-session-interfaces` · **Date:** 2026-07-02 · **Status:** 🟢 Re-audit clean pending manual QA
+> **Repos touched:** `repo-primary`
+
+---
+
+## ⚡ At-a-Glance Scorecard
+
+| Area | repo-primary |
+|---|:---:|
+| **Implementation** | 🟢 |
+| **Tests** | 🟢 |
+| **Security** | 🟢 |
+| **Code Quality** | 🟢 |
+| **Manual QA** | 🟡 pending human VS Code signoff |
+
+**Bottom line:** Prior release-blocking findings are resolved. No new release-blocking issues were found in the current diff. Manual VS Code dashboard QA remains the only non-green item.
+
+## Prior Blocker Verification
+
+| Prior finding | Status | Evidence |
+|---|:---:|---|
+| Dollar-sign escaping for double-quoted terminal launches | 🟢 Resolved | `escapeForDoubleQuotedCli` now escapes `$` at `extensions/vscode/src/dashboard/prompts.ts:13`; launch paths use it at `extensions/vscode/src/dashboard/messageRouter.ts:106` and `extensions/vscode/src/dashboard/messageRouter.ts:178`; regression test at `extensions/vscode/tests/dashboard-helpers.test.js:316`. |
+| Shell-interpolated git commands with workspace/webview paths | 🟢 Resolved | Replaced with `execFileSync` argument arrays at `extensions/vscode/src/dashboard/dataBuilder.ts:439`, `extensions/vscode/src/dashboard/gitActivity.ts:86`, and `extensions/vscode/src/dashboard/messageRouter.ts:66`. |
+| `closeSession` / `sessionFiles` path traversal hardening | 🟢 Resolved | Safe session-id allowlist and resolved containment check at `extensions/vscode/src/dashboard/sessionFiles.ts:5` and `extensions/vscode/src/dashboard/sessionFiles.ts:44`; delete path wired through workspace check at `extensions/vscode/src/dashboardPanel.ts:175`; regression test at `extensions/vscode/tests/dashboard-helpers.test.js:385`. |
+| Event-only sessions preserve stream | 🟢 Resolved | Event-only session stream now comes from recent session events at `extensions/vscode/src/dashboard/eventOnlySessions.ts:38`; regression test at `extensions/vscode/tests/dashboard-helpers.test.js:398`. |
+| Provider UI / event-only / deletion / escaping tests exist | 🟢 Resolved | Provider UI test at `extensions/vscode/tests/dashboard-helpers.test.js:328`; deletion test at `:385`; event-only test at `:398`; escaping test at `:316`; `npm test` script added at `extensions/vscode/package.json:68`. |
+| Root unit suite and file-size ratchet | 🟢 Resolved | Root unit suite passed: `PASS: unit (60 files, 490 tests)`. File-size ratchet passed; `checkpoint.sh` is now 462 lines against frozen limit 475 in `tests/unit/file_size_ratchet_test.sh:24`. |
+
+## Healthy Areas
+
+| Area | Notes |
+|---|---|
+| Provider presentation | Claude/Codex/Gemini UI model is centralized and testable in `extensions/vscode/media/dashboard/providerUi.js:5`; Codex stale cleanup copy remains explicit that it does not terminate Codex or delete work at `:34`. |
+| Session deletion safety | Invalid traversal IDs return `false` before unlink, and workspace-root mismatch refuses deletion. |
+| Git activity enrichment | The dashboard now uses git argument arrays and per-file git-root resolution, preserving sibling-worktree stats without shell interpolation. |
+| Test harness | Extension compile and test entrypoints are now normal commands: `npm run compile`, `npm test`. |
+| Diff hygiene | `git diff --check HEAD` passed. |
+
+## Findings
+
+### 🔴 Must Fix
+None.
+
+### 🟡 Should Fix / Limitations
+| # | Repo | Item |
+|---|---|---|
+| 1 | repo-primary | Manual QA remains pending. The artifact is present and detailed, but signoff is still `pending human VS Code dashboard verification` at `.platform/work/qa/provider-session-interfaces-manual-qa.md:99`. |
+
+### ⚪ Known Limitations
+| # | Limitation |
+|---|---|
+| 1 | Gemini remains a UI extension point, not a full producer implementation. |
+| 2 | This audit did not drive the VS Code webview interactively; it verified code, diff, and automated tests only. |
+
+## Verification Run
+
+| Command | Result |
+|---|---|
+| `npm run compile` in `extensions/vscode` | ✅ passed |
+| `npm test` in `extensions/vscode` | ✅ passed |
+| `npm test` at repo root | ✅ passed, 60 files / 490 tests |
+| `git diff --check HEAD` | ✅ passed |

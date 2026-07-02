@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { exec, execSync } from "child_process";
+import { exec, execFileSync } from "child_process";
 import { HudStatus } from "../hudTypes";
 import { detectWorkspaceRootFromFolders } from "../workspaceRoot";
 import { buildFileActivity, buildRecentAgents, buildSessionAgentActivity, buildSessionAgents, sessionNick } from "./activityBuilders";
@@ -436,7 +436,11 @@ function buildTrendEventsWithGitStatus(root: string, stream: string, now: number
     .map(e => e.file as string));
 
   try {
-    const statusOut = execSync(`git -C "${root}" status --porcelain --untracked-files=all 2>/dev/null`, { timeout: 3000, encoding: "utf8" });
+    const statusOut = execFileSync("git", ["-C", root, "status", "--porcelain", "--untracked-files=all"], {
+      timeout: 3000,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
     for (const line of statusOut.split("\n")) {
       if (!line.trim()) continue;
       const xy = line.slice(0, 2);

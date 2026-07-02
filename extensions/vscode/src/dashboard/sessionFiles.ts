@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const RUNTIME_DIR = path.join(".platform", "runtime", "agentboard");
+const SAFE_SESSION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 
 export function runtimeDirForRoot(workspaceRoot: string): string {
   return path.join(workspaceRoot, RUNTIME_DIR);
@@ -40,16 +41,26 @@ export function readSessionFile(workspaceRoot: string, fileName: string): Record
   }
 }
 
-export function deleteSessionFile(workspaceRoot: string, sessionId: string): void {
-  const f = path.join(sessionsDirForRoot(workspaceRoot), `${sessionId}.json`);
+function sessionFilePath(workspaceRoot: string, sessionId: string): string | null {
+  if (!SAFE_SESSION_ID.test(sessionId)) return null;
+  const dir = path.resolve(sessionsDirForRoot(workspaceRoot));
+  const filePath = path.resolve(dir, `${sessionId}.json`);
+  const rel = path.relative(dir, filePath);
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) return null;
+  return filePath;
+}
+
+export function deleteSessionFile(workspaceRoot: string, sessionId: string): boolean {
+  const f = sessionFilePath(workspaceRoot, sessionId);
+  if (!f) return false;
   try { fs.unlinkSync(f); } catch { /* already gone */ }
+  return true;
 }
 
 export function deleteWorkspaceSessionFile(workspaceRoot: string, sessionRoot: string, sessionId: string): boolean {
   const root = sessionRoot || workspaceRoot;
   if (!sessionRootMatchesWorkspace(root, workspaceRoot)) return false;
-  deleteSessionFile(root, sessionId);
-  return true;
+  return deleteSessionFile(root, sessionId);
 }
 
 export function deleteSessionFileByShellPid(workspaceRoot: string, pid: number): boolean {

@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { execFileSync } from "child_process";
 import { readRoles } from "./catalogStore";
 import { loadIgnoreSizes, saveIgnoreSizes, setBranchOverride, setStreamOverride } from "./panelPrefs";
 import { buildProviderLaunchCommand, normalizeProvider, PROVIDER_CHOICES, providerLabel, providerWrapperScript } from "./providerLaunch";
@@ -62,8 +63,12 @@ export function handleDashboardMessage(
           }
           // Check if file is tracked by git before attempting diff
           try {
-            const { execSync: _ex } = require("child_process") as typeof import("child_process");
-            const status = _ex(`git -C "${sessRoot}" status --porcelain -- "${relPath}" 2>/dev/null`).toString().trim();
+            const status = execFileSync("git", ["status", "--porcelain", "--", relPath], {
+              cwd: sessRoot,
+              timeout: 3000,
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "ignore"],
+            }).trim();
             if (status.startsWith("??")) {
               // Untracked — no HEAD version, just open the file
               void vscode.window.showTextDocument(rightUri);
@@ -98,7 +103,7 @@ export function handleDashboardMessage(
           const terminal = vscode.window.createTerminal({ name: `Claude · ${name}`, cwd: ctx.workspaceRoot });
           terminal.show();
           const prompt = `Adopt the ${name} role for this session. Read .platform/roles/${slug}.md for your full protocol, mission, and responsibilities. Ask me 2–3 focused intake questions to understand what I need, then begin working.`;
-          const escaped = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`");
+          const escaped = escapeForDoubleQuotedCli(prompt);
           terminal.sendText(`claude "${escaped}"`, true);
           return;
         }

@@ -11,7 +11,7 @@ export interface RefactorPromptInput {
 }
 
 export function escapeForDoubleQuotedCli(input: string): string {
-  return input.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`");
+  return input.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`").replace(/\$/g, "\\$");
 }
 
 export function buildExplainChangePrompt(input: ExplainChangePromptInput): string {

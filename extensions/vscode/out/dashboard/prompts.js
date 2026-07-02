@@ -4,7 +4,7 @@ exports.escapeForDoubleQuotedCli = escapeForDoubleQuotedCli;
 exports.buildExplainChangePrompt = buildExplainChangePrompt;
 exports.buildRefactorPrompt = buildRefactorPrompt;
 function escapeForDoubleQuotedCli(input) {
-    return input.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`");
+    return input.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/`/g, "\\`").replace(/\$/g, "\\$");
 }
 function buildExplainChangePrompt(input) {
     const diffStat = (input.added ? `+${input.added}` : "") + (input.added && input.deleted ? " / " : "") + (input.deleted ? `-${input.deleted}` : "");

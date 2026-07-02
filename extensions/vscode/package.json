@@ -67,6 +67,7 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
+    "test": "node tests/dashboard-helpers.test.js && node tests/linecount.test.js && node tests/nickname-hash.test.js && node tests/parseEtime.test.js && node tests/workspace-root.test.js",
     "watch": "tsc -watch -p ./"
   },
   "repository": {

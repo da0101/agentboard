@@ -221,7 +221,7 @@ _append_event_payload() {
 _bash_is_observational() {
   local cmd="$1"
   case "$cmd" in
-    git\ status*|git\ diff*|git\ show*|git\ log*|git\ branch*|git\ rev-parse*|\
+    git\ status*|git\ diff*|git\ show*|git\ log*|git\ branch*|git\ rev-parse*|git\ commit*|\
     rg\ *|grep\ *|find\ *|ls\ *|pwd|cat\ *|head\ *|tail\ *|sed\ *|awk\ *|\
     echo\ *|printf\ *|test\ *|\[\ *) return 0 ;;
   esac
