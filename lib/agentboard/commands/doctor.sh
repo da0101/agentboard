@@ -393,6 +393,13 @@ cmd_doctor() {
     warnings=$((warnings + 1))
   fi
 
+  _entry_budget_eval
+  case "$ENTRY_STATUS" in
+    OK)   _dr_ok "Session start ≈ ${ENTRY_TOTAL} tokens (budget ${ENTRY_BUDGET_WARN})" ;;
+    WARN) _dr_warn "Session start ≈ ${ENTRY_TOTAL} tokens exceeds ${ENTRY_BUDGET_WARN}. Slim the entry file: ab entry check"; warnings=$((warnings + 1)) ;;
+    FAIL) _dr_warn "Session start ≈ ${ENTRY_TOTAL} tokens exceeds ${ENTRY_BUDGET_FAIL}. Slim the entry file: ab entry check"; errors=$((errors + 1)) ;;
+  esac
+
   (( ci_mode )) && { _dr_ci_summary; return; } || true
 
   say

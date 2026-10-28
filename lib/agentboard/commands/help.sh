@@ -112,6 +112,12 @@ COMMANDS
                              streams, recent gotchas, open questions,
                              usage pattern. Read this at session start.
                              --all             show all gotchas/questions
+  entry kernel|sync|check    Entry files (CLAUDE/AGENTS/GEMINI): print or refresh the
+                             kit-controlled rules block; `check` measures session-start
+                             tokens against the budget (warn 2000, fail 3000).
+  protocol [name]            Print a procedure on demand (new-task, closure, handoff,
+                             qa, ...). The entry file keeps only triggers; this holds
+                             the long procedures. No name lists them.
   recall <topic...>          Pull the best-matching knowledge card (domains/*.md) for a
                              topic, capped to a token budget. --layer backend|mobile|…
                              narrows to matching sections; --list prints the card map.

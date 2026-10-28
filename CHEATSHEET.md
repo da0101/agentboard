@@ -86,6 +86,10 @@ agentboard close <slug> --confirm    # step 2: merge the stream's "## Knowledge 
                                      # outside the repo, remove them. Run AFTER harvest.
 agentboard recall <topic> [--layer L]  # pull the best knowledge card, token-budgeted
 agentboard recall --list             # one line per card (the map)
+agentboard brief --start             # session-start packet (~500 tokens): open streams, card names, top gotchas
+agentboard protocol [name]           # long procedures on demand (new-task, closure, handoff, qa, ...)
+agentboard entry check               # session-start tokens vs budget (warn 2000 / fail 3000); doctor runs it too
+agentboard entry sync [--dry-run]    # refresh the kit-controlled rules block in CLAUDE/AGENTS/GEMINI.md
 
 ### Worktrees (on demand — branch in the main checkout by default)
 agentboard worktree new <slug> [--type bugfix|hotfix]   # only when asked / two sessions on one repo

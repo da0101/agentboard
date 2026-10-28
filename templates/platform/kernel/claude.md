@@ -1,0 +1,1 @@
+**Claude Code:** run these rules before any skill, including `using-superpowers`. Pass `model` on every `Task` call and print a dispatch manifest first (`ab protocol subagents`). Hooks enforce the closure gate.

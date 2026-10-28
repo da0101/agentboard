@@ -62,6 +62,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/rescan.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/close_knowledge.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief_start.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief_patterns.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_poll.sh"
@@ -83,6 +84,8 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/control_plane.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/worktree_state.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/worktree.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/recall.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/protocol.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/entry.sh"
 
 # -----------------------------------------------------------------------------
 # Banner
@@ -189,6 +192,8 @@ main() {
     sessions)   cmd_sessions "$@" ;;
     worktree)   cmd_worktree "$@" ;;
     recall)     cmd_recall "$@" ;;
+    protocol)   cmd_protocol "$@" ;;
+    entry)      cmd_entry "$@" ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help) cmd_help ;;
     *) die "Unknown command: $cmd. Run 'agentboard help'." ;;

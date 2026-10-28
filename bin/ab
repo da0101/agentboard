@@ -62,6 +62,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/distill.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/index.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/synthesize.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief_start.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief_patterns.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/validate.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/sync_skills.sh"
@@ -70,6 +71,8 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/control_plane.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/worktree_state.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/worktree.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/recall.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/protocol.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/entry.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_poll.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_install.sh"
@@ -195,6 +198,8 @@ main() {
     delegate)   cmd_delegate "$@" ;;
     worktree)   cmd_worktree "$@" ;;
     recall)     cmd_recall "$@" ;;
+    protocol)   cmd_protocol "$@" ;;
+    entry)      cmd_entry "$@" ;;
     distill)     cmd_distill "$@" ;;
     index)       cmd_index "$@" ;;
     synthesize)  cmd_synthesize "$@" ;;

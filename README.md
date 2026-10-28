@@ -63,6 +63,15 @@ Agentboard earns its keep when context has to survive **across providers** (Clau
 
 ---
 
+## Token budget at a glance
+
+Agents should start a session with a few hundred tokens, not the whole pack:
+
+- The root entry file holds project facts plus a small **kernel** of hard rules (`ab entry sync` keeps it identical across Claude / Codex / Gemini). Long procedures live in `.platform/protocols/` and are read only when needed: `ab protocol <name>`.
+- `ab brief --start` prints a ~500-token packet: open streams, card names, top gotchas.
+- `ab recall <topic> [--layer backend|web|mobile]` pulls one slice of a knowledge card instead of the whole file.
+- `ab doctor` / `ab entry check` measure session-start tokens and warn above 2,000, fail above 3,000.
+
 ## Quick start
 
 ### Single repo

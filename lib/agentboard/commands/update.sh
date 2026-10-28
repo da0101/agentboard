@@ -72,9 +72,9 @@ cmd_update() {
     done
   fi
 
-  # agents/*.md + roles/*.md — upsert: update existing AND add new ones
+  # agents/*.md + roles/*.md + protocols/*.md — upsert: update existing AND add new ones
   local pdir asrc
-  for pdir in agents roles; do
+  for pdir in agents roles protocols; do
     [[ -d "$TEMPLATES_PLATFORM/$pdir" ]] || continue
     for asrc in "$TEMPLATES_PLATFORM/$pdir"/*.md; do
       [[ -f "$asrc" ]] || continue  # glob matched nothing (empty dir) — skip

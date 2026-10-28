@@ -5,9 +5,10 @@ cmd_brief() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --all) show_all=1; shift ;;
+      --start) cmd_brief_start; return 0 ;;
       -h|--help)
         cat <<'EOF'
-Usage: ab brief [--all]
+Usage: ab brief [--all | --start]
 
 Prints a compact project-state view for a fresh agent. Two screens max:
   - Active streams + next actions
@@ -18,7 +19,8 @@ Prints a compact project-state view for a fresh agent. Two screens max:
 Read this first at session start — it's the "20-year employee" briefing.
 
 Flags:
-  --all  Show all gotchas/questions (no truncation)
+  --all    Show all gotchas/questions (no truncation)
+  --start  Compact session-start packet (<= ~500 tokens): open streams, card names, top gotchas
 EOF
         return 0 ;;
       *) die "Unknown flag for brief: $1" ;;

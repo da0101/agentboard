@@ -150,7 +150,7 @@ This folder is a **platform brains hub** — it holds the `.platform/` context p
 
 ## Workflow
 
-[Link to .platform/workflow.md + the 6-stage reminder]
+[Do NOT write workflow rules by hand. After the markers are in place, run `ab entry sync` — it inserts the kernel block (hard rules + `ab protocol` triggers) just before the end marker, identical for every provider.]
 
 ## Reference Pack (.platform/)
 

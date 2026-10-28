@@ -145,7 +145,7 @@ No backup file needed — the markers make the operation reversible via `git dif
 [3–5 bullets — source of truth, critical invariants, how the pieces connect]
 
 ## Workflow
-[Link to .platform/workflow.md + the 6-stage reminder]
+[Do NOT write workflow rules by hand. After the markers are in place, run `ab entry sync` — it inserts the kernel block (hard rules + `ab protocol` triggers) just before the end marker, identical for every provider.]
 
 ## Reference Pack (.platform/)
 [Links to STATUS, decisions, log, architecture, workflow, conventions/]

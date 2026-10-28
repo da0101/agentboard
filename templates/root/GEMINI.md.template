@@ -2,195 +2,42 @@
 
 > {{DESCRIPTION}}
 
-**Status:** This project was scaffolded by `ab init` on {{TODAY}}. If not yet activated, say "activate this project" and the agent will read `.platform/ACTIVATE.md`.
+**Status:** scaffolded by `ab init` on {{TODAY}} — not yet activated. When the user says "activate this project" (or "onboard this project"), read `.platform/ACTIVATE.md` and follow its protocol. **Never delete existing user content** in entry files; `ACTIVATE.md` explains how to prepend. Until activation, answer normally and mention that activation is available.
 
----
+This file is auto-loaded by Gemini CLI. After activation it is replaced by a short project summary; the rules block below is kept in sync by `ab entry sync`.
 
-## You are an AI agent reading this file (Gemini CLI)
+<!-- agentboard:kernel:begin v=1 -->
+## Agentboard
 
-This file is auto-loaded when you open this project in Gemini CLI. All mandatory protocols below apply to you exactly as they apply to Claude Code and Codex CLI.
+Shared work-state for Claude Code, Codex and Gemini. Long procedures are on demand — `ab protocol` lists them, `ab protocol <name>` prints one.
 
----
+**Session start:** run `ab brief --start`. One open stream → resume it (`ab handoff <slug>`); several → ask which; none → ask what to work on.
 
-## Active Work (`.platform/work/`)
+**Loading:** open only files named in `work/BRIEF.md` § "Relevant context". For a feature or topic run `ab recall <topic> [--layer backend|web|mobile]` before opening a domain file. Never read `work/archive/*`.
 
-### Session start (every session — mandatory)
+**Hard rules**
+1. Task not in `work/ACTIVE.md`? Run `ab protocol new-task` before any research or code. New stream: research first, present the plan, wait for human approval.
+2. Work on a `feature/<slug>` or `bugfix/<slug>` branch in the main checkout (`hotfix/<slug>` only if told). Worktrees are on demand: `ab worktree new <slug>`.
+3. Only the human closes a stream (`ab protocol closure`). Record durable facts in the stream's `## Knowledge delta` as you work.
+4. Change needs human or app-driving verification? `ab protocol qa` before any commit, push, merge or release.
+5. Ending, low on context, or switching provider: `ab checkpoint <slug> --what "…" --next "…"` (`ab protocol handoff`).
+6. After an edit another agent must understand: `ab log-reason "<why>"` (`ab protocol reasoning`).
+7. **Role activation:** on the first task message match its intent to a role in `.platform/roles/INDEX.md` and adopt it; no confident match → `pair-programmer`, silently (`ab protocol roles`).
+8. Audit or analysis of a stream: `ab protocol audit`.
+9. User says "update the platform", "rescan" or "you're out of date": run `ab rescan`, then follow `.platform/RESCAN.md`.
 
-1. **Run `ab brief`** first — compact "state of the project" view: active streams, recent gotchas (landmines the 20-year-employee would warn you about), open questions, latest usage pattern. This is your institutional memory; read it before touching code.
-2. Then read the narrative docs in order:
-   - **`work/BRIEF.md`** — what we're building, why, current state, relevant context
-   - **`work/ACTIVE.md`** — stream registry
+**Silicon Valley product mindset:** act like best-in-class Silicon Valley product teams — user-obsessed, craft-driven, fast, rigorous — never as permission for scope creep, weak tests or skipping approval gates (`.platform/workflow.md`).
 
-If there is an active stream you're resuming, **run `ab handoff <slug>`** before anything else — it prints the exact load order and the Resume state (what just happened, current focus, next action) left by the previous agent. This is how context is shared between Claude, Codex, and Gemini without re-explaining.
-
-Report to user: 1 stream → "Resuming **\<stream\>** — next: \<action\>. Continue?" / 2+ streams → ask which / 0 → ask what to work on.
-
-### Role activation (start of every session — mandatory)
-
-On the **first substantive task message** — and again whenever the task type clearly shifts — before starting the work:
-
-1. Consult `.platform/roles/INDEX.md` and match the user's **intent** against its routing table. Match meaning, not keywords — phrasing may be brief or non-native English ("make me app for gym").
-2. Read the single matching `.platform/roles/<slug>.md` and adopt it: identity, process, deliverables, constraints.
-3. Announce it — start your response with the role label blockquote (`> **`[role:<slug>]`** — <Role name> activated`) before any work.
-4. No confident match → work as `pair-programmer` silently (no announcement).
-
-**Silicon Valley product mindset:** PM and engineering roles must think like
-best-in-class Silicon Valley product teams: user-obsessed, future-facing,
-innovative, craft-driven, fast, and rigorous. Raise the bar beyond basic task
-completion, but never use this as permission for vague hype, scope creep,
-unapproved features, weak tests, or skipping approval gates. See
-`.platform/workflow.md` for the full rule.
-
-**Manual override always wins** — if the user names a role or says "switch role", use that role. `ab role list` shows the available roles.
-
-**Superpowers integration:** Role activation runs **before** any `superpowers:*` skill invocation. This is an explicit override of the `using-superpowers` "invoke skills before any response" rule — GEMINI.md instructions are the highest priority tier in the superpowers hierarchy, and this sentence is the assertion. Once the role is active, superpowers skills serve as process tools *within* it: `feature-builder` + `superpowers:brainstorming` means you are a Senior Product Engineer using the brainstorming process — not a generic agent. Announce the role first, then invoke the skill.
-
-**Rescan trigger** — when the user says "update the platform", "rescan", "refresh context", "you're out of date", or similar: run `ab rescan`, then read `.platform/RESCAN.md` and follow the update protocol.
-
-### Context handoff — before ending or switching providers (mandatory)
-
-When context is running low, you're ending the session, or you're about to hand off to another CLI (Claude → Codex, Codex → Gemini, etc.), **run**:
-
-```bash
-ab checkpoint <stream-slug> --what "<1-2 lines of what just happened>" --next "<one sentence: what to do next>" \
-  --cumulative-in <N> --cumulative-out <N> --provider gemini --model <model-id> [--complexity trivial|normal|heavy]
-```
-
-For `--cumulative-in` / `--cumulative-out` pass your **current session totals** (running counters, not per-segment deltas). Agentboard subtracts what was already logged for this stream+provider+day so mid-session logging never double-counts. Omit the token fields if you don't know the counts; the checkpoint itself still works.
-
-This overwrites the stream file's `## Resume state` block with compact "where we are" state and trims the progress log to the last 10 entries. The next agent runs `ab handoff <slug>` and picks up from there — **no re-explaining the feature**. Without this, the next agent has only stale state.
-
-### Reasoning annotation — after significant edits (mandatory)
-
-After every Write or Edit that another agent will need to understand, run:
-
-```bash
-ab log-reason [<file>] "<one sentence why>"
-```
-
-**When to call it:**
-- Refactors, extractions, new abstractions
-- Deletions of non-obvious code
-- Architectural choices that aren't clear from the code alone
-- Any change Codex or Gemini will need to understand without your conversation context
-
-**Skip for:** formatting, typo fixes, obvious variable renames.
-
-Examples:
-```bash
-ab log-reason src/auth.ts "Extracted token validation into middleware so Codex can call it from the algorithm layer without duplicating logic"
-ab log-reason "Removed legacy polling loop — replaced by daemon push model"
-```
-
-This is what makes cross-provider handoff accurate. Without it, the next provider sees *what* changed but not *why*.
-
-### Stream closure — before archiving (mandatory harvest ritual)
-
-When a stream is done, **do not just archive the file**. Run the two-step close to feed project memory:
-
-```bash
-# Step 1 — print the harvest checklist
-ab close <stream-slug>
-```
-
-Then, following the checklist it prints, distill and append to these files (only where applicable — skip categories with nothing to add):
-- `.platform/memory/gotchas.md` — landmines discovered (🔴 never-forget · 🟡 usually-matters · 🟢 minor)
-- `.platform/memory/playbook.md` — shortcuts / rituals / commands worth recording
-- `.platform/memory/open-questions.md` — anything still unresolved (or move a prior question to Resolved)
-- `.platform/memory/decisions.md` — locked architectural/product/tooling decisions
-- `.platform/memory/learnings.md` — non-obvious bug root-causes
-
-```bash
-# Step 2 — after harvest, archive the stream
-ab close <stream-slug> --confirm
-```
-
-This is the compounding ritual. Each close adds durable knowledge so the next agent running `ab brief` inherits what you learned, without you being there to explain it.
-
-### Long session fallback — `ab watch` (recommended for Gemini sessions)
-
-For sessions where checkpoints may be forgotten, start a background watcher:
-
-```bash
-ab watch &
-```
-
-It polls `git status` every 10 min and auto-checkpoints the active stream
-whenever ≥1 tracked file has changed since the last poll. The auto-content is
-mechanical (file list + carried-over Next action) — always prefer your own
-explicit checkpoints with specific `--what` / `--next`. The watcher skips
-ticks when it sees a manual checkpoint happened in the last 5 minutes, so it
-never clobbers fresh state. Stop with `ab watch --stop`.
-
-> **Gemini / Codex:** provider wrappers under `.platform/scripts/` provide
-> dashboard/session telemetry when aliases are installed. `ab watch` remains
-> the extra checkpoint safety net for long sessions.
-
-### New task bootstrap (before any non-trivial task — mandatory)
-
-When the user gives a task not already tracked in `ACTIVE.md`, **stop and complete these steps before any research, planning, or code**:
-
-1. **Check `ACTIVE.md`** — does this stream already exist? If yes, load it and continue.
-2. **Check `.platform/domains/`** — does a domain file exist for this feature area?
-   - No → **create `.platform/domains/<name>.md`** with cross-layer touch-point inventory first.
-3. **Create `work/<stream-slug>.md`** — what we're building, why, done criteria, key files, current state.
-4. **Add a row to `work/ACTIVE.md`** — slug / type / in-progress / agent / date.
-5. **Update `work/BRIEF.md`** — point to new primary stream + list domain file under "Relevant context".
-6. Only then proceed to triage → research → propose → execute.
-
-**Research-first new stream rule.** If the request is a new stream, research is always required before planning or implementation. Scale the depth to risk, but include local context and targeted external research every time. Present the research-backed phased plan, risks, mitigations, alternatives, tests, rollback path, and open questions; wait for human validation/approval before implementation. If implementation diverges from the approved plan, pause and ask.
-
-**Worktree branch rule.** Work on a `feature/<slug>` or `bugfix/<slug>` branch (from `develop`; `hotfix/<slug>` from `master` only when the user explicitly says hotfix) in the repo's main checkout. Do not create a worktree by default — worktrees are on demand: only when the user asks, when two sessions must edit the same repo at once, or when the main checkout holds unrelated uncommitted work. Create one with `ab worktree new <slug>` and record it in the stream file; `ab worktree status` shows leftovers and `ab worktree clean --apply` removes merged ones. Install the repo's development dependencies in the checkout you work from, identify the local dev command and localhost port(s), and record them in the stream file before coding or QA.
-
-**Manual QA artifact rule.** Before any commit, push, merge, release, or stream closure for implementation, bug fix, debugging, feature, UI, API behavior, or release work that requires human/app-driving verification, create a durable QA markdown document at `.platform/work/qa/<stream-slug>-manual-qa.md`. Cover scope, environment, test data, safety limits, exact click/type/navigation steps, expected results, happy path, bug repro/regression steps, edge cases, browser/device checks when relevant, accessibility checks when relevant, evidence to capture, Maestro/automation notes when relevant, and pass/fail signoff. If manual QA is not relevant, record `Manual QA: not required — <specific reason>` in the stream file and explain why. Do not delete QA docs while the stream is open; `ab close --confirm` moves them out of the repo with the stream (a copy is kept under `~/.agentboard/cold/`).
-
-**QA execution journal rule.** When an LLM/agent uses Maestro, Browser, Playwright, MCP, a simulator/emulator, or another interactive tool to drive the app, also create `.platform/work/qa/<stream-slug>-execution-journal.md`. Document every meaningful step from the agent perspective: tool used, action, observation, expected result, actual result, pass/fail/skipped status, evidence, bugs found, diagnosis, fix or human escalation, retest, successful paths, blockers, and remaining risk. Do not replace this with a final summary; the journal is the chronological trace.
-
-> **Non-negotiable.** Skipping this means context is lost when the session ends. Trivial single-file fixes are the only exception.
+**Gemini CLI:** there is no hook system, so the closure and QA gates rely on you following rules 3–4. On long sessions the user can run `ab watch &` to auto-checkpoint.
+<!-- agentboard:kernel:end v=1 -->
 
 ## Reference pack
 
-**Loading rule: only load files listed in `work/BRIEF.md` § "Relevant context".** Do not auto-load the full pack. Never read `work/archive/*` unless explicitly asked. **Never load `BACKLOG.md` or `learnings.md` at session start** — read them only when the user asks, or when appending.
+Load only what `work/BRIEF.md` names. `ab search <keywords>` finds snippets; `ab recall <topic>` pulls a knowledge card.
 
-**Finding relevant context:** before loading any domain or convention file in full, run `ab search <keywords>` to retrieve the most relevant snippets from `.platform/`. Load the full file only if the snippets are insufficient.
+- `.platform/ACTIVATE.md` — activation protocol
+- `.platform/workflow.md` — the 6-stage workflow for non-trivial tasks
+- `.platform/protocols/` — long procedures, on demand (`ab protocol`)
+- `.platform/memory/learnings.md` — bug post-mortems; grep before diagnosing a non-obvious bug
 
-- `.platform/workflow.md` — the 6-stage inline workflow **← read this before running any multi-step protocol**
-- `.platform/ONBOARDING.md` — 7-step onboarding path for future sessions
-- `.platform/memory/learnings.md` — bug post-mortems + hard-won patterns (L-NNN); **grep here first before diagnosing non-obvious bugs**
-
-## Mandatory Protocol — Stream Audit / Analysis
-
-Whenever the user asks to audit, analyze, or check the state of a stream or its implementation (e.g. "audit the stream", "analyze what we've done on X", "check the state of \<feature\>", or references a `work/*.md` file explicitly), you MUST:
-
-1. **Read `.platform/workflow.md` first** — before touching any agent results or synthesizing anything.
-2. **Follow the Stream / Feature Analysis Protocol exactly** as written there — no shortcuts, no partial synthesis before all agents finish, no skipping the standardized template or the stream-file anchor step.
-
-This applies even when resuming after context compaction. A compressed context summary is NOT a substitute for reading the protocol spec.
-
-## Stream Closure — Human Approval Required
-
-**Only the human/owner declares a stream complete.** You never self-declare completion. You may say "I believe this is done — here is the evidence" and propose closure, but the final decision belongs to the developer. No exceptions.
-
-**Before running Steps 7–9 of the Stream Closure Protocol** (archiving the stream file, removing from ACTIVE.md, appending to log.md), you MUST:
-1. Present evidence of completion to the user.
-2. Wait for explicit human sign-off.
-3. Verify the stream file has `closure_approved: true` before archiving.
-
-**Enforcement:** Three layers, all providers:
-- **Git pre-commit hook** — blocks any commit that removes a stream row from `ACTIVE.md` without `closure_approved: true`. Fires regardless of which AI tool made the edit.
-- **Claude Code only** — `platform-closure-gate.js` blocks the edit itself (PreToolUse), before the file is even written.
-- **Gemini / Codex** — no PreToolUse hooks; rely on this instruction. The git hook is the mechanical backstop.
-
-Full protocol: `.platform/workflow.md` → "Stream Closure Protocol".
-
-## Skills available to you
-
-Installed into `.agents/skills/` by `ab init`.
-
-`ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-qa-self-heal`, `ab-review`, `ab-debug`, `ab-cleanup`, `ab-graphify`
-
-Read each skill's `SKILL.md` on first use to understand its protocol.
-
----
-
-_Generated by ab on {{TODAY}}. After activation, this file will be updated with project-specific content by sync-context.sh._
+Skills (`ab-` prefix, installed by `ab init`): `ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-qa-self-heal`, `ab-review`, `ab-debug`, `ab-cleanup`, `ab-graphify`
