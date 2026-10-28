@@ -438,7 +438,9 @@ The extension reads `~/.agentboard/sessions/*.json` written by provider hooks/wr
 ab start                                    # start daemon
 ab sessions                                 # list active sessions
 ab delegate "add rate limiting to the API"  # match task → role → prompt
-ab worktree new feature-auth                # create git worktree for a stream
+ab worktree new feature-auth                # on demand: create ../<repo>-feature-auth (no daemon needed)
+ab worktree status [--root DIR]             # classify every worktree: SAFE / FRESH / REVIEW / UNPUSHED / DIRTY
+ab worktree clean [--root DIR] [--apply]    # remove SAFE (merged, clean) worktrees; dry-run by default
 ab stop                                     # stop daemon
 ```
 

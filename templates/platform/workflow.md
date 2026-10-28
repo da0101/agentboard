@@ -33,14 +33,14 @@ well-integrated implementation.
 When a user request is not already tracked in `work/ACTIVE.md` and should become a new stream, every provider follows this strict order:
 
 ```
-Detect new stream → Register → Worktree + local env → Clarify → Research → Plan → Human approval → Execute → Verify + Learn
+Detect new stream → Register → Branch + local env → Clarify → Research → Plan → Human approval → Execute → Verify + Learn
 ```
 
 - **Research is always required for new streams.** Scale the depth to the task: small/low-risk streams may use a compact local + targeted web check, while medium+ or risky streams need the full research pass.
 - **Research must be specific to the work.** Cover the problem, comparable external examples or prior art, current patterns, implementation techniques, best practices, local code/docs, caveats, and a recommendation.
 - **Planning follows research.** Plans must include development phases, complexity, risk mitigation, alternatives considered, files to touch, tests, rollback path, and clarifying questions if anything is still ambiguous.
-- **Work starts in isolated worktrees.** Before implementation for feature, bugfix, or hotfix streams, create or switch to separate Git worktree branches for every touched repo. Feature and bugfix branches start from `develop`; hotfix branches start from `master` only when the user explicitly says "hotfix".
-- **Local environment is prepared before coding.** In every touched worktree, install the repo's development dependencies and identify the local dev command plus localhost port(s) before implementation or manual QA planning.
+- **Work starts on a stream branch.** Before implementation for feature, bugfix, or hotfix streams, create or switch to a `feature/<slug>` or `bugfix/<slug>` branch in each touched repo (from `develop`; hotfix from `master` only when the user explicitly says "hotfix"). Worktrees are on demand, not the default — see 1c.
+- **Local environment is prepared before coding.** In every checkout you will work from, install the repo's development dependencies and identify the local dev command plus localhost port(s) before implementation or manual QA planning.
 - **Human-in-the-loop is mandatory.** The agent must present the research-backed plan and wait for human validation/approval before implementation starts. During implementation, the agent must pause for clarification when the approved plan no longer fits reality.
 - **Implementation follows the approved plan.** Deviations are called out explicitly in chat and captured in the stream file via checkpoint/progress state when they affect scope, risk, or next action.
 
@@ -76,28 +76,25 @@ Full protocol: `agents/work-tracking.md` § "Starting a new workstream".
 
 **Exit:** domain file exists, stream file exists, `ACTIVE.md` has the row, `BRIEF.md` is current.
 
-### 1c. Worktree + local environment prep (mandatory before implementation)
+### 1c. Branch + local environment prep (worktree only on demand)
 
-Before feature, bugfix, or hotfix implementation begins, isolate the work from the main checkout:
+Before feature, bugfix, or hotfix implementation begins, put the work on its own branch:
 
 1. **Determine stream kind and branch name**
    - Feature work: `feature/<stream-slug>` from `develop`
    - Bug fixes: `bugfix/<stream-slug>` from `develop`
    - Hotfixes: `hotfix/<stream-slug>` from `master` only when the user explicitly says this is a hotfix
    - If a repo uses a different production branch, use it only when the project docs or user explicitly override `master`.
-2. **Create or enter a separate worktree for every touched repo**
-   - Example feature: `git fetch origin && git worktree add ../<repo>-<stream-slug> -b feature/<stream-slug> origin/develop`
-   - Example bugfix: `git fetch origin && git worktree add ../<repo>-<stream-slug> -b bugfix/<stream-slug> origin/develop`
-   - Example hotfix: `git fetch origin && git worktree add ../<repo>-<stream-slug> -b hotfix/<stream-slug> origin/master`
-   - If the branch/worktree already exists, verify it points at the correct base and continue there. Do not mix stream work into the main checkout.
-3. **Install development dependencies in each touched worktree**
+2. **Create the branch in each touched repo's main checkout** (`git fetch origin && git switch -c feature/<stream-slug> origin/develop`). If the branch already exists, verify it points at the correct base and continue there.
+3. **Use a worktree only on demand** — when the user asks, when two sessions must edit the same repo at the same time, or when the main checkout holds unrelated uncommitted work. Create it with `ab worktree new <stream-slug>` (add `--type bugfix|hotfix` as needed), record its path in the stream file, and remove it when the branch merges: `ab worktree status` lists leftovers, `ab worktree clean --apply` removes merged ones.
+4. **Install development dependencies in the checkout you work from**
    - Use the repo's lockfile and toolchain: `npm ci`, `yarn install --frozen-lockfile`, `pnpm install --frozen-lockfile`, `uv sync`, `pip install -r requirements.txt`, `flutter pub get`, etc.
    - If dependency install fails, stop and surface the blocker instead of coding against a partially prepared environment.
-4. **Identify local run commands and ports**
+5. **Identify local run commands and ports**
    - Read the repo docs/scripts/env/docker compose config to find the dev server command(s) and localhost port(s).
    - Record the command and port in the stream file under `## Worktree / Local environment`.
 
-**Exit:** every touched repo has an isolated worktree, dependencies installed or blocker reported, and known local run command(s)/localhost port(s) recorded.
+**Exit:** every touched repo is on its stream branch (worktree path recorded if one was created), dependencies installed or blocker reported, and known local run command(s)/localhost port(s) recorded.
 
 ### 2. Interview
 
@@ -136,7 +133,7 @@ State a 5–10 bullet plan **inline in chat**. Include:
 
 ### 5. Execute
 
-Write the code from the prepared worktree path(s), never from the shared main checkout. Max ~300 lines per file. For specialist work, delegate to the appropriate skill from `repos.md`.
+Write the code on the stream branch (in its worktree when one was created); never commit stream work directly to `develop` or `master`. Max ~300 lines per file. For specialist work, delegate to the appropriate skill from `repos.md`.
 
 **After every non-trivial Write or Edit**, log the reason so the next agent understands WHY, not just what changed:
 

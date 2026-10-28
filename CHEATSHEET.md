@@ -83,6 +83,11 @@ agentboard close <slug>              # step 1: print harvest checklist — disti
                                      # learnings into .platform memory files.
 agentboard close <slug> --confirm    # step 2: archive stream, log closure, set
                                      # status=done. Run AFTER the harvest step.
+
+### Worktrees (on demand — branch in the main checkout by default)
+agentboard worktree new <slug> [--type bugfix|hotfix]   # only when asked / two sessions on one repo
+agentboard worktree status [--root DIR] [--fetch]       # SAFE / FRESH / REVIEW / UNPUSHED / DIRTY / MISSING
+agentboard worktree clean  [--root DIR] [--apply]       # removes SAFE only; dry-run unless --apply
 agentboard brief [--all]             # compact project briefing (session start):
                                      # active streams, recent gotchas, open
                                      # questions, top usage pattern.

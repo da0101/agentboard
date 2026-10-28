@@ -64,18 +64,19 @@ If `trivial × low`, exit this skill and execute directly. Otherwise continue.
 
 Exit condition: domain file exists + stream file exists + `ACTIVE.md` row added + `BRIEF.md` updated. Only then proceed.
 
-### Stage 1c — Worktree + local environment prep (mandatory before implementation)
+### Stage 1c — Branch + local environment prep (worktree only on demand)
 
 Before implementation starts on any feature, bugfix, or hotfix stream:
 
-1. Create or enter a separate Git worktree for every touched repo.
+1. Create or switch to the stream branch in each touched repo's main checkout.
 2. Use `feature/<slug>` or `bugfix/<slug>` from `develop`.
 3. Use `hotfix/<slug>` from `master` only when the user explicitly says this is a hotfix.
-4. Install each repo's development dependencies in that worktree using the repo's lockfile/toolchain.
-5. Identify the local dev command and localhost port(s) for each touched repo.
-6. Record worktree path, branch, base, dependency status, dev command, and port(s) in the stream file under `## Worktree / Local environment`.
+4. Create a worktree (`ab worktree new <slug>`) only on demand: the user asks, two sessions must edit the same repo at once, or the main checkout has unrelated uncommitted work. Remove merged ones with `ab worktree clean --apply`.
+5. Install each repo's development dependencies in the checkout you work from, using the repo's lockfile/toolchain.
+6. Identify the local dev command and localhost port(s) for each touched repo.
+7. Record branch, base, worktree path (if any), dependency status, dev command, and port(s) in the stream file under `## Worktree / Local environment`.
 
-If the worktree or dependency install cannot be completed, stop and surface the blocker before coding. Do not implement feature/bugfix/hotfix work in the shared main checkout.
+If dependency install cannot be completed, stop and surface the blocker before coding. Never implement stream work directly on `develop` or `master`.
 
 ### Stage 2 — Interview (only if ambiguous)
 
@@ -100,7 +101,7 @@ State a 5–10 bullet plan **inline in chat**. Include:
 - **Files to touch** (list with short why)
 - **New / deleted files** (list)
 - **Development phases** (ordered implementation chunks)
-- **Worktree/local environment plan** (repos, worktree paths, dependency install command, dev command, localhost ports)
+- **Branch/local environment plan** (repos, branch names, worktree paths if any, dependency install command, dev command, localhost ports)
 - **Complexity assessment** (why the task is small/medium/large)
 - **Test plan** (what you'll run to prove it works)
 - **Risk factors** (what could go wrong, for medium+/high risk)
@@ -115,7 +116,7 @@ Wait for user approval before implementing any new stream. If user pushes back, 
 
 ### Stage 5 — Execute
 
-Write the code from the prepared worktree path(s). Rules:
+Write the code on the stream branch (in its worktree when one exists). Rules:
 - Atomic commits per logical chunk (don't pile 10 changes into 1 commit)
 - Max ~300 lines per file — extract before hitting the limit
 - Read before you edit (every time — no exceptions)
@@ -216,7 +217,7 @@ One sentence of takeaway. Not a paragraph. Not a retrospective.
 6. **New streams and high-risk tasks require explicit user approval** between Stage 4 and Stage 5.
 7. **Max ~300 lines per file.**
 8. **Manual QA artifact required when human verification matters.** Otherwise record why manual QA is not required in the stream file. Interactive LLM-driven QA also requires a QA Execution Journal.
-9. **Feature, bugfix, and hotfix implementation happens in isolated worktrees.** Dependencies and localhost ports are identified before coding.
+9. **Feature, bugfix, and hotfix implementation happens on a stream branch** (worktrees only on demand). Dependencies and localhost ports are identified before coding.
 10. **Workflow script self-audit — mandatory before every `Workflow()` call.** Before submitting any workflow script, scan every `agent(` call in the script and verify it has an explicit `model:` parameter. Fix any that are missing before calling `Workflow()`. No exceptions — omitting `model` makes every agent inherit the caller's tier, turning a 10-agent fan-out into a 10× token burn for no quality gain. Rule of thumb: research/audit/review/test-writing → `"sonnet"` · implementation/architecture → `"opus"` · trivial mechanical transforms → `"haiku"`.
 
 ## Output format

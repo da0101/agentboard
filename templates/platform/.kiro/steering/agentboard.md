@@ -17,7 +17,7 @@ Follow the 6-stage protocol from `.platform/workflow.md`:
 1. **Triage** — classify type, scope, and risk.
 2. **Research** — mandatory for new streams; bounded (1 search + 3 reads max).
 3. **Propose** — present plan in chat with phases, risks, mitigations, alternatives, tests, and rollback path. Wait for human approval.
-4. **Execute** — implement in an isolated Git worktree (`feature/<slug>` from `develop`).
+4. **Execute** — implement on a `feature/<slug>` branch from `develop` (worktree only on demand: `ab worktree new <slug>`).
 5. **Verify** — run tests, lint, manual QA if applicable.
 6. **Log** — append one line to `.platform/memory/log.md`.
 

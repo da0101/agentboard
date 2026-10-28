@@ -68,16 +68,10 @@ for w in d.get('worktrees', []):
         git worktree list 2>/dev/null || say "No worktrees found."
       fi
       ;;
-    new)
-      local slug="${1:?Usage: ab worktree new <stream-slug>}"
-      _cp_is_running || die "Control plane not running. Run: ab start"
-      curl -sf -m 10 -X POST -H "Content-Type: application/json" \
-        -d "{\"stream_slug\":\"${slug}\"}" "$(_cp_url)/worktrees" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print(f'Created: {d[\"path\"]} ({d[\"branch\"]})')
-"
-      ;;
-    *) die "Usage: ab worktree list|new <slug>" ;;
+    status) cmd_worktree_status "$@" ;;
+    clean)  cmd_worktree_clean "$@" ;;
+    new)    cmd_worktree_new "$@" ;;
+    -h|--help) worktree_usage ;;
+    *) die "Usage: ab worktree status|clean|new|list (see: ab worktree --help)" ;;
   esac
 }

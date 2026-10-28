@@ -79,6 +79,9 @@ cmd_close() {
   ok "Stream ${C_BOLD}${slug}${C_RESET} closed and archived → ${C_CYAN}${archive_path}${C_RESET}"
   say "  ${C_DIM}If the harvest step (gotchas/playbook/questions) wasn't done before --confirm,${C_RESET}"
   say "  ${C_DIM}those insights are now lost from project memory. Re-run without --confirm to see the checklist.${C_RESET}"
+  if [[ -n "$(_wt_linked "$(_wt_main_path .)" 2>/dev/null)" ]]; then
+    say "  ${C_DIM}Linked worktrees exist — review leftovers: ab worktree status (remove merged: ab worktree clean --apply)${C_RESET}"
+  fi
 
   # Auto-distill into the knowledge layer (fail-open — close never fails due to distill errors)
   if command -v agentboard >/dev/null 2>&1; then

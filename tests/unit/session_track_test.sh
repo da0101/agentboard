@@ -80,6 +80,20 @@ test_session_snapshot_writes_dashboard_json() {
   [[ ! -f "$home/.agentboard/live.json" ]] || fail "project snapshot leaked global live.json"
 }
 
+# Poll until <log> holds at least <n> package.json FileChange events (max 20s).
+# Replaces fixed sleeps: poller latency grows with machine load, so a fixed
+# window made these tests flaky.
+wait_for_package_json_events() {
+  local log="$1" want="$2" tries=0 have=0
+  while (( tries < 80 )); do
+    have="$(grep -c '"file_path":"package.json"' "$log" 2>/dev/null || true)"
+    (( ${have:-0} >= want )) && return 0
+    sleep 0.25
+    tries=$((tries + 1))
+  done
+  return 0
+}
+
 test_file_poller_logs_changed_tracked_files() {
   local dir
   dir="$(mktemp -d)"
@@ -92,8 +106,7 @@ test_file_poller_logs_changed_tracked_files() {
     pid="$(_ab_start_file_poller "test-session" "codex" 1)"
     # Introduce a tracked-file change
     printf 'change\n' >> package.json
-    # Wait for at least one poll cycle
-    sleep 2
+    wait_for_package_json_events "$dir/.platform/events.jsonl" 1
     _ab_stop_file_poller "$pid"
   )
   local log="$dir/.platform/events.jsonl"
@@ -138,7 +151,8 @@ test_file_poller_dedupes_across_concurrent_sessions() {
     pid1="$(_ab_start_file_poller "test-session-1" "codex" 1)"
     pid2="$(_ab_start_file_poller "test-session-2" "codex" 1)"
     printf 'change\n' >> package.json
-    sleep 3
+    wait_for_package_json_events "$dir/.platform/events.jsonl" 1
+    sleep 2  # settle: a duplicate from the second poller would land here
     _ab_stop_file_poller "$pid1"
     _ab_stop_file_poller "$pid2"
   )
@@ -159,9 +173,9 @@ test_file_poller_relogs_same_file_after_new_diff() {
     . "$dir/.platform/scripts/session-track.sh"
     pid="$(_ab_start_file_poller "test-session" "codex" 1)"
     printf 'change-1\n' >> package.json
-    sleep 2
+    wait_for_package_json_events "$dir/.platform/events.jsonl" 1
     printf 'change-2\n' >> package.json
-    sleep 2
+    wait_for_package_json_events "$dir/.platform/events.jsonl" 2
     _ab_stop_file_poller "$pid"
   )
   local log="$dir/.platform/events.jsonl"
@@ -181,11 +195,11 @@ test_file_poller_clears_state_after_file_returns_clean() {
     . "$dir/.platform/scripts/session-track.sh"
     pid="$(_ab_start_file_poller "test-session" "codex" 1)"
     printf 'change\n' >> package.json
-    sleep 2
+    wait_for_package_json_events "$dir/.platform/events.jsonl" 1
     git checkout -- package.json >/dev/null 2>&1
-    sleep 2
+    sleep 3  # settle: the poller must observe the clean state and drop its dedupe entry
     printf 'change\n' >> package.json
-    sleep 2
+    wait_for_package_json_events "$dir/.platform/events.jsonl" 2
     _ab_stop_file_poller "$pid"
   )
   local log="$dir/.platform/events.jsonl"

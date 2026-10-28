@@ -25,7 +25,7 @@ test_skills_match_new_stream_research_and_approval_contract() {
   assert_file_contains "$AB_RESEARCH" "Before proposing a plan for any new stream"
   assert_file_contains "$AB_RESEARCH" "For new streams, always run this"
   assert_file_contains "$AB_TRIAGE" "New-stream override"
-  assert_file_contains "$AB_TRIAGE" "research, worktree/local-environment prep, and human approval are mandatory"
+  assert_file_contains "$AB_TRIAGE" "research, branch/local-environment prep, and human approval are mandatory"
 }
 
 test_workflow_requires_manual_qa_artifact_when_human_verification_matters() {
@@ -67,8 +67,10 @@ test_workflow_requires_execution_journal_for_interactive_qa() {
   assert_file_contains "$AB_QA_SELF_HEAL" "Maintain a chronological QA Execution Journal"
 }
 
-test_workflow_requires_worktree_branch_and_local_env_prep() {
-  assert_file_contains "$WORKFLOW" "Worktree + local environment prep"
+test_workflow_requires_stream_branch_and_local_env_prep_with_worktrees_on_demand() {
+  assert_file_contains "$WORKFLOW" "Branch + local environment prep (worktree only on demand)"
+  assert_file_contains "$WORKFLOW" "ab worktree new"
+  assert_file_contains "$WORKFLOW" "ab worktree clean --apply"
   assert_file_contains "$WORKFLOW" "feature/<stream-slug>"
   assert_file_contains "$WORKFLOW" "bugfix/<stream-slug>"
   assert_file_contains "$WORKFLOW" "hotfix/<stream-slug>"
@@ -76,12 +78,12 @@ test_workflow_requires_worktree_branch_and_local_env_prep() {
   assert_file_contains "$WORKFLOW" "master"
   assert_file_contains "$WORKFLOW" "Install development dependencies"
   assert_file_contains "$WORKFLOW" "localhost port"
-  assert_file_contains "$AB_WORKFLOW" "Stage 1c — Worktree + local environment prep"
+  assert_file_contains "$AB_WORKFLOW" "Stage 1c — Branch + local environment prep (worktree only on demand)"
   assert_file_contains "$AB_WORKFLOW" "feature/<slug>"
   assert_file_contains "$AB_WORKFLOW" "bugfix/<slug>"
   assert_file_contains "$AB_WORKFLOW" "hotfix/<slug>"
   assert_file_contains "$AB_WORKFLOW" "localhost port"
-  assert_file_contains "$AB_TRIAGE" "worktree/local-environment prep"
+  assert_file_contains "$AB_TRIAGE" "branch/local-environment prep"
 }
 
 test_workflow_requires_research_first_new_stream_intake
@@ -89,4 +91,4 @@ test_skills_match_new_stream_research_and_approval_contract
 test_workflow_requires_manual_qa_artifact_when_human_verification_matters
 test_workflow_blocks_shipping_until_manual_qa_artifact_gate_clears
 test_workflow_requires_execution_journal_for_interactive_qa
-test_workflow_requires_worktree_branch_and_local_env_prep
+test_workflow_requires_stream_branch_and_local_env_prep_with_worktrees_on_demand

@@ -112,6 +112,11 @@ COMMANDS
                              streams, recent gotchas, open questions,
                              usage pattern. Read this at session start.
                              --all             show all gotchas/questions
+  worktree status|clean|new  Worktrees on demand. `status` classifies every linked
+                             worktree (SAFE/FRESH/REVIEW/UNPUSHED/DIRTY/MISSING);
+                             `clean --apply` removes SAFE ones (dry-run default);
+                             `new <slug>` creates ../<repo>-<slug>. --root DIR scans
+                             all repos under DIR; --fetch refreshes merge state.
   watch                      Background poller that auto-checkpoints when
                              ≥1 tracked file has changed since last poll.
                              Use during long Codex/Gemini sessions so state

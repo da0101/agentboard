@@ -184,6 +184,28 @@ test_close_confirm_removes_plain_stream_row_from_active_registry() {
   assert_file_contains "$dir/.platform/work/ACTIVE.md" "_(none)_"
 }
 
+test_close_confirm_hints_at_linked_worktrees() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_close_fixture "$dir"
+  _approve_stream "$dir" login
+  git -C "$dir" worktree add -b feat/login-wt "$dir-wt" >/dev/null 2>&1
+  run_cli_capture output "$dir" close login --confirm
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "ab worktree status"
+  rm -rf "$dir-wt"
+}
+
+test_close_confirm_omits_worktree_hint_when_none() {
+  local dir output
+  dir="$(mktemp -d)"
+  setup_close_fixture "$dir"
+  _approve_stream "$dir" login
+  run_cli_capture output "$dir" close login --confirm
+  assert_status "$RUN_STATUS" 0
+  assert_not_contains "$output" "ab worktree status"
+}
+
 test_close_without_confirm_prints_harvest_checklist
 test_close_confirm_archives_stream
 test_close_confirm_appends_log_entry
@@ -194,3 +216,5 @@ test_close_rejects_bad_slug
 test_close_rejects_missing_stream
 test_close_help
 test_close_confirm_removes_plain_stream_row_from_active_registry
+test_close_confirm_hints_at_linked_worktrees
+test_close_confirm_omits_worktree_hint_when_none

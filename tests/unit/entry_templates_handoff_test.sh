@@ -60,6 +60,8 @@ test_all_entry_templates_require_worktree_branch_prep() {
   for t in "$CLAUDE_TMPL" "$AGENTS_TMPL" "$GEMINI_TMPL"; do
     [[ -f "$t" ]] || fail "$t missing"
     assert_file_contains "$t" "Worktree branch rule"
+    assert_file_contains "$t" "Do not create a worktree by default"
+    assert_file_contains "$t" "ab worktree new"
     assert_file_contains "$t" "feature/<slug>"
     assert_file_contains "$t" "bugfix/<slug>"
     assert_file_contains "$t" "hotfix/<slug>"
@@ -104,7 +106,7 @@ test_live_entry_files_require_qa_execution_journals() {
 test_live_entry_files_require_worktree_branch_prep() {
   for t in "$CLAUDE_LIVE" "$AGENTS_LIVE" "$GEMINI_LIVE"; do
     [[ -f "$t" ]] || fail "$t missing"
-    assert_file_contains "$t" "worktree"
+    assert_file_contains "$t" "Do not create a worktree by default"
     assert_file_contains "$t" "feature/<slug>"
     assert_file_contains "$t" "bugfix/<slug>"
     assert_file_contains "$t" "hotfix/<slug>"
