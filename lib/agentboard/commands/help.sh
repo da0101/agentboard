@@ -112,6 +112,9 @@ COMMANDS
                              streams, recent gotchas, open questions,
                              usage pattern. Read this at session start.
                              --all             show all gotchas/questions
+  recall <topic...>          Pull the best-matching knowledge card (domains/*.md) for a
+                             topic, capped to a token budget. --layer backend|mobile|…
+                             narrows to matching sections; --list prints the card map.
   worktree status|clean|new  Worktrees on demand. `status` classifies every linked
                              worktree (SAFE/FRESH/REVIEW/UNPUSHED/DIRTY/MISSING);
                              `clean --apply` removes SAFE ones (dry-run default);

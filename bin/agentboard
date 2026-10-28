@@ -81,6 +81,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/skill_add.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/control_plane.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/worktree_state.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/worktree.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/recall.sh"
 
 # -----------------------------------------------------------------------------
 # Banner
@@ -186,6 +187,7 @@ main() {
     stop)       cmd_cp_stop "$@" ;;
     sessions)   cmd_sessions "$@" ;;
     worktree)   cmd_worktree "$@" ;;
+    recall)     cmd_recall "$@" ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help) cmd_help ;;
     *) die "Unknown command: $cmd. Run 'agentboard help'." ;;
