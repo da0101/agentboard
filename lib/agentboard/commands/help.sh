@@ -187,6 +187,11 @@ COMMANDS
   add-repo <path>            Copy per-repo entry file templates to a new repo
                              Refuses to overwrite existing entry files.
   usage [subcommand]         Track token consumption across all projects (SQLite).
+                             ingest        — read REAL token counts from Claude/Codex transcripts
+                               [--all] [--since YYYY-MM-DD] [--dry-run]   (also runs on `ab close`)
+                             report        — measured usage by model/repo/day/provider/session,
+                               with cache-hit rate   [--days N] [--by X] [--cost]
+                             migrate       — fold the legacy ~/.agentboard/usage.db into the live one
                              summary       — totals by provider/model/repo/type
                              log           — record a context segment
                                --provider <name> --input <N> --output <N>

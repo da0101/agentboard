@@ -69,6 +69,8 @@ cmd_close() {
   # distill reads the live stream file, so it must run before removal.
   # In-process (not via the agentboard binary) so it never silently skips.
   ( cmd_distill "$slug" --quiet ) >/dev/null 2>&1 || true
+  # Record real token usage for this project (fast; silently skipped without sqlite3).
+  ( cmd_usage ingest --quiet ) >/dev/null 2>&1 || true
 
   # Per-stream lock: don't let a concurrent checkpoint/watch interleave.
   platform_lock_acquire "stream-${slug}" || true

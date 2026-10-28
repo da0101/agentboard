@@ -1,10 +1,10 @@
 # Usage monitoring — SQLite-backed token tracking across all projects
 
-_usage_db="$HOME/.ab/usage.db"
+_usage_db="${AGENTBOARD_USAGE_DB:-$HOME/.ab/usage.db}"
 
 _init_usage_db() {
   if [[ ! -f "$_usage_db" ]]; then
-    mkdir -p "$HOME/.ab"
+    mkdir -p "$(dirname "$_usage_db")"
     sqlite3 "$_usage_db" "CREATE TABLE IF NOT EXISTS usage (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -27,6 +27,14 @@ _init_usage_db() {
     sqlite3 "$_usage_db" \
       "ALTER TABLE usage ADD COLUMN task_complexity TEXT;" 2>/dev/null || true
   fi
+  # Columns for measured (ingested) usage; NULL for manual rows, so no conflicts.
+  local col
+  for col in cache_read_tokens cache_write_tokens reasoning_tokens; do
+    sqlite3 "$_usage_db" "ALTER TABLE usage ADD COLUMN $col INTEGER DEFAULT 0;" 2>/dev/null || true
+  done
+  sqlite3 "$_usage_db" "ALTER TABLE usage ADD COLUMN day TEXT;" 2>/dev/null || true
+  sqlite3 "$_usage_db" "ALTER TABLE usage ADD COLUMN source TEXT DEFAULT 'manual';" 2>/dev/null || true
+  sqlite3 "$_usage_db" "CREATE UNIQUE INDEX IF NOT EXISTS ux_usage_ingest ON usage(agent_provider, session_id, model, day);" 2>/dev/null || true
 }
 
 # Sum a column for rows matching a session key.
@@ -78,8 +86,11 @@ cmd_usage() {
     optimize)  _usage_optimize_cmd "$@" ;;
     learn)     _usage_learn_cmd "$@" ;;
     dashboard) _usage_dashboard_cmd "$@" ;;
+    ingest)    _usage_ingest_cmd "$@" ;;
+    migrate)   _usage_migrate_legacy ;;
+    report)    _usage_report_cmd "$@" ;;
     *)
-      die "Unknown usage subcommand: $sub. Options: summary | log | stream <slug> | history | optimize | learn [--apply] | dashboard [--today|--week|--month]"
+      die "Unknown usage subcommand: $sub. Options: summary | log | stream <slug> | history | optimize | learn [--apply] | dashboard [--today|--week|--month] | ingest [--all] [--since D] | report [--by model|repo|day|provider] | migrate"
       ;;
   esac
 }
