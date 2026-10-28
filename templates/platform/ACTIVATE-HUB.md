@@ -222,7 +222,7 @@ These live in `.claude/skills/` (Claude Code auto-loads them). They are additive
 | `ab-review` | Pre-PR code review across spec / quality / security / tests. |
 | `ab-debug` | Root-cause bug investigation. Hypothesis-test-narrow loop. |
 | `ab-cleanup` | Deep cleanup for a codebase, feature, path, file, or function. Scans first, batches safe changes, preserves behavior. |
-| `ab-graphify` *(opt-in: `ab skill install ab-graphify`)* | Build or refresh the codebase knowledge graph. Only worth it if you will keep it fresh and have agents query it. |
+| `ab-graphify` *(opt-in: `ab skill install ab-graphify`)* | Build or refresh the codebase knowledge graph. Query `.platform/graphify/graph.json` during research. |
 
 Read each skill's `SKILL.md` on first use to understand its protocol.
 

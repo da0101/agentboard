@@ -233,3 +233,30 @@ For each old project:
 8. Commit the project changes in that project repo
 
 That is the safest repeatable migration loop.
+
+---
+
+## Upgrading to the lean layout (any existing project)
+
+Projects set up before the kernel / protocols / knowledge-card changes carry pollution and a heavy always-loaded context. This is the whole upgrade; every step is previewable and nothing is deleted without a copy.
+
+```bash
+ab update            # refresh verbatim files: protocols/, kernel, roles, routing.tsv, models.tsv
+ab tidy              # REPORT: archived streams, graphs, session dumps, orphaned QA, extra skills,
+                     #         session-start tokens, stale streams, drifted cards
+ab tidy --apply      # do the safe subset (copies to ~/.agentboard/cold/<project>/ first)
+ab entry adopt       # PREVIEW slimming an old CLAUDE.md / AGENTS.md / GEMINI.md that has no markers
+ab entry adopt --apply   # writes it; the original is saved to the cold store
+ab doctor            # session start should now be under 2,000 tokens
+ab usage ingest --all && ab usage report    # (optional, needs sqlite3) real token numbers
+```
+
+What each step will and will not do:
+
+- **`ab tidy --apply`** moves `work/archive/`, `graphify/`, `memory/session-*.md` and QA files of streams that no longer exist out of the repo (to the cold store), removes rotated event logs and closed rows in `ACTIVE.md`, prunes unmodified extra skills and syncs the kernel into marker-managed entry files. It never touches open streams, `domains/`, `memory/` or `knowledge/`. Removals appear in `git status` — review and commit when ready.
+- **`ab entry adopt`** drops only *generic* protocol sections (Workflow, Session Start, New Task Bootstrap, Manual QA, Closure, Subagent Dispatch, Skills, Reference Pack, …). Anything it cannot classify is kept, project-specific headings like "Clinical workflow engine" are kept, and imperative rules found inside dropped sections that the kernel does not state (for example "never commit unless asked") are carried over into a "Carried-over rules" section for you to review. Text preserved under an "Existing … content" heading stays verbatim after the markers.
+- **Closing streams changes.** `ab close` now merges the stream's `## Knowledge delta` into the domain cards and removes the stream file (a copy goes to the cold store) instead of archiving it in the repo. Write the delta as you work; see `ab protocol closure`.
+- **Worktrees are on demand.** `ab worktree status` shows leftovers; `ab worktree clean --apply` (or `ab tidy --worktrees --apply`) removes merged, clean ones.
+- **Skills.** The 12-skill core is installed by default; the rest are opt-in (`ab skill list`, `ab skill install <name>`). `ab skill prune` removes unmodified extras.
+
+Rollback: everything moved is under `~/.agentboard/cold/<project>/`, and entry-file originals are saved there too (`adopt-<date>/`). For tracked files, `git checkout -- <path>` also restores.

@@ -91,6 +91,8 @@ agentboard brief --start             # session-start packet (~500 tokens): open 
 agentboard protocol [name]           # long procedures on demand (new-task, closure, handoff, qa, ...)
 agentboard entry check               # session-start tokens vs budget (warn 2000 / fail 3000); doctor runs it too
 agentboard entry sync [--dry-run]    # refresh the kit-controlled rules block in CLAUDE/AGENTS/GEMINI.md
+agentboard entry adopt [--apply]     # slim a pre-kernel CLAUDE/AGENTS/GEMINI.md (preview default; original backed up)
+agentboard tidy [--apply] [--worktrees]  # report/clean pollution, extra skills, budget, stale streams, drift
 agentboard usage ingest [--all]      # load REAL tokens from Claude/Codex transcripts (subagents included)
 agentboard usage report [--by model] # measured tokens, cache-hit rate; --cost uses ~/.agentboard/pricing.tsv
 agentboard route <type> [low|medium|high]   # which model tier/model for this task (--for claude prints the alias)

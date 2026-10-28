@@ -3,7 +3,7 @@
 
 Match the user's intent (meaning, not keywords — phrasing may be brief or non-native) to ONE role below. Read `.platform/roles/<slug>.md`, adopt it, and open with `> **`[role:<slug>]`** — <name from the role file> activated`. No confident match → `pair-programmer`, silently. The user can name a role or say "switch role" at any time. Full procedure: `ab protocol roles`. Which model fits a task type: `ab route`.
 
-Roles say who is working and what done looks like; `ab-*` skills are process stages. They stack (`debugger` + `ab-debug`).
+Roles say who is working and what done looks like; `ab-*` skills are process stages. They stack (`debugger` + `ab-debug`). All roles inherit the **Silicon Valley product mindset** — best-in-class, user-first, craft-driven — with scope discipline, tests and human approval gates (`.platform/workflow.md`).
 
 | Slug | Activate when the user wants… |
 |---|---|
@@ -16,7 +16,7 @@ Roles say who is working and what done looks like; `ab-*` skills are process sta
 | `debugger` | a bug found and fixed — errors, crashes, "it stopped working", code-level incidents |
 | `perf-engineer` | speed, memory, scalability — "it's slow", "optimize" |
 | `qa-engineer` | testing — test plans, coverage, edge-case hunting, "is this ready to ship" |
-| `qa-automation-engineer` | agent-driven app QA with tools like Maestro, browser automation, scripted flows, capped stress… |
+| `qa-automation-engineer` | agent-driven app QA — Maestro, browser automation, scripted flows, capped stress probes — with bounded self-healing; pairs with `ab-qa-self-heal` |
 | `security-engineer` | a security view — "is it secure", auth/permissions review, handling user data safely |
 | `code-auditor` | an honest assessment of existing code — quality, architecture, risks, scores |
 | `code-cleanup-engineer` | clean up existing code — duplicates, dead code, oversized files, noisy comments, housekeeping… |

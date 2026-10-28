@@ -72,6 +72,17 @@ Agents should start a session with a few hundred tokens, not the whole pack:
 - `ab recall <topic> [--layer backend|web|mobile]` pulls one slice of a knowledge card instead of the whole file.
 - `ab doctor` / `ab entry check` measure session-start tokens and warn above 2,000, fail above 3,000.
 
+## Upgrading or adopting in an existing project
+
+```bash
+ab update && ab tidy          # report what is polluting the project and what it costs
+ab tidy --apply               # safe cleanup (copies to ~/.agentboard/cold first)
+ab entry adopt --apply        # slim an old CLAUDE.md / AGENTS.md (preview without --apply)
+ab doctor                     # verify: session start under 2,000 tokens
+```
+
+See `MIGRATION_GUIDE.md` → "Upgrading to the lean layout".
+
 ## Quick start
 
 ### Single repo

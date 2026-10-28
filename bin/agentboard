@@ -91,7 +91,9 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/recall.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/recall_check.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/protocol.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/entry.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/entry_adopt.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/route.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/tidy.sh"
 
 # -----------------------------------------------------------------------------
 # Banner
@@ -201,6 +203,7 @@ main() {
     protocol)   cmd_protocol "$@" ;;
     entry)      cmd_entry "$@" ;;
     route)      cmd_route "$@" ;;
+    tidy)       cmd_tidy "$@" ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help) cmd_help ;;
     *) die "Unknown command: $cmd. Run 'agentboard help'." ;;

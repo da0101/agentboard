@@ -24,6 +24,7 @@ entry_usage() {
 Usage: ab entry kernel [claude|codex|gemini]   print the kernel block
        ab entry sync [--dry-run]               refresh the kernel in CLAUDE.md / AGENTS.md / GEMINI.md
        ab entry check                          session-start tokens vs budget (warn 2000, fail 3000)
+       ab entry adopt [--apply]                slim a pre-kernel entry file (preview by default; see --help)
 
 sync only touches files that carry Agentboard markers: it replaces the kernel
 block in place, or inserts it just before the root-entry end marker. Files
@@ -151,9 +152,10 @@ cmd_entry() {
   case "$sub" in
     kernel) _entry_kernel_block "${1:-claude}" ;;
     build-templates) cmd_entry_build_templates ;;
+    adopt)  cmd_entry_adopt "$@" ;;
     sync)   [[ -d ./.platform ]] || die "No .platform/ found. Run 'ab init' first."; cmd_entry_sync "$@" ;;
     check)  [[ -d ./.platform ]] || die "No .platform/ found. Run 'ab init' first."; cmd_entry_check ;;
     -h|--help|"") entry_usage ;;
-    *) die "Unknown entry subcommand: $sub (kernel, sync, check)" ;;
+    *) die "Unknown entry subcommand: $sub (kernel, sync, check, adopt)" ;;
   esac
 }

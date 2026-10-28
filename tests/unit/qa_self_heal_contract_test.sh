@@ -70,8 +70,7 @@ test_activation_and_root_templates_list_qa_self_heal_skill() {
     "$TEST_ROOT/templates/root/CLAUDE.md.template" \
     "$TEST_ROOT/templates/root/CLAUDE.md.hub.template" \
     "$TEST_ROOT/templates/root/AGENTS.md.template" \
-    "$TEST_ROOT/templates/root/GEMINI.md.template" \
-    "$TEST_ROOT/AGENTS.md"
+    "$TEST_ROOT/templates/root/GEMINI.md.template"
   do
     assert_file_contains "$file" 'ab-qa-self-heal'
   done

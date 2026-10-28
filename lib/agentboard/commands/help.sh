@@ -112,6 +112,11 @@ COMMANDS
                              streams, recent gotchas, open questions,
                              usage pattern. Read this at session start.
                              --all             show all gotchas/questions
+  tidy [--apply]             Bring ANY project to the lean layout. Report-only by default; --apply
+                             copies archives, graphs, session dumps and orphaned QA files to the
+                             cold store and removes them, drops closed ACTIVE rows, prunes extra
+                             skills and syncs the rules kernel. Never touches open streams, domains,
+                             memory or knowledge. --worktrees also removes merged, clean worktrees.
   route [type] [complexity]  Which model for this task? One table (.platform/routing.tsv:
                              task type + complexity -> tier; models.tsv: tier -> model per
                              provider). `ab route research`, `ab route debug high`,
