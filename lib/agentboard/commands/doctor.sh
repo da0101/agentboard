@@ -400,6 +400,14 @@ cmd_doctor() {
     FAIL) _dr_warn "Session start ≈ ${ENTRY_TOTAL} tokens exceeds ${ENTRY_BUDGET_FAIL}. Slim the entry file: ab entry check"; errors=$((errors + 1)) ;;
   esac
 
+  _recall_stale_scan
+  if (( RECALL_STALE_PATHS > 0 )); then
+    _dr_warn "Knowledge cards name ${RECALL_STALE_PATHS} file path(s) that no longer exist (${RECALL_STALE_CARDS} card(s)). Run: ab recall --check"
+    warnings=$((warnings + 1))
+  else
+    _dr_ok "Knowledge cards reference only existing file paths"
+  fi
+
   (( ci_mode )) && { _dr_ci_summary; return; } || true
 
   say

@@ -63,8 +63,14 @@ cmd_close() {
     return 0
   fi
 
+  local touched; touched="$(ls "$stage" 2>/dev/null | sed 's/\.md$//' | tr '\n' ' ')"
   _ck_commit "$stage"
   rm -rf "$stage"
+  # A fact that names a file which does not exist is the likeliest wrong fact.
+  if [[ -n "${touched// /}" ]]; then
+    local drift; drift="$(_ck_drift_report "$stream_file" $touched)"
+    [[ -z "$drift" ]] || { warn "Paths in this stream's Knowledge delta that match no file:"; printf '%s\n' "$drift"; }
+  fi
 
   # distill reads the live stream file, so it must run before removal.
   # In-process (not via the agentboard binary) so it never silently skips.

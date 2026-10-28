@@ -120,7 +120,8 @@ COMMANDS
                              the long procedures. No name lists them.
   recall <topic...>          Pull the best-matching knowledge card (domains/*.md) for a
                              topic, capped to a token budget. --layer backend|mobile|…
-                             narrows to matching sections; --list prints the card map.
+                             narrows to matching sections; --list prints the card map;
+                             --check [card] reports file paths cards name that match no file.
   worktree status|clean|new  Worktrees on demand. `status` classifies every linked
                              worktree (SAFE/FRESH/REVIEW/UNPUSHED/DIRTY/MISSING);
                              `clean --apply` removes SAFE ones (dry-run default);

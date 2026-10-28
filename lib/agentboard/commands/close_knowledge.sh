@@ -226,3 +226,18 @@ _ck_cold_store_qa() {
   done
   printf '%s' "$n"
 }
+
+# _ck_drift_report <stream-file> <card...> — "card: path" for every path the delta
+# wrote that matches no file (older drift in the card is `ab recall --check`'s job).
+_ck_drift_report() {
+  local stream="$1" list out card path c; shift
+  list="$(mktemp)"
+  for c in "$@"; do printf './.platform/domains/%s.md\n' "$c" >> "$list"; done
+  out="$(_recall_missing "$list")"; rm -f "$list"
+  [[ -n "$out" ]] || return 0
+  while IFS=$'\t' read -r card path; do
+    [[ -n "$path" ]] || continue
+    if grep -qF -- "$path" "$stream"; then printf '    %s: %s\n' "$card" "$path"; fi
+  done <<< "$out"
+  return 0
+}

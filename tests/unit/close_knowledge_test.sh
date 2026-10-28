@@ -263,6 +263,35 @@ test_untouched_template_placeholder_is_ignored_not_merged() {
   [[ ! -f "$CK_DIR/.platform/domains/<domain-slug>.md" ]] || fail "placeholder created a card"
 }
 
+test_close_warns_when_a_merged_fact_names_a_path_that_does_not_exist() {
+  local output
+  setup_ck_fixture; seed_card
+  mkdir -p "$CK_DIR/src/auth"; printf 'x\n' > "$CK_DIR/src/auth/throttle.py"
+  add_delta <<'EOF2'
+### auth | backend
+- [rate-limit] throttled in `src/auth/throttle.py`
+- [ghost-file] logic lives in `src/auth/imaginary.py`
+EOF2
+  run_cli_capture output "$CK_DIR" close login --confirm
+  assert_status "$RUN_STATUS" 0
+  assert_contains "$output" "match no file"
+  assert_contains "$output" "auth: src/auth/imaginary.py"
+  assert_not_contains "$output" "throttle.py"
+  assert_not_contains "$output" "Login.tsx"   # older drift already in the card is not this stream's doing
+}
+
+test_close_is_quiet_about_paths_when_all_exist() {
+  local output
+  setup_ck_fixture; seed_card
+  mkdir -p "$CK_DIR/src/auth"; printf 'x\n' > "$CK_DIR/src/auth/throttle.py"
+  add_delta <<'EOF2'
+### auth | backend
+- [rate-limit] throttled in `src/auth/throttle.py`
+EOF2
+  run_cli_capture output "$CK_DIR" close login --confirm
+  assert_not_contains "$output" "match no file"
+}
+
 test_delta_adds_a_new_fact_with_provenance_in_the_matching_section
 test_delta_replaces_an_existing_key_without_duplicating_or_losing_prose
 test_delta_dash_removes_a_fact_and_reports_unknown_keys
@@ -277,3 +306,5 @@ test_close_distills_a_stream_record_into_the_knowledge_store
 
 test_close_moves_only_this_streams_qa_files_out_of_the_repo
 test_untouched_template_placeholder_is_ignored_not_merged
+test_close_warns_when_a_merged_fact_names_a_path_that_does_not_exist
+test_close_is_quiet_about_paths_when_all_exist

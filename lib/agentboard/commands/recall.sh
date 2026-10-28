@@ -16,6 +16,7 @@ recall_usage() {
   cat <<'EOF'
 Usage: ab recall <topic...> [--layer L]... [--budget N] [--top N] [--no-related]
        ab recall --list
+       ab recall --check [card...]
 
   <topic>        words matched against card names, titles and bodies
   --layer L      only sections whose "## heading" contains L (repeatable),
@@ -24,6 +25,7 @@ Usage: ab recall <topic...> [--layer L]... [--budget N] [--top N] [--no-related]
   --top N        print the N best cards (default 1)
   --no-related   skip the matching learnings/decisions lines
   --list         one line per card: name, repos, size, summary — the map
+  --check        report file paths named in cards that no longer exist (drift)
 EOF
 }
 
@@ -127,6 +129,7 @@ cmd_recall() {
     case "$1" in
       -h|--help)    recall_usage; return 0 ;;
       --list)       list=1; shift ;;
+      --check)      shift; cmd_recall_check "$@"; return 0 ;;
       --layer)      [[ -n "${2:-}" ]] || die "--layer needs a value"; layers+=("$(_recall_lower "$2")"); shift 2 ;;
       --budget)     [[ "${2:-}" =~ ^[0-9]+$ ]] || die "--budget needs a number"; budget="$2"; shift 2 ;;
       --top)        [[ "${2:-}" =~ ^[0-9]+$ ]] || die "--top needs a number"; top="$2"; shift 2 ;;
