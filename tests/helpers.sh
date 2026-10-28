@@ -3,6 +3,10 @@
 set -euo pipefail
 
 TEST_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Never let a test write to the real home: closing a stream copies it to the
+# cold store. Individual tests may still override this to assert on the copy.
+export AGENTBOARD_COLD_DIR="${AGENTBOARD_COLD_DIR:-$(mktemp -d)}"
 source "$TEST_ROOT/bin/ab"
 
 fail() {
