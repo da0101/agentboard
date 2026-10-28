@@ -42,51 +42,53 @@ cmd_close() {
     fi
   fi
 
-  local archive_dir="./.platform/work/archive"
-  mkdir -p "$archive_dir"
-  local archive_path="$archive_dir/${slug}.md"
-  if [[ -e "$archive_path" ]]; then
-    local n=2
-    while [[ -e "$archive_dir/${slug}-${n}.md" ]]; do n=$((n + 1)); done
-    archive_path="$archive_dir/${slug}-${n}.md"
+  local today_str agent stage
+  today_str="$(today)"
+  agent="${AGENTBOARD_AGENT:-${USER:-agent}}"
+  stage="$(mktemp -d)"
+
+  if [[ -z "$(_ck_records "$stream_file")" ]]; then
+    warn "No '## Knowledge delta' in $stream_file — domain cards will not be updated."
+  else
+    say "Knowledge delta -> domain cards$( (( dry_run )) && printf ' (dry run)' || true)"
+    _ck_apply "$slug" "$stream_file" "$stage"
+    say "  ${CK_ADDED} added, ${CK_REPLACED} replaced, ${CK_REMOVED} removed, ${CK_CARDS_NEW} new card(s), ${CK_MISSING} not found, ${CK_SKIPPED} skipped"
   fi
 
   if (( dry_run )); then
-    printf '%sWould archive%s %s → %s\n' "$C_BOLD" "$C_RESET" "$stream_file" "$archive_path"
-    printf '%sWould update frontmatter:%s status=done, closure_approved=true\n' "$C_BOLD" "$C_RESET"
+    rm -rf "$stage"
+    printf '%sWould copy%s the stream outside the repo, then remove %s\n' "$C_BOLD" "$C_RESET" "$stream_file"
     printf '%sWould update ACTIVE.md:%s remove stream row\n' "$C_BOLD" "$C_RESET"
     printf '%sWould append closure row to .platform/memory/log.md%s\n' "$C_BOLD" "$C_RESET"
     return 0
   fi
 
-  local today_str agent
-  today_str="$(today)"
-  agent="${AGENTBOARD_AGENT:-${USER:-agent}}"
+  _ck_commit "$stage"
+  rm -rf "$stage"
 
-  # Per-stream lock: don't let a concurrent checkpoint/watch interleave with
-  # the frontmatter rewrite + archive move.
+  # distill reads the live stream file, so it must run before removal.
+  # In-process (not via the agentboard binary) so it never silently skips.
+  ( cmd_distill "$slug" --quiet ) >/dev/null 2>&1 || true
+
+  # Per-stream lock: don't let a concurrent checkpoint/watch interleave.
   platform_lock_acquire "stream-${slug}" || true
   replace_frontmatter_line "$stream_file" "status" "done"
   replace_frontmatter_line "$stream_file" "closure_approved" "true"
   replace_frontmatter_line "$stream_file" "updated_at" "$today_str"
-
-  mv "$stream_file" "$archive_path"
+  local cold qa_n; cold="$(_ck_cold_store "$slug" "$stream_file")"
+  qa_n="$(_ck_cold_store_qa "$slug" "$(dirname "$cold")/${slug}-qa")"
+  rm -f "$stream_file"
   platform_lock_release "stream-${slug}"
 
-  platform_with_lock "memory-log" _close_append_log "$slug" "$archive_path" "$today_str" "$agent"
+  platform_with_lock "memory-log" _close_append_log "$slug" "$cold" "$today_str" "$agent"
   platform_with_lock "active-md" _close_update_active_registry_status "$slug"
 
-  ok "Stream ${C_BOLD}${slug}${C_RESET} closed and archived → ${C_CYAN}${archive_path}${C_RESET}"
-  say "  ${C_DIM}If the harvest step (gotchas/playbook/questions) wasn't done before --confirm,${C_RESET}"
-  say "  ${C_DIM}those insights are now lost from project memory. Re-run without --confirm to see the checklist.${C_RESET}"
+  ok "Stream ${C_BOLD}${slug}${C_RESET} closed. Knowledge merged into domain cards; stream file removed."
+  say "  ${C_DIM}Copy kept outside the repo: ${cold}${C_RESET}"
+  (( qa_n == 0 )) || say "  ${C_DIM}${qa_n} QA item(s) moved out of the repo with it.${C_RESET}"
+  say "  ${C_DIM}Gotchas/playbook/questions not harvested before --confirm are lost from project memory.${C_RESET}"
   if [[ -n "$(_wt_linked "$(_wt_main_path .)" 2>/dev/null)" ]]; then
     say "  ${C_DIM}Linked worktrees exist — review leftovers: ab worktree status (remove merged: ab worktree clean --apply)${C_RESET}"
-  fi
-
-  # Auto-distill into the knowledge layer (fail-open — close never fails due to distill errors)
-  if command -v agentboard >/dev/null 2>&1; then
-    say "  Distilling stream knowledge…"
-    agentboard distill "$slug" --quiet || true
   fi
 }
 
@@ -96,7 +98,7 @@ Usage: ab close <stream-slug> [--confirm] [--dry-run]
 
 Two-step stream closure. Default run prints the harvest checklist so the
 agent can distill this stream's contribution into project memory. Then
-run again with --confirm to archive the stream file and log closure.
+run again with --confirm to merge knowledge, remove the stream file and log closure.
 
 Step 1 — harvest (no flag):
   Prints a checklist of what to extract from the stream and where to
@@ -105,14 +107,23 @@ Step 1 — harvest (no flag):
   itself using its Edit/Write tools.
 
 Step 2 — finalize (--confirm):
-  Moves the stream file to .platform/work/archive/<slug>.md
-  Sets status=done, closure_approved=true
+  Merges the stream's '## Knowledge delta' into .platform/domains/<domain>.md
+  (keyed facts are added, replaced or removed; cards are created if missing)
+  Distills a summary line into .platform/knowledge/
+  Copies the stream outside the repo (~/.agentboard/cold/<project>/closed/)
+  and removes it from .platform/work/ — no archive folder accumulates
   Appends a closure row to .platform/memory/log.md
   Removes the stream row from work/ACTIVE.md
 
+Knowledge delta (write it in the stream file while you work):
+  ## Knowledge delta
+  ### <domain-slug> | <layer>
+  - [key] current-state fact (stamped with stream + date on merge)
+  - [old-key] -                      a lone dash removes that fact
+
 Flags:
-  --confirm   Actually archive + log. Run AFTER the harvest step.
-  --dry-run   Preview archive actions without writing.
+  --confirm   Actually merge knowledge, close, remove. Run AFTER the harvest step.
+  --dry-run   Preview the knowledge merge and closure without writing.
 
 This is the compounding ritual: each close adds durable knowledge to the
 project's memory files so the next agent inherits it via `ab brief`.
@@ -132,6 +143,14 @@ _close_print_harvest_prompt() {
   cat <<EOF
 Before --confirm, distill this stream's contribution into project memory.
 For each category, append if applicable; skip if nothing to add.
+
+${C_BOLD}0. KNOWLEDGE DELTA${C_RESET} — what is now true about the system that a future agent must know?
+   File:   this stream file, section '## Knowledge delta'
+   Format: ### <domain-slug> | <layer>      (layer: backend, web, mobile, ...)
+           - [stable-key] current-state fact, with file paths in backticks
+           - [old-key] -                    removes a fact that is no longer true
+   Rule:   state the CURRENT truth, not what changed. --confirm merges these
+           into .platform/domains/<domain>.md; same key replaces, new key adds.
 
 ${C_BOLD}1. GOTCHAS${C_RESET}  — any landmines discovered? (things that'll trip the next agent)
    File:   .platform/memory/gotchas.md
@@ -165,63 +184,11 @@ When the harvest is done:
 
 Step 1 is required — --confirm will refuse to run without it.
 Skipping harvest is fine if the stream produced nothing durable — but once
-the stream is archived, its raw context is no longer in active memory. The
-only knowledge that survives is what you distilled into the files above.
+the stream is closed its file is removed from the repo. The only knowledge
+that survives is the delta and the memory files above.
 EOF
   _close_print_domain_gap "$slug" "$stream_file"
   printf '\n'
-}
-
-# Appended to the harvest checklist. Reads domain slugs from the stream file,
-# collects files touched in stream commits, and lists any that aren't mentioned
-# in the domain file text. Pure informational — no writes.
-_close_print_domain_gap() {
-  local slug="$1" stream_file="$2"
-  local raw_domains
-  raw_domains="$(frontmatter_value "$stream_file" "domain_slugs")"
-  [[ -z "$raw_domains" || "$raw_domains" == "[]" ]] && return 0
-  command -v git >/dev/null 2>&1 || return 0
-  git rev-parse --git-dir >/dev/null 2>&1 || return 0
-
-  local base_branch touched_files
-  base_branch="$(frontmatter_value "$stream_file" "base_branch")"
-  if [[ -n "$base_branch" ]] && ! is_placeholder_value "$base_branch" \
-      && git rev-parse --verify "$base_branch" >/dev/null 2>&1; then
-    touched_files="$(git log --name-only --pretty=format: "${base_branch}..HEAD" 2>/dev/null \
-      | awk 'NF' | sort -u || true)"
-  else
-    touched_files="$(git log --name-only --pretty=format: -20 2>/dev/null \
-      | awk 'NF' | sort -u || true)"
-  fi
-  [[ -n "$touched_files" ]] || return 0
-
-  local any_gap=0 ds df domain_text gap_lines fpath
-  while IFS= read -r ds; do
-    [[ -z "$ds" ]] && continue
-    df="./.platform/domains/${ds}.md"
-    [[ -f "$df" ]] || continue
-    domain_text="$(< "$df")"
-    gap_lines=""
-    while IFS= read -r fpath; do
-      [[ -z "$fpath" ]] && continue
-      printf '%s' "$domain_text" | grep -qF "$fpath" 2>/dev/null && continue
-      gap_lines="${gap_lines}   ${fpath}\n"
-    done <<< "$touched_files"
-    if [[ -n "$gap_lines" ]]; then
-      if (( any_gap == 0 )); then
-        printf '%s6. DOMAIN GAP%s  — touched files not mentioned in domain doc(s)\n' \
-          "$C_BOLD" "$C_RESET"
-        any_gap=1
-      fi
-      printf '   Domain: %s\n' "$df"
-      printf '%b' "$gap_lines"
-    fi
-  done < <(inline_array_items "$raw_domains")
-
-  if (( any_gap )); then
-    printf '%s   Update the domain doc(s) above before running --confirm.%s\n' \
-      "$C_DIM" "$C_RESET"
-  fi
 }
 
 _close_append_log() {

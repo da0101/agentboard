@@ -83,8 +83,9 @@ migrations, and product decisions disguised as QA fixes.
   less meaningful to get green output.
 - **Preserve QA independence when needed.** If the user asks for read-only
   readiness assessment, switch to `qa-engineer` and `ab-qa`.
-- **Preserve QA history.** Do not delete Manual QA artifacts; they move to
-  `.platform/work/archive/qa/` when the stream closes.
+- **Preserve QA history while the stream is open.** Do not delete Manual QA
+  artifacts; `ab close --confirm` moves them out of the repo (copy under
+  `~/.agentboard/cold/`).
 - **No invisible app-driving.** If you used Maestro, Browser, Playwright, MCP,
   or a simulator/emulator manually, the execution journal must show what you
   did and what happened, including successful tests.

@@ -12,6 +12,9 @@
 
 set -euo pipefail
 
+# Closed streams are copied outside the repo; keep that out of the real home.
+export AGENTBOARD_COLD_DIR="$(mktemp -d)"
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AGENTBOARD="$ROOT/bin/ab"
 
@@ -372,7 +375,8 @@ test_full_workflow_stream_lifecycle() {
 
   (cd "$dir"; "$AGENTBOARD" close login --confirm >/dev/null)
   [[ ! -f "$dir/.platform/work/login.md" ]] || fail "stream still present after --confirm"
-  [[ -f "$dir/.platform/work/archive/login.md" ]] || fail "stream not archived"
+  [[ ! -f "$dir/.platform/work/archive/login.md" ]] || fail "closed streams must not accumulate in work/archive/"
+  ls "$AGENTBOARD_COLD_DIR"/*/closed/login-*.md >/dev/null 2>&1 || fail "no cold copy of the closed stream"
   assert_file_contains "$dir/.platform/memory/log.md" "closed stream login"
 }
 

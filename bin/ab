@@ -57,6 +57,10 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/search.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/role.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/rescan.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/close.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/close_knowledge.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/distill.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/index.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/synthesize.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief_patterns.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/validate.sh"
@@ -191,6 +195,9 @@ main() {
     delegate)   cmd_delegate "$@" ;;
     worktree)   cmd_worktree "$@" ;;
     recall)     cmd_recall "$@" ;;
+    distill)     cmd_distill "$@" ;;
+    index)       cmd_index "$@" ;;
+    synthesize)  cmd_synthesize "$@" ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help) cmd_help ;;
     *) die "Unknown command: $cmd. Run 'agentboard help'." ;;

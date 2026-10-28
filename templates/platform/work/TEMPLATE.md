@@ -31,6 +31,12 @@ _Metadata rules: `stream_id` must be `stream-<slug>`, `slug` must match the file
 ## Key decisions
 _Append-only. Format: `YYYY-MM-DD — <decision> — <rationale>`_
 
+## Knowledge delta
+_Durable facts this stream made true. `ab close --confirm` merges them into `.platform/domains/<domain>.md` (same key replaces, new key adds, a lone `-` removes). State the CURRENT truth, with file paths in backticks. Layer must appear in an existing `## heading` of the card, or a new section is created (see `ab recall <domain>`). Delete this hint when filling in._
+
+### <domain-slug> | <layer>
+- [stable-key] <current-state fact>
+
 ## Worktree / Local environment
 
 | Repo | Worktree path | Branch | Base | Dependencies | Local command | Localhost port(s) |

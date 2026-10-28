@@ -31,7 +31,7 @@ test_skills_match_new_stream_research_and_approval_contract() {
 test_workflow_requires_manual_qa_artifact_when_human_verification_matters() {
   assert_file_contains "$WORKFLOW" "Manual QA artifact — required when human verification matters"
   assert_file_contains "$WORKFLOW" ".platform/work/qa/<stream-slug>-manual-qa.md"
-  assert_file_contains "$WORKFLOW" ".platform/work/archive/qa/"
+  assert_file_contains "$WORKFLOW" "~/.agentboard/cold/"
   assert_file_contains "$WORKFLOW" 'The artifact is not a planning `.md`'
   assert_file_contains "$WORKFLOW" "## 🧪 Manual QA Artifact"
   assert_file_contains "$WORKFLOW" "Manual QA: not required"
@@ -51,7 +51,7 @@ test_workflow_blocks_shipping_until_manual_qa_artifact_gate_clears() {
   assert_file_contains "$WORKFLOW" "Manual QA artifact clear"
   assert_file_contains "$WORKFLOW" "before committing, pushing, merging, releasing, or closing"
   assert_file_contains "$WORKFLOW" "Never commit, push, merge, release, or close before Stage 6 + Manual QA artifact gate + human approval"
-  assert_file_contains "$WORKFLOW" "Archive the stream file and QA artifact"
+  assert_file_contains "$WORKFLOW" "Close the stream and its QA artifact"
 }
 
 test_workflow_requires_execution_journal_for_interactive_qa() {

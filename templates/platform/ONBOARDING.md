@@ -78,7 +78,7 @@ If the stream is fully complete, run the **Stream Closure Protocol** from `workf
 2. Update STATUS files for every repo touched
 3. Update domain file + architecture.md if topology changed
 4. Unblock downstream streams in `ACTIVE.md`
-5. Archive stream file, reset `BRIEF.md`
+5. Close the stream (`ab close <slug> --confirm` — merges knowledge, removes the file), reset `BRIEF.md`
 6. Append to `log.md`, check `learnings.md`
 
 If the session is ending but the stream is NOT complete:

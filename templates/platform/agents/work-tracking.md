@@ -95,7 +95,7 @@ When all done criteria are met:
 2. Agent posts done-criteria checklist with ✅/❌ for each item
 3. **User confirms** — agent cannot self-approve
 4. On confirmation:
-   - Move `work/<slug>.md` → `work/archive/<slug>.md`
+   - Write the `## Knowledge delta`, then `ab close <slug> --confirm` (merges into `domains/*.md`, moves the stream + QA files out of the repo)
    - Remove row from `ACTIVE.md`
    - Append one line to `.platform/memory/log.md`
    - Update `memory/` if anything learned should persist cross-session

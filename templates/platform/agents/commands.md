@@ -70,7 +70,7 @@ When I say **"archive stream"**, you MUST:
 1. **Verify** that `closure_approved: true` is present in the stream file.
 2. **Update** `.platform/STATUS.md` and any relevant deep-reference files.
 3. **Log** the outcome in `.platform/memory/log.md`.
-4. **Move** the file to `.platform/work/archive/`.
+4. **Run** `ab close <slug> --confirm` — merges the `## Knowledge delta` into the domain cards and moves the stream file (and its QA artifacts) out of the repo; nothing accumulates in `work/archive/`.
 
 ### `status check`
 When I say **"status check"**, you MUST:

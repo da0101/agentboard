@@ -6,6 +6,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/helpers.sh"
 
 export NO_COLOR=1
+# Closed streams are copied outside the repo; keep that out of the real home.
+export AGENTBOARD_COLD_DIR="$(mktemp -d)"
 
 setup_close_fixture() {
   local dir="$1"
@@ -46,17 +48,19 @@ _approve_stream() {
   mv "$tmp" "$sf"
 }
 
-test_close_confirm_archives_stream() {
-  local dir output
+test_close_confirm_removes_stream_and_keeps_cold_copy() {
+  local dir output cold
   dir="$(mktemp -d)"
   setup_close_fixture "$dir"
   _approve_stream "$dir" login
   run_cli_capture output "$dir" close login --confirm
   assert_status "$RUN_STATUS" 0
   [[ ! -f "$dir/.platform/work/login.md" ]] || fail "stream file still present after --confirm"
-  [[ -f "$dir/.platform/work/archive/login.md" ]] || fail "stream was not moved to archive/"
-  assert_file_contains "$dir/.platform/work/archive/login.md" "status: done"
-  assert_file_contains "$dir/.platform/work/archive/login.md" "closure_approved: true"
+  [[ ! -f "$dir/.platform/work/archive/login.md" ]] || fail "stream must not accumulate in work/archive/"
+  cold="$(ls "$AGENTBOARD_COLD_DIR"/*/closed/login-*.md 2>/dev/null | tail -1)"
+  [[ -f "$cold" ]] || fail "no cold copy of the closed stream under $AGENTBOARD_COLD_DIR"
+  assert_file_contains "$cold" "status: done"
+  assert_file_contains "$cold" "closure_approved: true"
 }
 
 test_close_confirm_appends_log_entry() {
@@ -100,8 +104,8 @@ test_close_dry_run_writes_nothing() {
   setup_close_fixture "$dir"
   run_cli_capture output "$dir" close login --confirm --dry-run
   assert_status "$RUN_STATUS" 0
-  assert_contains "$output" "Would archive"
-  [[ -f "$dir/.platform/work/login.md" ]] || fail "dry-run archived the stream file"
+  assert_contains "$output" "Would copy"
+  [[ -f "$dir/.platform/work/login.md" ]] || fail "dry-run removed the stream file"
 }
 
 test_close_rejects_bad_slug() {
@@ -207,7 +211,7 @@ test_close_confirm_omits_worktree_hint_when_none() {
 }
 
 test_close_without_confirm_prints_harvest_checklist
-test_close_confirm_archives_stream
+test_close_confirm_removes_stream_and_keeps_cold_copy
 test_close_confirm_appends_log_entry
 test_close_confirm_removes_from_active_registry
 test_close_confirm_blocked_without_approval

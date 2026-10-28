@@ -81,8 +81,11 @@ agentboard checkpoint <slug> --what "..." --next "..." [--blocker "..."] [--focu
 agentboard close <slug>              # step 1: print harvest checklist — distill
                                      # gotchas/playbook/open-questions/decisions/
                                      # learnings into .platform memory files.
-agentboard close <slug> --confirm    # step 2: archive stream, log closure, set
-                                     # status=done. Run AFTER the harvest step.
+agentboard close <slug> --confirm    # step 2: merge the stream's "## Knowledge delta" into
+                                     # domains/*.md (keyed facts), copy stream + QA files
+                                     # outside the repo, remove them. Run AFTER harvest.
+agentboard recall <topic> [--layer L]  # pull the best knowledge card, token-budgeted
+agentboard recall --list             # one line per card (the map)
 
 ### Worktrees (on demand — branch in the main checkout by default)
 agentboard worktree new <slug> [--type bugfix|hotfix]   # only when asked / two sessions on one repo

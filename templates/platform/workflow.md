@@ -226,8 +226,8 @@ Execution journal default path:
 Execution journals are required for LLM-driven interactive QA even when every
 test passes. They must record successful paths as well as failures, fixes,
 human blockers, skipped checks, retests, and remaining risks. Do not delete
-execution journals; when a stream closes, archive them with the stream under
-`.platform/work/archive/qa/`.
+execution journals while the stream is open; `ab close --confirm` moves them out
+of the repo with the stream (a copy is kept under `~/.agentboard/cold/`).
 
 Use this structure:
 
@@ -340,7 +340,7 @@ Run this checklist **every time a stream reaches done** — before archiving the
 5. **Deep-reference file check** — for every repo the stream touched, make an explicit YES/NO decision on whether the per-repo reference file (e.g. `backend.md`, `admin.md`) is now stale. Ask: *"Would a new developer or agent reading this file today take a wrong path?"* Update if YES. Skip if NO. This catches: new URL routes, removed fields, stack changes, patterns that no longer apply. State the decision in chat either way.
 6. **Update architecture.md** — if the stream changed system topology (new endpoints, new data flows, auth changes), update the relevant section.
 7. **Unblock downstream streams** — flip any `pending (blocked on this)` stream in `ACTIVE.md` to `ready-to-plan`.
-8. **Archive the stream file and QA artifacts** — first check: does the stream file have `closure_approved: true`? If not, **STOP**. Do not archive. Ask the owner to set it. Only when `closure_approved: true` is present: move `work/<slug>.md` → `work/archive/<slug>.md`; if `.platform/work/qa/<slug>-manual-qa.md` exists, move it to `.platform/work/archive/qa/<slug>-manual-qa.md`; if `.platform/work/qa/<slug>-execution-journal.md` exists, move it to `.platform/work/archive/qa/<slug>-execution-journal.md`; keep the archived stream pointing to archived QA files. Remove the stream from `ACTIVE.md`, reset `BRIEF.md`. **Remove the closed stream from `BRIEF.md` entirely — do NOT add a "Previously completed" section.** Completed work belongs in `log.md` only. `BRIEF.md` must only ever list active streams.
+8. **Close the stream and its QA artifacts** — first check: does the stream file have `closure_approved: true`? If not, **STOP**. Do not close. Ask the owner to set it. Only when `closure_approved: true` is present, write the `## Knowledge delta` in the stream file (keyed current-state facts per `### <domain> | <layer>`; see `ab close <slug>`), then run `ab close <slug> --confirm`. It merges the delta into `.platform/domains/<domain>.md`, copies the stream and its `work/qa/<slug>-manual-qa.md` / `<slug>-execution-journal.md` outside the repo (`~/.agentboard/cold/`), and removes them from `.platform/work/`. Remove the stream from `ACTIVE.md`, reset `BRIEF.md`. **Remove the closed stream from `BRIEF.md` entirely — do NOT add a "Previously completed" section.** Completed work belongs in `log.md` only. `BRIEF.md` must only ever list active streams.
 9. **Log token usage** — run `ab usage log` to record the total token investment for this stream (aggregate from session reports).
 10. **Append to log.md** — one line: `YYYY-MM-DD — <stream> — <outcome> — <takeaway>`.
 11. **Learnings check** — any non-obvious bugs surfaced? Confirm they are in `learnings.md`. Add if missing.

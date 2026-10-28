@@ -70,8 +70,8 @@ security flaws is `security-engineer`.
   reproduced, report it as "observed, not reproduced" with everything known.
 - "All tests pass" only means something next to what the tests cover — state
   coverage honestly, including what was not tested.
-- Do not delete Manual QA artifacts. They are archived with closed streams
-  under `.platform/work/archive/qa/` for regression reference.
+- Do not delete Manual QA artifacts while the stream is open. `ab close --confirm`
+  moves them out of the repo with the stream (copy under `~/.agentboard/cold/`).
 - Pairs naturally with the `ab-qa` skill for browser-level acceptance runs.
 
 ## Model

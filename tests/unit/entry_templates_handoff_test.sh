@@ -52,7 +52,7 @@ test_all_entry_templates_require_manual_qa_artifacts() {
     assert_file_contains "$t" "commit, push, merge, release, or stream closure"
     assert_file_contains "$t" "bug repro/regression steps"
     assert_file_contains "$t" "Manual QA: not required"
-    assert_file_contains "$t" ".platform/work/archive/qa/"
+    assert_file_contains "$t" "~/.agentboard/cold/"
   done
 }
 
@@ -79,7 +79,7 @@ test_live_entry_files_require_manual_qa_artifacts() {
     assert_file_contains "$t" "commit, push, merge, release, or stream closure"
     assert_file_contains "$t" "bug repro/regression steps"
     assert_file_contains "$t" "Manual QA: not required"
-    assert_file_contains "$t" ".platform/work/archive/qa/"
+    assert_file_contains "$t" "~/.agentboard/cold/"
   done
 }
 

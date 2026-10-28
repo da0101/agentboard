@@ -280,7 +280,7 @@ These files are generic and ship verbatim — you don't need to rewrite them:
 - **`.platform/work/BRIEF.md`** — feature brief (read FIRST every session — narrative context for current active feature)
 - **`.platform/work/ACTIVE.md`** — active workstream registry (read every session start, after BRIEF.md)
 - **`.platform/work/TEMPLATE.md`** — skeleton for new workstreams; copy to `work/<slug>.md` when starting work
-- **`.platform/work/archive/`** — completed workstreams land here after the done ritual
+- **`.platform/work/archive/`** — legacy location; new closes merge knowledge into `domains/` and remove the stream file (`ab close --confirm`)
 - **`.platform/agents/work-tracking.md`** — the full work tracking protocol
 
 These are your starting points — read them but don't rewrite them unless the user explicitly asks.
