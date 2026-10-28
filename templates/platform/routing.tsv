@@ -1,0 +1,21 @@
+# Model routing — task type + complexity -> tier. Edit freely; `ab route` reads this file.
+# Columns (tab-separated): task_type  complexity(low|medium|high|*)  tier  why
+# Tiers are mapped to real models per provider in models.tsv.
+research	*	balanced	read-only analysis never needs the frontier tier
+audit	*	balanced	read-only; depth comes from the prompt, not the model
+review	*	balanced	reading a diff is analysis
+docs	*	balanced	writing and editing prose
+test-writing	*	balanced	mechanical once the spec is clear
+conversation	*	balanced	questions and small tasks
+exploration	*	fast	file search and listing
+chore	*	fast	renames, formatting, mechanical edits
+handoff	*	fast	summarising state for the next agent
+debug	low	balanced	obvious cause
+debug	medium	balanced	start balanced; upgrade after one failed hypothesis
+debug	high	strong	elusive or cross-layer bug
+implementation	low	balanced	small, well-specified change
+implementation	medium	strong	multi-file change
+implementation	high	strong	large or risky change; plan first, then execute
+design	low	balanced	small design question
+design	medium	strong	component or API design
+design	high	frontier	greenfield architecture, hardest decisions

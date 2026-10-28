@@ -8,8 +8,8 @@ source "$ROOT/helpers.sh"
 export NO_COLOR=1
 
 PLATFORM="$TEST_ROOT/templates/platform"
-SKILLS_TMPL="$TEST_ROOT/templates/skills"
-SKILLS_RUNTIME="$TEST_ROOT/.claude/skills"
+SKILLS_TMPL="$(all_skill_templates)"   # core + opt-in extras
+SKILLS_RUNTIME="$SKILLS_TMPL"   # extras are opt-in installs now (see skill_catalog_test)
 VSCODE="$TEST_ROOT/extensions/vscode"
 NEW_SKILLS="ab-benchmark ab-browser-qa ab-architecture-audit ab-search-first ab-strategic-compact"
 

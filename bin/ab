@@ -26,6 +26,7 @@ AGENTBOARD_ROOT="$(cd "$SCRIPT_PATH/.." && pwd)"
 TEMPLATES_PLATFORM="$AGENTBOARD_ROOT/templates/platform"
 TEMPLATES_ROOT="$AGENTBOARD_ROOT/templates/root"
 TEMPLATES_SKILLS="$AGENTBOARD_ROOT/templates/skills"
+TEMPLATES_SKILLS_EXTRA="$AGENTBOARD_ROOT/templates/skills-extra"   # opt-in: ab skill install <name>
 
 VERSION="1.21.0"
 
@@ -67,6 +68,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/brief_patterns.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/validate.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/sync_skills.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/skill_add.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/skill_catalog.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/control_plane.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/worktree_state.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/worktree.sh"
@@ -74,6 +76,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/recall.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/recall_check.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/protocol.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/entry.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/route.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_poll.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/watch_install.sh"
@@ -203,6 +206,7 @@ main() {
     recall)     cmd_recall "$@" ;;
     protocol)   cmd_protocol "$@" ;;
     entry)      cmd_entry "$@" ;;
+    route)      cmd_route "$@" ;;
     distill)     cmd_distill "$@" ;;
     index)       cmd_index "$@" ;;
     synthesize)  cmd_synthesize "$@" ;;

@@ -112,6 +112,14 @@ COMMANDS
                              streams, recent gotchas, open questions,
                              usage pattern. Read this at session start.
                              --all             show all gotchas/questions
+  route [type] [complexity]  Which model for this task? One table (.platform/routing.tsv:
+                             task type + complexity -> tier; models.tsv: tier -> model per
+                             provider). `ab route research`, `ab route debug high`,
+                             `ab route implementation --for claude` prints just the model.
+  skill list|install|prune   Skills cost ~40-80 tokens each in EVERY session prompt. `list`
+                             shows installed skills and their cost; `install <name>` adds an
+                             opt-in extra; `prune [--apply]` removes unmodified extras.
+                             (`skill add <url|path>` still installs an external skill.)
   entry kernel|sync|check    Entry files (CLAUDE/AGENTS/GEMINI): print or refresh the
                              kit-controlled rules block; `check` measures session-start
                              tokens against the budget (warn 2000, fail 3000).

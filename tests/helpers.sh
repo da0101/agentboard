@@ -114,3 +114,15 @@ run_cli_capture() {
   printf -v "$__resultvar" '%s' "$captured"
   return 0
 }
+
+# Skills are split into a core set (templates/skills) and opt-in extras
+# (templates/skills-extra). Structural tests that only care that a skill exists
+# and is well-formed read this merged, throwaway view of both.
+all_skill_templates() {
+  local view d
+  view="$(mktemp -d)"
+  for d in "$TEST_ROOT"/templates/skills/*/ "$TEST_ROOT"/templates/skills-extra/*/; do
+    [[ -d "$d" ]] && ln -s "${d%/}" "$view/$(basename "$d")"
+  done
+  printf '%s' "$view"
+}

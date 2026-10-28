@@ -8,8 +8,8 @@ source "$ROOT/helpers.sh"
 export NO_COLOR=1
 
 PLATFORM="$TEST_ROOT/templates/platform"
-SKILLS_TMPL="$TEST_ROOT/templates/skills"
-SKILLS_RUNTIME="$TEST_ROOT/.claude/skills"
+SKILLS_TMPL="$(all_skill_templates)"   # core + opt-in extras
+SKILLS_RUNTIME="$SKILLS_TMPL"   # extras are opt-in installs now (see skill_catalog_test)
 BIN="$TEST_ROOT/bin/agentboard"
 NEW_SKILLS="ab-verification-loop ab-agent-eval ab-skill-scout ab-codebase-onboarding ab-tdd ab-canary ab-token-budget"
 

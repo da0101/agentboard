@@ -9,7 +9,7 @@ export NO_COLOR=1
 
 PLATFORM="$TEST_ROOT/templates/platform"
 ROLES="$PLATFORM/roles"
-SKILLS_TMPL="$TEST_ROOT/templates/skills"
+SKILLS_TMPL="$(all_skill_templates)"   # core + opt-in extras
 EXT="$TEST_ROOT/extensions/vscode/src"
 
 # 1. templates/platform/roles/code-simplifier.md exists

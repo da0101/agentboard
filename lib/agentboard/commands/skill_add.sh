@@ -81,7 +81,10 @@ cmd_skill() {
   local sub="${1:-}"
   shift 2>/dev/null || true
   case "$sub" in
-    add) cmd_skill_add "$@" ;;
-    *)   die "Usage: ab skill add <url-or-path>" ;;
+    add)     cmd_skill_add "$@" ;;
+    list)    cmd_skill_list ;;
+    install) cmd_skill_install "$@" ;;
+    prune)   cmd_skill_prune "$@" ;;
+    *)       die "Usage: ab skill list | install <name...> | prune [--apply] | add <url-or-path>" ;;
   esac
 }

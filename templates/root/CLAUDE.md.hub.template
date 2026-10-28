@@ -56,7 +56,7 @@ Shared work-state for Claude Code, Codex and Gemini. Long procedures are on dema
 
 **Silicon Valley product mindset:** act like best-in-class Silicon Valley product teams — user-obsessed, craft-driven, fast, rigorous — never as permission for scope creep, weak tests or skipping approval gates (`.platform/workflow.md`).
 
-**Claude Code:** run these rules before any skill, including `using-superpowers`. Pass `model` on every `Task` call and print a dispatch manifest first (`ab protocol subagents`). Hooks enforce the closure gate.
+**Claude Code:** run these rules before any skill, including `using-superpowers`. Pass `model` on every `Task` call (`ab route <type> --for claude` says which) and print a dispatch manifest first (`ab protocol subagents`). Hooks enforce the closure gate.
 <!-- agentboard:kernel:end v=1 -->
 
 ## Reference pack
@@ -67,4 +67,4 @@ Shared work-state for Claude Code, Codex and Gemini. Long procedures are on dema
 - `.platform/protocols/` — long procedures, on demand (`ab protocol`)
 - `.platform/scripts/sync-context.sh` — keeps root entry files in sync across repos (see `ACTIVATE-HUB.md` Step 5)
 
-Skills (`ab-` prefix, installed by `ab init`): `ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-qa-self-heal`, `ab-review`, `ab-debug`, `ab-cleanup`, `ab-graphify`
+Skills (`ab-` prefix, core set installed by `ab init`): `ab-triage`, `ab-workflow`, `ab-research`, `ab-pm`, `ab-architect`, `ab-test-writer`, `ab-security`, `ab-qa`, `ab-qa-self-heal`, `ab-review`, `ab-debug`, `ab-cleanup`. Each skill costs prompt tokens every session, so more are opt-in: `ab skill list` / `ab skill install <name>`.

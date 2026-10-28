@@ -1,0 +1,8 @@
+# Model per tier and provider. Edit freely; `ab route` reads this file.
+# Columns (tab-separated): tier  claude  codex  gemini   ("-" = not set yet)
+# Claude Code takes these aliases in the Task/agent() `model` parameter.
+# Set Codex/Gemini model ids yourself: Agentboard ships none, because ids go stale.
+fast	haiku	-	-
+balanced	sonnet	-	-
+strong	opus	-	-
+frontier	fable	-	-

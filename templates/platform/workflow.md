@@ -549,12 +549,8 @@ Repeat until the scorecard is all 🟢:
 
 ## Model profile hint
 
-| Scope / work type | Model |
-|---|---|
-| Trivial / mechanical | Haiku — cheapest, zero reasoning needed |
-| Small–medium, analysis, research, review, writing | Sonnet — balanced, handles most work |
-| Large, implementation, architectural decisions | Opus — quality reasoning, multi-file changes |
-| Frontier — greenfield systems, hardest design decisions | Fable — maximum capability |
+Look the model up instead of memorising a table: `ab route <task-type> [low|medium|high]` (add `--for claude` for just the alias). The data lives in `.platform/routing.tsv` (task type + complexity → tier) and `.platform/models.tsv` (tier → model per provider); edit those when models change. `ab usage report --by model` shows what was actually used.
+
 
 ### Workflow agent model rules (Claude Code /workflows)
 

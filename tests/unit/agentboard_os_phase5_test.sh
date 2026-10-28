@@ -7,8 +7,8 @@ source "$ROOT/helpers.sh"
 
 export NO_COLOR=1
 
-SKILLS_TMPL="$TEST_ROOT/templates/skills"
-SKILLS_RUNTIME="$TEST_ROOT/.claude/skills"
+SKILLS_TMPL="$(all_skill_templates)"   # core + opt-in extras
+SKILLS_RUNTIME="$SKILLS_TMPL"   # extras are opt-in installs now (see skill_catalog_test)
 NEW_SKILLS="ab-code-tour ab-api-design ab-agentic-engineering ab-autonomous-loop ab-blueprint ab-team-orchestration"
 
 # 1. templates/skills/ab-code-tour/SKILL.md exists

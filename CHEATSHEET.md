@@ -93,6 +93,8 @@ agentboard entry check               # session-start tokens vs budget (warn 2000
 agentboard entry sync [--dry-run]    # refresh the kit-controlled rules block in CLAUDE/AGENTS/GEMINI.md
 agentboard usage ingest [--all]      # load REAL tokens from Claude/Codex transcripts (subagents included)
 agentboard usage report [--by model] # measured tokens, cache-hit rate; --cost uses ~/.agentboard/pricing.tsv
+agentboard route <type> [low|medium|high]   # which model tier/model for this task (--for claude prints the alias)
+agentboard skill list|install|prune  # skills cost prompt tokens every session; extras are opt-in
 
 ### Worktrees (on demand — branch in the main checkout by default)
 agentboard worktree new <slug> [--type bugfix|hotfix]   # only when asked / two sessions on one repo
