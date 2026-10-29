@@ -87,7 +87,7 @@ agentboard close <slug> --confirm    # step 2: merge the stream's "## Knowledge 
 agentboard recall <topic> [--layer L]  # pull the best knowledge card, token-budgeted
 agentboard recall --list             # one line per card (the map)
 agentboard recall --check [card]    # drift: file paths cards name that no longer exist (doctor warns too)
-agentboard recall --check --fix [--apply]   # re-point paths that MOVED to one new home; lists ambiguous/gone with git history
+agentboard recall --check --fix [--apply] [--prune]  # re-point MOVED paths (incl. JS->TS renames); --prune drops path-only bullets git says were deleted
 agentboard brief --start             # session-start packet (~500 tokens): open streams, card names, top gotchas
 agentboard protocol [name]           # long procedures on demand (new-task, closure, handoff, qa, ...)
 agentboard entry check               # session-start tokens vs budget (warn 2000 / fail 3000); doctor runs it too

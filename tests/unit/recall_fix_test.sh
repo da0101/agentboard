@@ -170,6 +170,88 @@ EOT
   printf '%s\n' "$output" | grep -A1 "src/Imaginary.js" | grep -q "never in git history" || fail "unknown file should say never in git history"
 }
 
+test_a_javascript_to_typescript_rename_is_followed_when_unambiguous() {
+  local output f
+  setup_fix_fixture
+  mkdir -p "$RF_DIR/src/redux"; printf 'x\n' > "$RF_DIR/src/redux/store.ts"; ( cd "$RF_DIR" && git add -A && git commit -qm ts )
+  write_fix_card rn <<'EOT'
+Store: `src/redux/store.js`.
+EOT
+  f="$RF_DIR/.platform/domains/rn.md"
+  run_cli_capture output "$RF_DIR" recall --check --fix --apply
+  assert_file_contains "$f" "src/redux/store.ts"
+  assert_file_not_contains "$f" "store.js"
+}
+
+test_two_candidate_extensions_are_ambiguous_not_guessed() {
+  local output f before
+  setup_fix_fixture
+  mkdir -p "$RF_DIR/src/ui"; printf 'x\n' > "$RF_DIR/src/ui/Panel.ts"; printf 'x\n' > "$RF_DIR/src/ui/Panel.tsx"; ( cd "$RF_DIR" && git add -A && git commit -qm two )
+  write_fix_card amb2 <<'EOT'
+Panel: `src/ui/Panel.js`.
+EOT
+  f="$RF_DIR/.platform/domains/amb2.md"; before="$(cat "$f")"
+  run_cli_capture output "$RF_DIR" recall --check --fix --apply
+  assert_contains "$output" "1 ambiguous"
+  assert_eq "$(cat "$f")" "$before"
+}
+
+test_an_extension_change_outside_the_js_ts_family_is_not_followed() {
+  local output f before
+  setup_fix_fixture
+  mkdir -p "$RF_DIR/docs"; printf 'x\n' > "$RF_DIR/docs/guide.md"; ( cd "$RF_DIR" && git add -A && git commit -qm docs )
+  write_fix_card nf <<'EOT'
+Guide: `docs/guide.txt`.
+EOT
+  f="$RF_DIR/.platform/domains/nf.md"; before="$(cat "$f")"
+  run_cli_capture output "$RF_DIR" recall --check --fix --apply
+  assert_eq "$(cat "$f")" "$before"
+}
+
+test_prune_removes_only_bare_bullets_of_git_deleted_files() {
+  local output f
+  setup_fix_fixture
+  printf 'x\n' > "$RF_DIR/src/Doomed.js"; printf 'x\n' > "$RF_DIR/src/Doomed2.js"
+  ( cd "$RF_DIR" && git add -A && git commit -qm add && git rm -q src/Doomed.js src/Doomed2.js && git commit -qm rm )
+  write_fix_card pr <<'EOT'
+## Files
+- `src/Doomed.js`
+- `src/Doomed2.js` — explains an important invariant worth keeping
+- `src/NeverExisted.js`
+- `src/new/shared/Widget.js`
+EOT
+  f="$RF_DIR/.platform/domains/pr.md"
+  run_cli_capture output "$RF_DIR" recall --check --fix --prune --apply
+  assert_contains "$output" "1 bare bullet(s) removed"
+  assert_file_not_contains "$f" "- \`src/Doomed.js\`"
+  assert_file_contains "$f" "src/Doomed2.js"
+  assert_file_contains "$f" "explains an important invariant worth keeping"
+  assert_file_contains "$f" "src/NeverExisted.js"
+  assert_file_contains "$f" "src/new/shared/Widget.js"
+}
+
+test_prune_is_opt_in_and_preview_writes_nothing() {
+  local output f before
+  setup_fix_fixture
+  printf 'x\n' > "$RF_DIR/src/Doomed.js"; ( cd "$RF_DIR" && git add -A && git commit -qm add && git rm -q src/Doomed.js && git commit -qm rm )
+  write_fix_card op <<'EOT'
+- `src/Doomed.js`
+EOT
+  f="$RF_DIR/.platform/domains/op.md"; before="$(cat "$f")"
+  run_cli_capture output "$RF_DIR" recall --check --fix --apply
+  assert_eq "$(cat "$f")" "$before"
+  run_cli_capture output "$RF_DIR" recall --check --fix --prune
+  assert_contains "$output" "would be removed"
+  assert_eq "$(cat "$f")" "$before"
+}
+
+test_unknown_fix_flags_are_rejected() {
+  local output
+  setup_fix_fixture
+  run_cli_capture output "$RF_DIR" recall --check --fix --bogus
+  [[ "$RUN_STATUS" -ne 0 ]] || fail "unknown flag should fail"
+}
+
 test_a_moved_file_with_one_new_home_is_corrected
 test_preview_writes_nothing
 test_same_named_files_in_several_places_are_ambiguous_and_untouched
@@ -181,3 +263,9 @@ test_line_and_symbol_suffixes_survive
 test_apply_backs_up_bumps_updated_at_and_is_idempotent
 test_version_numbers_and_branch_names_are_not_treated_as_files
 test_gone_paths_say_what_git_knows_about_them
+test_a_javascript_to_typescript_rename_is_followed_when_unambiguous
+test_two_candidate_extensions_are_ambiguous_not_guessed
+test_an_extension_change_outside_the_js_ts_family_is_not_followed
+test_prune_removes_only_bare_bullets_of_git_deleted_files
+test_prune_is_opt_in_and_preview_writes_nothing
+test_unknown_fix_flags_are_rejected

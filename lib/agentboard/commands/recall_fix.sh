@@ -10,7 +10,8 @@
 #   - no same-named file = gone: listed for a human (fix it, or drop the fact
 #     with a Knowledge delta "- [key] -")
 #   - only whole path tokens are replaced, never a suffix of a longer path
-# Preview by default; --apply copies the originals to the cold store first,
+# --prune additionally removes bullets that are ONLY a path git confirms was
+# deleted (nothing else on the line is lost). Preview by default; --apply copies the originals to the cold store first,
 # rewrites the cards and bumps their updated_at. Pure bash 3.2 + awk.
 # -----------------------------------------------------------------------------
 
@@ -41,6 +42,16 @@ _fix_candidate() {
       if ($1 ~ /(^|\/)(__mocks__|__tests__|node_modules|dist|build)\// && orig !~ /(__mocks__|__tests__|node_modules|dist|build)\//) next
       if (!seen[$1]++) print $1 }' "$index")"
   n="$(printf '%s' "$hits" | grep -c . || true)"
+  if (( n == 0 )); then
+    # same name, different JS/TS extension (a language migration): one candidate = a rename
+    hits="$(awk -F'\t' -v b="$b" -v orig="$p" '
+      BEGIN { st = b; sub(/\.[^.]*$/, "", st) }
+      { n = split($1, s, "/"); f = s[n]; if (f !~ /\.(js|jsx|ts|tsx)$/ || b !~ /\.(js|jsx|ts|tsx)$/) next
+        g = f; sub(/\.[^.]*$/, "", g); if (g != st) next
+        if ($1 ~ /(^|\/)(__mocks__|__tests__|node_modules|dist|build)\// && orig !~ /(__mocks__|__tests__|node_modules|dist|build)\//) next
+        if (!seen[$1]++) print $1 }' "$index")"
+    n="$(printf '%s' "$hits" | grep -c . || true)"
+  fi
   if (( n == 0 )); then echo GONE; elif (( n > 1 )); then echo AMBIGUOUS; else printf '%s%s' "$prefix" "$hits"; fi
 }
 
@@ -62,6 +73,15 @@ _fix_history() {
   printf 'never in git history'
 }
 
+# _fix_bare_bullet <card> <path> — true when a line is nothing but "- `path`"
+_fix_bare_bullet() { P="$2" awk 'BEGIN { p = "`" ENVIRON["P"] "`" } { l = $0; gsub(/^[ \t]*[-*][ \t]+/, "", l); gsub(/[ \t.,;]*$/, "", l); if (l == p) found = 1 } END { exit !found }' "$1"; }
+
+# _fix_drop_bullet <card> <path> — remove those bare bullets
+_fix_drop_bullet() {
+  local tmp; tmp="$(mktemp)"
+  P="$2" awk 'BEGIN { p = "`" ENVIRON["P"] "`" } { l = $0; gsub(/^[ \t]*[-*][ \t]+/, "", l); gsub(/[ \t.,;]*$/, "", l); if (l == p) next; print }' "$1" > "$tmp" && mv "$tmp" "$1"
+}
+
 # _fix_replace <card> <old> <new> — replace whole-token occurrences only
 _fix_replace() {
   local tmp; tmp="$(mktemp)"
@@ -76,8 +96,11 @@ _fix_replace() {
 }
 
 cmd_recall_fix() {
-  local apply=0 list index out card path new fixed=0 amb=0 gone=0 f cold cards_fixed="" want
-  while [[ "${1:-}" == "--apply" ]]; do apply=1; shift; done
+  local apply=0 prune=0 pruned=0 list index out card path new fixed=0 amb=0 gone=0 f cold cards_fixed="" want hist
+  while [[ "${1:-}" == --* ]]; do
+    case "$1" in --apply) apply=1 ;; --prune) prune=1 ;; *) die "Unknown flag for recall --check --fix: $1" ;; esac
+    shift
+  done
   list="$(mktemp)"; index="$(mktemp)"
   if (( $# > 0 )); then for want in "$@"; do [[ -f "./.platform/domains/${want%.md}.md" ]] && printf './.platform/domains/%s.md\n' "${want%.md}" >> "$list"; done
   else _recall_cards > "$list"; fi
@@ -91,7 +114,14 @@ cmd_recall_fix() {
     [[ -n "$path" ]] || continue
     new="$(_fix_candidate "$index" "$path")"
     case "$new" in
-      GONE)      gone=$((gone + 1)); printf '%s\t%s\n' "$card" "$path" >> "$index.gone" ;;
+      GONE)      hist="$(_fix_history "$path")"
+                 if (( prune )) && [[ "$hist" == deleted* ]] && _fix_bare_bullet "./.platform/domains/${card}.md" "$path"; then
+                   pruned=$((pruned + 1)); printf '  - %-34s bullet removed: %s  (%s)\n' "$card" "$path" "$hist"
+                   if (( apply )); then
+                     f="./.platform/domains/${card}.md"; mkdir -p "$cold"; [[ -f "$cold/$card.md" ]] || cp -p "$f" "$cold/$card.md"
+                     _fix_drop_bullet "$f" "$path"; case " $cards_fixed " in *" $card "*) ;; *) cards_fixed="$cards_fixed $card" ;; esac
+                   fi
+                 else gone=$((gone + 1)); printf '%s\t%s\n' "$card" "$path" >> "$index.gone"; fi ;;
       AMBIGUOUS) amb=$((amb + 1)); printf '%s\t%s\n' "$card" "$path" >> "$index.amb" ;;
       *)         fixed=$((fixed + 1)); printf '  ~ %-34s %s\n      → %s\n' "$card" "$path" "$new"
                  if (( apply )); then
@@ -107,6 +137,7 @@ cmd_recall_fix() {
     while IFS=$'\t' read -r card path; do printf '    %s: %s\n        git: %s\n' "$card" "$path" "$(_fix_history "$path")"; done < "$index.gone"
   fi
   printf '\n  %d path(s) %s, %d ambiguous, %d gone.' "$fixed" "$( (( apply )) && echo corrected || echo 'would be corrected')" "$amb" "$gone"
-  (( apply )) && (( fixed > 0 )) && printf ' Originals in %s' "$cold"
+  (( prune )) && printf ' %d bare bullet(s) %s.' "$pruned" "$( (( apply )) && echo removed || echo 'would be removed')"
+  (( apply )) && (( fixed + pruned > 0 )) && printf ' Originals in %s' "$cold"
   printf '\n'; rm -f "$index" "$index.gone" "$index.amb"; return 0
 }

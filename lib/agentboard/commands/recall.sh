@@ -17,7 +17,7 @@ recall_usage() {
 Usage: ab recall <topic...> [--layer L]... [--budget N] [--top N] [--no-related]
        ab recall --list
        ab recall --check [card...]
-       ab recall --check --fix [--apply] [card...]
+       ab recall --check --fix [--apply] [--prune] [card...]
 
   <topic>        words matched against card names, titles and bodies
   --layer L      only sections whose "## heading" contains L (repeatable),
@@ -27,7 +27,8 @@ Usage: ab recall <topic...> [--layer L]... [--budget N] [--top N] [--no-related]
   --no-related   skip the matching learnings/decisions lines
   --list         one line per card: name, repos, size, summary — the map
   --check        report file paths named in cards that no longer exist (drift)
-  --check --fix  rewrite paths that moved to one unambiguous new place (preview; --apply writes)
+  --check --fix  rewrite paths that moved (or changed JS/TS extension) to one unambiguous new
+                 place; --prune also drops bullets that are only a git-confirmed deleted path
 EOF
 }
 
