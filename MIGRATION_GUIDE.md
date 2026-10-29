@@ -260,3 +260,7 @@ What each step will and will not do:
 - **Skills.** The 12-skill core is installed by default; the rest are opt-in (`ab skill list`, `ab skill install <name>`). `ab skill prune` removes unmodified extras.
 
 Rollback: everything moved is under `~/.agentboard/cold/<project>/`, and entry-file originals are saved there too (`adopt-<date>/`). For tracked files, `git checkout -- <path>` also restores.
+
+### Hub that must not touch its sibling repos
+
+`sync-context.sh` was designed to keep every repo's `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` identical, and `ab update` / `ab bootstrap` write the sibling repos from `repos.md` into its `REPOS` list. If the siblings belong to teams that do not use Agentboard, create `.platform/sync-scope` containing the single word `hub-only`; the list then holds the hub alone on every update, and `ab sync --apply` can never rewrite a sibling's entry files.

@@ -33,6 +33,9 @@ replace_repos_table() {
 write_sync_repos_array() {
   local sync_script="$1" extra_paths="$2"
   local tmp tmp_paths was_executable=0
+  # .platform/sync-scope containing "hub-only": never list sibling repos — their entry
+  # files belong to their own teams and must not be rewritten by this hub.
+  if [[ -f ./.platform/sync-scope ]] && grep -qx 'hub-only' ./.platform/sync-scope; then extra_paths=""; fi
   tmp="$(mktemp)"
   tmp_paths="$(mktemp)"
   [[ -x "$sync_script" ]] && was_executable=1
