@@ -31,7 +31,7 @@ _recall_card_paths() {
         if (span !~ /\//) continue
         if (span ~ /^(https?|ftp|git|ssh):/ || span ~ /^~/ || span ~ /^\.\.\./) continue
         if (span ~ /[*<>{}$| ,;=]/ || span !~ /^[A-Za-z0-9_.@\/+-]+$/) continue
-        if (span !~ /\.[A-Za-z0-9]+$/) continue
+        if (span !~ /\.[A-Za-z][A-Za-z0-9]*$/) continue          # extension starts with a letter: 6.5.3 is a version, not a file
         ext = span; sub(/^.*\./, "", ext); if (length(ext) > 8) continue
         print span
       }
