@@ -44,6 +44,8 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/repair_streams.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/repair.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/repair_domains.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/domain_merge.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/hub.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/hub_install.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/stream_resolve.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/handoff.sh"
@@ -208,6 +210,7 @@ main() {
     route)      cmd_route "$@" ;;
     tidy)       cmd_tidy "$@" ;;
     domain)     cmd_domain "$@" ;;
+    hub)     cmd_hub "$@" ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help) cmd_help ;;
     *) die "Unknown command: $cmd. Run 'agentboard help'." ;;
