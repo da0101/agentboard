@@ -17,6 +17,7 @@ recall_usage() {
 Usage: ab recall <topic...> [--layer L]... [--budget N] [--top N] [--no-related]
        ab recall --list
        ab recall --index [--check]
+       ab recall --affected [<base>] [--quiet]
        ab recall --check [card...]
        ab recall --check --fix [--apply] [--prune] [card...]
        ab recall --check --accept <card> <path> <reason...>
@@ -28,6 +29,7 @@ Usage: ab recall <topic...> [--layer L]... [--budget N] [--top N] [--no-related]
   --top N        print the N best cards (default 1)
   --no-related   skip the matching learnings/decisions lines
   --list         one line per card: name, repos, size, summary — the map
+  --affected     cards that name files you changed (and changed files no card mentions)
   --index        write .platform/CARDS.md, the same map as plain markdown for agents without Agentboard
   --check        report file paths named in cards that no longer exist (drift)
   --check --accept  mark a deliberate mention (retired file, unmerged branch) so it stops being reported
@@ -136,6 +138,7 @@ cmd_recall() {
     case "$1" in
       -h|--help)    recall_usage; return 0 ;;
       --list)       list=1; shift ;;
+      --affected)   shift; cmd_recall_affected "$@"; return 0 ;;
       --index)      shift; cmd_recall_index "$@"; return $? ;;
       --check)      shift
                     case "${1:-}" in
