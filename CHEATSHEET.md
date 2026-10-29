@@ -95,6 +95,7 @@ agentboard entry sync [--dry-run]    # refresh the kit-controlled rules block in
 agentboard entry adopt [--apply]     # slim a pre-kernel CLAUDE/AGENTS/GEMINI.md (preview default; original backed up)
 agentboard tidy [--apply] [--worktrees]  # report/clean pollution, extra skills, budget, stale streams, drift
 agentboard repair domains [--apply]   # fill missing frontmatter on domain cards (repo_ids inferred, dates from text/git)
+agentboard domain merge <target> <src...> [--apply]  # fold narrow cards into one feature card; every line kept, every reference rewritten
 agentboard usage ingest [--all]      # load REAL tokens from Claude/Codex transcripts (subagents included)
 agentboard usage report [--by model] # measured tokens, cache-hit rate; --cost uses ~/.agentboard/pricing.tsv
 agentboard route <type> [low|medium|high]   # which model tier/model for this task (--for claude prints the alias)
