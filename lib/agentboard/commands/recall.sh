@@ -18,6 +18,7 @@ Usage: ab recall <topic...> [--layer L]... [--budget N] [--top N] [--no-related]
        ab recall --list
        ab recall --check [card...]
        ab recall --check --fix [--apply] [--prune] [card...]
+       ab recall --check --accept <card> <path> <reason...>
 
   <topic>        words matched against card names, titles and bodies
   --layer L      only sections whose "## heading" contains L (repeatable),
@@ -27,6 +28,7 @@ Usage: ab recall <topic...> [--layer L]... [--budget N] [--top N] [--no-related]
   --no-related   skip the matching learnings/decisions lines
   --list         one line per card: name, repos, size, summary — the map
   --check        report file paths named in cards that no longer exist (drift)
+  --check --accept  mark a deliberate mention (retired file, unmerged branch) so it stops being reported
   --check --fix  rewrite paths that moved (or changed JS/TS extension) to one unambiguous new
                  place; --prune also drops bullets that are only a git-confirmed deleted path
 EOF
@@ -132,7 +134,13 @@ cmd_recall() {
     case "$1" in
       -h|--help)    recall_usage; return 0 ;;
       --list)       list=1; shift ;;
-      --check)      shift; if [[ "${1:-}" == "--fix" ]]; then shift; cmd_recall_fix "$@"; else cmd_recall_check "$@"; fi; return 0 ;;
+      --check)      shift
+                    case "${1:-}" in
+                      --fix)    shift; cmd_recall_fix "$@" ;;
+                      --accept) shift; cmd_recall_accept "$@" ;;
+                      *)        cmd_recall_check "$@" ;;
+                    esac
+                    return 0 ;;
       --layer)      [[ -n "${2:-}" ]] || die "--layer needs a value"; layers+=("$(_recall_lower "$2")"); shift 2 ;;
       --budget)     [[ "${2:-}" =~ ^[0-9]+$ ]] || die "--budget needs a number"; budget="$2"; shift 2 ;;
       --top)        [[ "${2:-}" =~ ^[0-9]+$ ]] || die "--top needs a number"; top="$2"; shift 2 ;;

@@ -97,8 +97,30 @@ _recall_missing() {
       for (k = n - 1; k >= 1; k--) { s = part[k] "/" s; if (s in want) found[s] = 1 }
       next }
     { if (!($2 in found)) print $1 "\t" $2 }               # pass 3: report
-  ' "$cand" "$index" "$cand"
+  ' "$cand" "$index" "$cand" | _recall_drop_accepted
   rm -f "$cand" "$index"
+}
+
+# Deliberate mentions (a retired file, a git-ignored snapshot, work on an unmerged branch)
+# are recorded in .platform/drift-ignore as "card:path  # date reason" (or just "path").
+# stdin "card<TAB>path" -> same, minus the accepted ones.
+_recall_drop_accepted() {
+  local ign="./.platform/drift-ignore"
+  if [[ -s "$ign" ]]; then      # non-empty only: with an empty file awk's NR==FNR trick would swallow the data
+    awk -F'\t' 'NR == FNR { sub(/[ \t]*#.*$/, "", $0); gsub(/^[ \t]+|[ \t]+$/, "", $0); if ($0 != "") ok[$0] = 1; next }
+                 !(($1 ":" $2) in ok) && !($2 in ok) { print }' "$ign" -
+  else cat; fi
+}
+
+# ab recall --check --accept <card> <path> [reason...]
+cmd_recall_accept() {
+  local card="${1:-}" file="${2:-}" reason
+  [[ -n "$card" && -n "$file" ]] || die "Usage: ab recall --check --accept <card> <path> [reason...]"
+  [[ -f "./.platform/domains/${card%.md}.md" ]] || die "No such card: $card"
+  shift 2; reason="$*"
+  [[ -n "$reason" ]] || die "Say why (the next reader needs it): ab recall --check --accept $card $file <reason>"
+  printf '%s:%s  # %s %s\n' "${card%.md}" "$file" "$(today)" "$reason" >> ./.platform/drift-ignore
+  ok "Accepted: ${card%.md}: $file (recorded in .platform/drift-ignore)"
 }
 
 # _recall_stale_scan — totals over every card (used by doctor)
@@ -128,7 +150,7 @@ cmd_recall_check() {
   while IFS= read -r want; do [[ -n "$want" ]] && total_paths=$((total_paths + $(_recall_card_paths "$want" | grep -c . || true))); done < "$list"
   out="$(_recall_missing "$list")"; rm -f "$list"
   if [[ -z "$out" ]]; then
-    ok "All ${total_paths} file path(s) across ${cards} card(s) resolve to a real file."
+    ok "All ${total_paths} file path(s) across ${cards} card(s) resolve to a real file$( [[ -f ./.platform/drift-ignore ]] && printf ' (or are accepted in .platform/drift-ignore)')."
     return 0
   fi
   for name in $(printf '%s\n' "$out" | cut -f1 | sort -u); do
