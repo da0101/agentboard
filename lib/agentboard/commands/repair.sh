@@ -5,6 +5,7 @@
 _repair_usage() {
   cat <<'EOF'
 Usage: ab repair [--dry-run] [--max-passes N]
+       ab repair domains [--apply]     normalize domain-card frontmatter (preview by default)
 
 Scans generated Agentboard context files for known stale paths and metadata
 drift, rewrites safe matches, refreshes shipped process files with ab update,
@@ -87,6 +88,7 @@ _repair_validate_pass() {
 }
 
 cmd_repair() {
+  if [[ "${1:-}" == "domains" ]]; then shift; cmd_repair_domains "$@"; return; fi
   [[ -d "./.platform" ]] || die "No .platform/ found. Run 'ab init' first."
 
   local dry_run=0 max_passes=2
