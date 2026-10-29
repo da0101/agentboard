@@ -16,7 +16,9 @@
 
 _hub_file() { printf '%s' "${AB_HUBS_FILE:-$HOME/.agentboard/hubs.tsv}"; }
 
-# _hub_rows <hub> — "root<TAB>hub<TAB>id" for every existing repo in the hub's repos.md
+# _hub_rows <hub> — "root<TAB>hub<TAB>id" for every existing repo in the hub's repos.md.
+# A path that does not exist here (another machine, another username) falls back to a folder of the
+# same name next to the hub.
 _hub_rows() {
   local hub="$1" row id path abs
   [[ -f "$hub/.platform/repos.md" ]] || return 0
@@ -24,7 +26,7 @@ _hub_rows() {
     [[ -n "$row" ]] || continue
     id="${row%%|*}"; path="$(printf '%s' "$row" | cut -d'|' -f2)"
     case "$path" in "~"/*) path="$HOME/${path#\~/}" ;; esac
-    abs="$(cd "$hub" 2>/dev/null && cd "$path" 2>/dev/null && pwd -P)" || continue
+    abs="$(cd "$hub" 2>/dev/null && cd "$path" 2>/dev/null && pwd -P)" || abs="$(cd "$hub/../$(basename "$path")" 2>/dev/null && pwd -P)" || continue
     [[ "$abs" == "$hub" ]] && continue
     printf '%s\t%s\t%s\n' "$abs" "$hub" "$id"
   done < <(repo_rows_from_registry "$hub/.platform/repos.md")

@@ -6,6 +6,8 @@ Shared work-state for Claude Code, Codex and Gemini. Long procedures are on dema
 
 **Loading:** open only files named in `work/BRIEF.md` § "Relevant context". For a feature or topic run `ab recall <topic> [--layer backend|web|mobile]` before opening a domain file. Never read `work/archive/*`.
 
+**No `ab` command on this machine?** Skip every `ab …` step: read `.platform/CARDS.md`, open only the one card that matches your task, and leave `work/archive/*` alone.
+
 **Hard rules**
 1. Task not in `work/ACTIVE.md`? Run `ab protocol new-task` before any research or code. New stream: research first, present the plan, wait for human approval.
 2. Work on a `feature/<slug>` or `bugfix/<slug>` branch in the main checkout (`hotfix/<slug>` only if told). Worktrees are on demand: `ab worktree new <slug>`.

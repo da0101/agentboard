@@ -148,6 +148,15 @@ test_register_registers_repos_and_never_writes_into_them() {
   [[ ! -e "$API/.claude" && ! -e "$API/.platform" ]] || fail "nothing may be added to the sibling repo"
 }
 
+test_register_finds_repos_by_name_when_repos_md_paths_belong_to_another_machine() {
+  setup_hub_fixture
+  sed -i.bak 's#| ../ApiServer |#| /Users/someone-else/GitHub/ApiServer |#' "$HUB/.platform/repos.md"; rm -f "$HUB/.platform/repos.md.bak"
+  run_cli_capture OUT "$HUB" hub register
+  assert_file_contains "$AB_HUBS_FILE" "$API"
+  assert_not_contains "$OUT" "ghost"
+}
+
+
 test_register_records_existing_repos_only_and_is_idempotent
 test_session_hook_prints_hub_context_inside_a_registered_repo
 test_session_hook_is_silent_elsewhere_and_without_a_registry
@@ -161,3 +170,4 @@ test_override_variable_lifts_the_guard
 test_guard_fails_open_on_garbage_input
 test_hub_check_reports_what_the_hooks_do
 test_register_registers_repos_and_never_writes_into_them
+test_register_finds_repos_by_name_when_repos_md_paths_belong_to_another_machine

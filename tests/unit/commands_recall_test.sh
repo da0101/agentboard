@@ -138,6 +138,25 @@ test_recall_top_prints_multiple_cards() {
   assert_contains "$output" "recall: billing"
 }
 
+test_recall_index_writes_a_plain_card_map_and_detects_staleness() {
+  local output
+  setup_recall_fixture
+  run_cli_capture output "$RC_DIR" recall --index --check
+  assert_status "$RUN_STATUS" 1
+  run_cli_capture output "$RC_DIR" recall --index
+  assert_status "$RUN_STATUS" 0
+  assert_file_contains "$RC_DIR/.platform/CARDS.md" '`domains/questionnaires.md` [api-server,web-app,mobile-app]'
+  assert_file_contains "$RC_DIR/.platform/CARDS.md" "billing"
+  [[ "$(grep -c TEMPLATE "$RC_DIR/.platform/CARDS.md")" == 0 ]] || fail "template must not be listed"
+  run_cli_capture output "$RC_DIR" recall --index --check
+  assert_status "$RUN_STATUS" 0
+  printf '\nextra\n' >> "$RC_DIR/.platform/domains/billing.md"; printf '# New\n\nNew words.\n' > "$RC_DIR/.platform/domains/newcard.md"
+  run_cli_capture output "$RC_DIR" recall --index --check
+  assert_status "$RUN_STATUS" 1
+  run_cli_capture output "$RC_DIR" recall questionnaires
+  assert_not_contains "$output" "CARDS.md"
+}
+
 test_recall_list_shows_cards_without_template() {
   local output
   setup_recall_fixture
@@ -173,6 +192,7 @@ test_recall_budget_truncates_and_names_what_was_left_out
 test_recall_no_match_says_so
 test_recall_includes_related_knowledge_unless_disabled
 test_recall_top_prints_multiple_cards
+test_recall_index_writes_a_plain_card_map_and_detects_staleness
 test_recall_list_shows_cards_without_template
 test_recall_requires_a_topic_or_list
 test_recall_fails_outside_a_project
