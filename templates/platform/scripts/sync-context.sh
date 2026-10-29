@@ -7,7 +7,8 @@
 #   Derived (auto-generated):  AGENTS.md   (Codex CLI variant)
 #                              GEMINI.md   (Gemini CLI variant)
 #
-#   The 3 files are IDENTICAL except for two substitutions per variant:
+#   The 3 files are IDENTICAL except for two substitutions per variant, and the
+#   generated rules "kernel" block, which `ab entry sync` keeps per provider:
 #     1. Header line:  "Claude Code Entry"  ->  "Codex CLI Entry" | "Gemini CLI Entry"
 #     2. Self-reference path: "<repo>/CLAUDE.md"  ->  "<repo>/AGENTS.md" | "<repo>/GEMINI.md"
 #        (repo name is inferred dynamically — no hardcoding needed)
@@ -118,6 +119,15 @@ generate_gemini() {
 }
 
 # ---------------------------------------------------------------------------
+# The rules "kernel" block (between agentboard:kernel:begin/end) is generated per
+# provider by `ab entry sync`, so it legitimately differs between CLAUDE.md,
+# AGENTS.md and GEMINI.md. Drift is judged on everything outside it.
+# ---------------------------------------------------------------------------
+strip_kernel() {
+  awk '/agentboard:kernel:begin/ { skip = 1 } !skip { print } /agentboard:kernel:end/ { skip = 0 }' "$1"
+}
+
+# ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 drift_count=0
@@ -144,7 +154,7 @@ for repo in "${REPOS[@]}"; do
     esac
 
     if [[ -f "$target" ]]; then
-      if cmp -s "$tmp" "$target"; then
+      if [[ "$(strip_kernel "$tmp")" == "$(strip_kernel "$target")" ]]; then
         echo "${C_GREEN}OK${C_RESET}      $label/${variant}.md"
       else
         drift_count=$((drift_count + 1))
@@ -181,6 +191,12 @@ if [[ "$MODE" == "apply" ]]; then
     echo "${C_GREEN}All entry files already in sync.${C_RESET} (no writes)"
   else
     echo "${C_GREEN}Synced ${write_count} file(s).${C_RESET}"
+    # The copy carries CLAUDE.md's kernel block; let ab swap in each provider's own.
+    if command -v ab >/dev/null 2>&1; then
+      for repo in "${REPOS[@]}"; do (cd "$repo" && ab entry sync >/dev/null 2>&1) || true; done
+    else
+      echo "${C_YELLOW}Note:${C_RESET} 'ab' not found — run 'ab entry sync' in each repo so AGENTS.md/GEMINI.md get their own provider note."
+    fi
     if [[ $skip_count -gt 0 ]]; then
       echo "${C_DIM}Skipped ${skip_count} repo(s) without a CLAUDE.md.${C_RESET}"
     fi
