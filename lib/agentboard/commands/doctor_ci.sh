@@ -35,15 +35,19 @@ _dr_check_git_hooks() {
   local hook hook_file
   for hook in pre-commit post-commit; do
     hook_file="./.git/hooks/$hook"
-    if [[ -f "$hook_file" ]] && grep -q "ab" "$hook_file" 2>/dev/null; then
+    # The installed hook is a thin wrapper that delegates to .platform/scripts/hooks/<hook>.
+    if [[ -f "$hook_file" ]] && grep -qE "agentboard|\.platform/scripts/hooks/" "$hook_file" 2>/dev/null; then
       ok "Git $hook hook installed"
     else
       warn "Git $hook hook not installed — run 'ab install-hooks'"
       warnings=$(( warnings + 1 ))
     fi
   done
-  local post_commit="./.git/hooks/post-commit"
-  if [[ -f "$post_commit" ]] && grep -q "ab checkpoint --auto" "$post_commit" 2>/dev/null; then
+  # The auto-checkpoint call lives in the delegated script, not in the git wrapper.
+  local post_commit="./.git/hooks/post-commit" delegated="./.platform/scripts/hooks/post-commit"
+  if { [[ -f "$post_commit" ]] && grep -q "ab checkpoint --auto" "$post_commit" 2>/dev/null; } \
+     || { [[ -f "$post_commit" ]] && grep -q "\.platform/scripts/hooks/post-commit" "$post_commit" 2>/dev/null \
+          && [[ -f "$delegated" ]] && grep -q "ab checkpoint --auto" "$delegated" 2>/dev/null; }; then
     ok "Auto-checkpoint wired into post-commit hook"
   else
     warn "Post-commit hook does not call 'ab checkpoint --auto' — auto-checkpoint disabled. Run 'ab update' to refresh hooks."

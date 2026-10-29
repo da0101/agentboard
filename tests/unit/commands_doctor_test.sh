@@ -78,6 +78,38 @@ test_doctor_warns_when_runtime_gitignore_missing() {
   assert_contains "$output" "runtime block"
 }
 
+# The git hooks that `ab init` installs are thin wrappers that delegate to
+# .platform/scripts/hooks/<hook>; doctor must recognise that, not grep for "ab".
+test_doctor_recognises_the_standard_delegating_git_hooks() {
+  local dir output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  make_git_repo "$dir" main; commit_all "$dir" initial
+  init_project_fixture "$dir"
+  run_cli_capture output "$dir" doctor
+  assert_contains "$output" "Git pre-commit hook installed"
+  assert_contains "$output" "Git post-commit hook installed"
+  assert_contains "$output" "Auto-checkpoint wired into post-commit hook"
+  assert_not_contains "$output" "hook not installed"
+  assert_not_contains "$output" "does not call"
+}
+
+test_doctor_still_warns_when_git_hooks_are_missing_or_foreign() {
+  local dir output
+  dir="$(mktemp -d)"
+  printf '{}\n' > "$dir/package.json"
+  make_git_repo "$dir" main; commit_all "$dir" initial
+  init_project_fixture "$dir"
+  rm -f "$dir/.git/hooks/pre-commit"
+  printf '#!/bin/sh\necho someone elses hook\n' > "$dir/.git/hooks/post-commit"
+  run_cli_capture output "$dir" doctor
+  assert_contains "$output" "Git pre-commit hook not installed"
+  assert_contains "$output" "Git post-commit hook not installed"
+  assert_contains "$output" "does not call"
+}
+
 test_doctor_fails_for_missing_stream_metadata
 test_doctor_passes_for_valid_streams
 test_doctor_warns_when_runtime_gitignore_missing
+test_doctor_recognises_the_standard_delegating_git_hooks
+test_doctor_still_warns_when_git_hooks_are_missing_or_foreign
