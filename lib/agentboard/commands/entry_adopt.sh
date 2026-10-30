@@ -1,6 +1,7 @@
 # -----------------------------------------------------------------------------
 # ab entry adopt [--apply] [--keep TEXT]... [--drop TEXT]... — slim an entry file
-# that predates the kernel (no Agentboard markers), e.g. a 13 KB activated CLAUDE.md.
+# that predates the kernel (no Agentboard markers), e.g. a 13 KB activated CLAUDE.md, or one that has
+# markers but still carries old procedure sections ahead of the kernel.
 #
 # Splits the file at its "## " headings and sorts each section:
 #   DROP  procedure the kernel / `ab protocol` now owns (Workflow, Session Start,
@@ -58,11 +59,11 @@ _adopt_split() {
 }
 
 _adopt_one() {
-  local file="$1" apply="$2" keeps="$3" drops="$4" work s h cls n=0 kept_b=0 drop_b=0 b out blockf cold
+  local file="$1" apply="$2" keeps="$3" drops="$4" real="${5:-$1}" work s h cls n=0 kept_b=0 drop_b=0 b out blockf cold
   work="$(mktemp -d)"; _adopt_split "$file" "$work"
   cat "$TEMPLATES_PLATFORM"/kernel/*.md "$TEMPLATES_PLATFORM"/protocols/*.md 2>/dev/null | _adopt_norm > "$work/corpus"
   : > "$work/rules"
-  printf '  %s%s%s (%d bytes)\n' "$C_BOLD" "$file" "$C_RESET" "$(wc -c < "$file" | tr -d ' ')"
+  printf '  %s%s%s (%d bytes)\n' "$C_BOLD" "$real" "$C_RESET" "$(wc -c < "$file" | tr -d ' ')"
   : > "$work/kept"
   for s in $(ls "$work" | grep '^sec\.' | sort -t. -k2 -n); do
     h="$(head_line "$work/$s")"; cls="$(_adopt_class "$h" "$keeps" "$drops")"; b="$(wc -c < "$work/$s" | tr -d ' ')"
@@ -77,9 +78,10 @@ _adopt_one() {
     awk 'NR <= 12 { print "      · " substr($0, 1, 150) }' "$work/rules"
   fi
   printf '\n'
+  if (( apply )) && [[ "$real" != "$file" ]] && (( drop_b == 0 )) && [[ ! -s "$work/rules" ]]; then say "    nothing to slim"; apply=0; fi
   if (( apply )); then
     cold="${AGENTBOARD_COLD_DIR:-$HOME/.agentboard/cold}/$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")/adopt-$(today)"
-    mkdir -p "$cold" && cp -p "$file" "$cold/$(basename "$file")"
+    mkdir -p "$cold" && cp -p "$real" "$cold/$(basename "$real")"
     out="$work/new"; blockf="$work/block"
     { printf '%s\n' '<!-- agentboard:root-entry:begin v=1 -->'
       awk '{ a[NR] = $0 } END { n = NR; while (n > 0 && a[n] ~ /^[ \t]*$/) n--; for (i = 1; i <= n; i++) print a[i] }' "$work/pre"
@@ -91,12 +93,27 @@ _adopt_one() {
       printf '%s\n' '<!-- agentboard:root-entry:end v=1 -->'
       if [[ -s "$work/tail" ]]; then printf '\n---\n\n'; cat "$work/tail"; fi
     } > "$out"
-    case "$(basename "$file")" in AGENTS.md) _entry_kernel_block codex ;; GEMINI.md) _entry_kernel_block gemini ;; *) _entry_kernel_block claude ;; esac > "$blockf"
+    case "$(basename "$real")" in AGENTS.md) _entry_kernel_block codex ;; GEMINI.md) _entry_kernel_block gemini ;; *) _entry_kernel_block claude ;; esac > "$blockf"
     _entry_apply "$out" "$blockf" >/dev/null
-    mv "$out" "$file"
-    ok "$file rewritten (original saved to $cold/$(basename "$file"))"
+    mv "$out" "$real"
+    ok "$real rewritten (original saved to $cold/$(basename "$real"))"
   fi
   rm -rf "$work"
+}
+
+# _adopt_marked <file> ... — a file that already has markers may still carry old procedure sections
+# (Workflow, Reference Pack, Subagent Model Assignment) ahead of the kernel. Slim those the same way:
+# the text between the begin marker and the kernel, plus the tail after the end marker, is handed to
+# _adopt_one as if it were an unmarked file; the kernel is regenerated.
+_adopt_marked() {
+  local f="$1" v
+  v="$(mktemp)"
+  awk '/agentboard:root-entry:begin/ { inroot = 1; next } /agentboard:kernel:begin/ { inroot = 0; skip = 1 } /agentboard:root-entry:end/ { skip = 0; tailing = 1; next }
+       inroot && !skip { print > "/dev/stdout" }' "$f" > "$v"
+  awk '/agentboard:root-entry:end/ { t = 1; next } t { print }' "$f" | awk 'NF || seen { seen = 1; print }' > "$v.tail"
+  if [[ -s "$v.tail" ]]; then printf '\n## Existing user content\n\n' >> "$v"; cat "$v.tail" >> "$v"; fi
+  _adopt_one "$v" "$2" "$3" "$4" "$f"
+  rm -f "$v" "$v.tail"
 }
 
 head_line() { sed -n '1p' "$1" | sed 's/^## *//'; }
@@ -116,7 +133,7 @@ cmd_entry_adopt() {
   printf '\n%s%sab entry adopt%s %s\n\n' "$C_BOLD" "$C_CYAN" "$C_RESET" "$( (( apply )) && echo '(applying)' || echo '(preview — add --apply to write)')"
   for f in CLAUDE.md AGENTS.md GEMINI.md; do
     [[ -f "./$f" ]] || continue
-    if grep -qF 'agentboard:root-entry:begin' "./$f"; then say "  $f: already has Agentboard markers — use: ab entry sync"; continue; fi
+    if grep -qF 'agentboard:root-entry:begin' "./$f"; then any=1; _adopt_marked "./$f" "$apply" "$keeps" "$drops"; continue; fi
     if grep -qF 'agentboard:kernel:begin' "./$f"; then say "  $f: already carries the kernel (a fresh stub) — activation wraps it; or use: ab entry sync"; continue; fi
     any=1; _adopt_one "./$f" "$apply" "$keeps" "$drops"
   done

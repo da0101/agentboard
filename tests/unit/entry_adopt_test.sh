@@ -177,14 +177,58 @@ test_keep_and_drop_override_the_classification() {
   assert_file_not_contains "$f" "Custom Billing Notes"
 }
 
-test_already_adopted_or_marked_files_are_skipped() {
+test_an_already_adopted_file_is_left_byte_identical() {
   local output before
   setup_adopt_fixture
   run_cli_capture output "$AD_DIR" entry adopt --apply
   before="$(cat "$AD_DIR/CLAUDE.md")"
   run_cli_capture output "$AD_DIR" entry adopt --apply
-  assert_contains "$output" "already has Agentboard markers"
+  assert_contains "$output" "nothing to slim"
   assert_eq "$(cat "$AD_DIR/CLAUDE.md")" "$before"
+}
+
+test_a_marked_file_with_old_procedure_sections_is_slimmed_and_keeps_kernel_and_tail() {
+  local output d f
+  d="$(mktemp -d)"; make_git_repo "$d" main; init_project_fixture "$d"; f="$d/CLAUDE.md"
+  cat > "$f" <<'EOT'
+<!-- agentboard:root-entry:begin v=1 -->
+# demo
+
+**What this is:** a demo.
+
+## Stack
+
+Rust and Postgres.
+
+## Workflow
+
+Do the six stages in order, starting with triage.
+
+## Reference Pack (.platform/)
+
+- STATUS.md and friends.
+
+<!-- agentboard:kernel:begin v=1 -->
+## Agentboard
+kernel text
+<!-- agentboard:kernel:end v=1 -->
+<!-- agentboard:root-entry:end v=1 -->
+
+---
+
+## Existing project notes
+
+Keep this exact sentence.
+EOT
+  export AGENTBOARD_COLD_DIR="$d/cold"
+  run_cli_capture output "$d" entry adopt --apply
+  assert_status "$RUN_STATUS" 0
+  assert_file_contains "$f" "## Stack"
+  assert_file_not_contains "$f" "Do the six stages"
+  assert_file_not_contains "$f" "## Reference Pack"
+  assert_file_contains "$f" "agentboard:kernel:begin"
+  assert_file_contains "$f" "Keep this exact sentence."
+  ls "$d"/cold/*/adopt-*/CLAUDE.md >/dev/null 2>&1 || fail "original not saved to the cold store"
 }
 
 test_each_file_gets_its_own_provider_note() {
@@ -226,7 +270,8 @@ test_apply_preserves_the_users_own_text_verbatim_after_the_markers
 test_apply_backs_up_the_original_to_the_cold_store
 test_apply_shrinks_the_session_start_budget
 test_keep_and_drop_override_the_classification
-test_already_adopted_or_marked_files_are_skipped
+test_an_already_adopted_file_is_left_byte_identical
 test_each_file_gets_its_own_provider_note
 test_adopt_without_a_project_fails_and_bad_flags_fail
 test_fresh_stubs_that_already_carry_the_kernel_are_left_alone
+test_a_marked_file_with_old_procedure_sections_is_slimmed_and_keeps_kernel_and_tail

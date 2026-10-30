@@ -47,6 +47,7 @@ source "$AGENTBOARD_ROOT/lib/agentboard/commands/domain_merge.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/hub.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/hub_install.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/graph.sh"
+source "$AGENTBOARD_ROOT/lib/agentboard/commands/upgrade.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/streams.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/stream_resolve.sh"
 source "$AGENTBOARD_ROOT/lib/agentboard/commands/handoff.sh"
@@ -221,6 +222,7 @@ main() {
     domain)     cmd_domain "$@" ;;
     hub)     cmd_hub "$@" ;;
     graph)   cmd_graph "$@" ;;
+    upgrade) cmd_upgrade "$@" ;;
     distill)     cmd_distill "$@" ;;
     index)       cmd_index "$@" ;;
     synthesize)  cmd_synthesize "$@" ;;
