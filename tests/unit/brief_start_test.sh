@@ -66,7 +66,7 @@ test_start_lists_card_names_newest_first_and_caps_them() {
   done
   run_cli_capture output "$BS_DIR" brief --start
   assert_contains "$output" "Cards (35)"
-  assert_contains "$output" "+5 (ab recall --list)"
+  assert_contains "$output" "+15 (ab recall --list)"
 }
 
 test_start_shows_only_never_forget_gotchas_without_the_legend_prefix() {

@@ -33,3 +33,6 @@ dist/
 .platform/graphify/cache/
 agentboard.hud-status.json
 # agentboard:runtime-end
+
+# graphify output: regenerable (graphify update .) — query it, do not commit it
+graphify-out/

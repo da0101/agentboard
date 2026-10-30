@@ -1,14 +1,14 @@
 # -----------------------------------------------------------------------------
-# ab recall --affected [<base>] [--quiet] — which knowledge cards did your changes touch?
+# ab recall --affected [<base> | --since <date>] [--quiet] — which knowledge cards did your changes touch?
 #
 # Cards go stale when code changes without a stream: a bug fix, a refactor, a new
 # feature. This reads what changed (committed since <base>, staged, unstaged,
 # untracked — in the project and in every hub repo) and lists:
 #   - cards that NAME a changed file and were not themselves updated: "still true?"
 #   - changed files no card mentions: a new feature may need a card
-# <base> defaults to each repo's upstream, else origin/develop|main|master. A base that
+# <base> defaults to each repo's upstream, else origin/develop|main|master; --since YYYY-MM-DD uses each repo's last commit before that date (a hub's repos have different histories). A base that
 # does not exist in a repo is skipped there. Flags only — it never rewrites a card.
-# --quiet prints one line, only when a card needs a look, and looks at this repo only (post-commit hook).
+# --all ignores which cards were edited in the range (use after a bulk edit). --quiet prints one line, only when a card needs a look, and looks at this repo only (post-commit hook).
 # Matching is by path suffix, like `ab recall --check`. Exit status is always 0.
 # Pure bash 3.2 + awk.
 # -----------------------------------------------------------------------------
@@ -16,6 +16,9 @@
 # _aff_base <repo> <explicit> — the ref to compare against, or nothing
 _aff_base() {
   local r="$1" b
+  if [[ -n "${AFF_SINCE:-}" && -z "${2:-}" ]]; then   # each repo's last commit before the date
+    b="$(git -C "$r" rev-list -1 --before="$AFF_SINCE" HEAD 2>/dev/null || true)"; [[ -n "$b" ]] && printf '%s' "$b"; return 0
+  fi
   if [[ -n "${2:-}" ]]; then git -C "$r" rev-parse --verify -q "$2^{commit}" >/dev/null 2>&1 && printf '%s' "$2"; return 0; fi
   b="$(git -C "$r" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
   [[ -n "$b" ]] && { printf '%s' "$b"; return 0; }
@@ -40,14 +43,14 @@ _aff_changed() {
 }
 
 cmd_recall_affected() {
-  local explicit="" quiet=0 changed keys pairs hits f total n
+  local explicit="" quiet=0 all=0 changed keys pairs hits f total n
   while [[ $# -gt 0 ]]; do
-    case "$1" in --quiet) quiet=1 ;; --*) die "Unknown flag for recall --affected: $1" ;; *) explicit="$1" ;; esac; shift
+    case "$1" in --quiet) quiet=1 ;; --all) all=1 ;; --since) [[ -n "${2:-}" ]] || die "--since needs a date (YYYY-MM-DD)"; export AFF_SINCE="$2"; shift ;; --*) die "Unknown flag for recall --affected: $1" ;; *) explicit="$1" ;; esac; shift
   done
   changed="$(mktemp)"; keys="$(mktemp)"; pairs="$(mktemp)"; hits="$(mktemp)"
   _aff_changed "$explicit" "$changed" "$quiet"
   total="$(grep -c . "$changed" || true)"
-  if (( total == 0 )); then (( quiet )) || say "Nothing changed${explicit:+ since $explicit} — no card can be stale from this."; rm -f "$changed" "$keys" "$pairs" "$hits"; return 0; fi
+  if (( total == 0 )); then (( quiet )) || say "Nothing changed${explicit:+ since $explicit}${AFF_SINCE:+ since $AFF_SINCE} — no card can be stale from this."; rm -f "$changed" "$keys" "$pairs" "$hits"; return 0; fi
 
   # key -> file: every path suffix of rel, repo-dir/rel and repo-id/rel points at "repo-dir/rel"
   awk -F'\t' '{ disp = $2 "/" $1; for (v = 1; v <= 3; v++) { p = (v == 1) ? $1 : (v == 2) ? $2 "/" $1 : $3 "/" $1
@@ -67,6 +70,7 @@ cmd_recall_affected() {
   { git diff --name-only --no-renames "${explicit:-HEAD}" 2>/dev/null; git diff --name-only HEAD 2>/dev/null; git ls-files -o --exclude-standard .platform/domains 2>/dev/null
     local b; b="$(_aff_base "." "$explicit")"; [[ -n "$b" ]] && git diff --name-only --no-renames "$b"...HEAD 2>/dev/null; } \
     | sed -n 's|^.*\.platform/domains/\(.*\)\.md$|\1|p' | sort -u > "$updated"
+  (( all )) && : > "$updated"   # --all: judge every card against the code, even ones edited in this range
   printf -- '-\n' >> "$updated"
 
   local stale
@@ -75,7 +79,7 @@ cmd_recall_affected() {
     [[ -n "$stale" ]] && printf 'ab: this change touches files named in card(s): %s — still accurate? (ab recall --affected)\n' "$(printf '%s\n' "$stale" | cut -f1 | paste -sd, - | sed 's/,/, /g')"
     rm -f "$changed" "$keys" "$pairs" "$hits" "$updated"; return 0
   fi
-  printf '\n%s%sab recall --affected%s  %s changed file(s)%s\n\n' "$C_BOLD" "$C_CYAN" "$C_RESET" "$total" "${explicit:+ since $explicit}"
+  printf '\n%s%sab recall --affected%s  %s changed file(s)%s\n\n' "$C_BOLD" "$C_CYAN" "$C_RESET" "$total" "${explicit:+ since $explicit}${AFF_SINCE:+ since $AFF_SINCE}"
   if [[ -n "$stale" ]]; then
     printf '  Cards that name files you changed — are they still true?\n'
     printf '%s\n' "$stale" | awk -F'\t' '{ printf "    %-26s %2d file(s)   e.g. %s\n", $1, $2, $3 }'

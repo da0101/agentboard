@@ -24,6 +24,22 @@ write_card() { # name body...
   { printf -- '---\nslug: %s\nrepo_ids: [x]\nupdated_at: 2026-10-01\n---\n\n# Domain: %s\n\n' "$name" "$name"; cat; } > "$RK_DIR/.platform/domains/$name.md"
 }
 
+test_check_counts_files_on_the_ref_named_in_recall_ref() {
+  local output
+  setup_check_fixture
+  git -C "$RK_DIR" branch dev; git -C "$RK_DIR" checkout -q dev
+  printf 'x\n' > "$RK_DIR/src/api/newer.ts"; commit_all "$RK_DIR" "add newer"
+  git -C "$RK_DIR" checkout -q main
+  write_card api <<'EOF2'
+- New client in `src/api/newer.ts`.
+EOF2
+  run_cli_capture output "$RK_DIR" recall --check
+  assert_contains "$output" "match no file"
+  printf 'dev\n' > "$RK_DIR/.platform/recall-ref"
+  run_cli_capture output "$RK_DIR" recall --check
+  assert_contains "$output" "resolve to a real file"
+}
+
 test_check_passes_when_every_named_file_exists() {
   local output
   setup_check_fixture
@@ -242,3 +258,4 @@ test_accepting_requires_a_reason_and_a_real_card
 test_a_card_scoped_accept_does_not_hide_the_same_path_in_another_card
 test_doctor_counts_only_unaccepted_drift
 test_an_empty_or_comment_only_ignore_file_hides_nothing
+test_check_counts_files_on_the_ref_named_in_recall_ref

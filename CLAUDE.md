@@ -38,6 +38,8 @@
 
 Plans live in chat, never in `.md` files. Every successful task appends one line to `.platform/memory/log.md`. For a new stream: research first, present the plan, wait for approval (`ab protocol new-task`). Branch in the main checkout; a worktree only on demand (`ab worktree new`). Iterate with `tests/unit.sh --filter <name>`; run the full suite before committing.
 
+Code graph (5k nodes, not committed): `graphify query "<question>"`, `graphify explain "<symbol>"`, `graphify affected "<symbol>"`; refresh with `graphify update .`. After a change, `ab recall --affected` lists the cards that name the files you touched.
+
 
 <!-- agentboard:kernel:begin v=1 -->
 ## Agentboard

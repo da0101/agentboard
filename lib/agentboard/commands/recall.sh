@@ -17,7 +17,7 @@ recall_usage() {
 Usage: ab recall <topic...> [--layer L]... [--budget N] [--top N] [--no-related]
        ab recall --list
        ab recall --index [--check]
-       ab recall --affected [<base>] [--quiet]
+       ab recall --affected [<base> | --since <date>] [--all] [--quiet]
        ab recall --check [card...]
        ab recall --check --fix [--apply] [--prune] [card...]
        ab recall --check --accept <card> <path> <reason...>

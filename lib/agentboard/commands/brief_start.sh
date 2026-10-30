@@ -7,7 +7,7 @@
 # -----------------------------------------------------------------------------
 
 BRIEF_START_MAX_STREAMS=6
-BRIEF_START_MAX_CARDS=30
+BRIEF_START_MAX_CARDS=20
 BRIEF_START_MAX_GOTCHAS=3
 
 cmd_brief_start() {

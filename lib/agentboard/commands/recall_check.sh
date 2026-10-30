@@ -11,7 +11,8 @@
 # single awk pass. Heuristic and informational: exit status is always 0, and
 # `ab doctor` surfaces only the count. Only clear file paths are considered
 # (a "/", a file extension, no globs/placeholders); :line, ::symbol, #frag are
-# stripped. Pure bash 3.2 + awk (no interval regexes: old BSD awk lacks them).
+# stripped. A hub whose checkouts lag the branch its cards describe can name that branch in
+# .platform/recall-ref (e.g. origin/develop): files on it count as present too. Pure bash 3.2 + awk (no interval regexes: old BSD awk lacks them).
 # -----------------------------------------------------------------------------
 
 RECALL_STALE_PATHS=0
@@ -56,19 +57,29 @@ _recall_roots() {
   return 0
 }
 
+# _recall_ref — branch ref the cards describe (env AB_RECALL_REF, else first line of .platform/recall-ref), or ""
+_recall_ref() { printf '%s' "${AB_RECALL_REF:-$(awk 'NF && $1 !~ /^#/ { print $1; exit }' ./.platform/recall-ref 2>/dev/null || true)}"; }
+
 # _recall_build_index <out> — every known file as "relative/path", "RepoDir/relative/path"
-# and "repo-id/relative/path", so card entries written either way resolve.
+# and "repo-id/relative/path", so card entries written either way resolve. With a ref (see
+# _recall_ref), files on that ref also count: a checkout parked on a feature branch or behind
+# origin/develop must not make a card about develop look stale. A repo without the ref is unaffected.
 _recall_build_index() {
-  local out="$1" r rid name
+  local out="$1" r rid name ref; ref="$(_recall_ref)"
   : > "$out"
   while IFS=$'\t' read -r r rid; do
     [[ -d "$r" ]] || continue
     name="$(basename "$r")"
-    if git -C "$r" rev-parse --git-dir >/dev/null 2>&1; then
-      git -C "$r" ls-files -co --exclude-standard 2>/dev/null
-    else
-      (cd "$r" && find . -type f -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null | sed 's|^\./||')
-    fi | awk -v n="$name" -v id="$rid" '{ print; print n "/" $0; if (id != n) print id "/" $0 }' >> "$out"
+    {
+      if git -C "$r" rev-parse --git-dir >/dev/null 2>&1; then
+        git -C "$r" ls-files -co --exclude-standard 2>/dev/null
+        if [[ -n "$ref" ]] && git -C "$r" rev-parse --verify -q "$ref^{commit}" >/dev/null 2>&1; then
+          git -C "$r" ls-tree -r --name-only "$ref" 2>/dev/null
+        fi
+      else
+        (cd "$r" && find . -type f -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null | sed 's|^\./||')
+      fi
+    } | awk -v n="$name" -v id="$rid" '{ print; print n "/" $0; if (id != n) print id "/" $0 }' >> "$out"
   done < <(_recall_roots)
 }
 

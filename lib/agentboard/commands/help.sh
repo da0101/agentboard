@@ -133,6 +133,8 @@ COMMANDS
                              the long procedures. No name lists them.
   hub <register|install|check>  Route agents from a hub's sibling repos to the hub via user-level hooks —
                              no file is added to those repos, and edits to their CLAUDE.md/AGENTS.md are blocked.
+  graph <build|list>         Code graphs (graphify, AST only): one per hub repo plus a merged one, built without
+                             writing into those repos. Query: graphify query "..." --graph .platform/graphify/all-repos.json
   recall <topic...>          Pull the best-matching knowledge card (domains/*.md) for a
                              topic, capped to a token budget. --layer backend|mobile|…
                              narrows to matching sections; --list prints the card map;

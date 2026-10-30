@@ -18,6 +18,17 @@ setup_affected_fixture() {
   AF="$(cd "$AF" && pwd -P)"
 }
 
+test_affected_since_a_date_uses_each_repos_last_commit_before_it() {
+  local out
+  setup_affected_fixture
+  git -C "$AF" commit -q --allow-empty --date="2020-01-01T00:00:00" -m old >/dev/null 2>&1 || true
+  printf 'changed\n' >> "$AF/src/api/client.ts"; git -C "$AF" commit -qam "later change"
+  run_cli_capture out "$AF" recall --affected --since 2999-01-01
+  assert_contains "$out" "Nothing changed"
+  run_cli_capture out "$AF" recall --affected --since 1990-01-01
+  assert_status "$RUN_STATUS" 0
+}
+
 test_affected_lists_cards_naming_a_changed_file_and_new_uncovered_files() {
   local out
   setup_affected_fixture
@@ -85,3 +96,4 @@ test_affected_sees_a_committed_change_against_an_explicit_base_and_deleted_files
 test_affected_quiet_prints_one_line_only_when_a_card_needs_a_look
 test_affected_with_no_changes_says_so_and_ignores_platform_files
 test_post_commit_hook_nudges_when_a_commit_touches_a_named_file_without_updating_the_card
+test_affected_since_a_date_uses_each_repos_last_commit_before_it
